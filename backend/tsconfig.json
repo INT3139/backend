@@ -16,6 +16,6 @@
         "resolveJsonModule": true,
         "noEmit": true
     },
-	"include": ["src/**/*"],
+	"include": ["src/**/*", "src/core/cache/.ts"],
 	"exclude": ["node_modules"]
 }
