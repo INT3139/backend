@@ -5,112 +5,39 @@ export const redis = new Redis(env.REDIS_URL);
 redis.on("error", (err: Error) => {
     console.error("Redis error:", err);
 });
+export const rGet    = (k: string)                      => redis.get(k)
+export const rDel    = (...keys: string[])              => keys.length ? redis.del(...keys) : Promise.resolve(0)
+export const rIncr   = (k: string)                      => redis.incr(k)
+export const rExists = async (k: string)                => (await redis.exists(k)) === 1
+export const rIsMember = async (k: string, m: string)   => (await redis.sismember(k, m)) === 1
+export const rSmembers = (k: string)                    => redis.smembers(k)
 
-export async function get(key: string): Promise<string | null> {
-    try {
-        return await redis.get(key);
-    } catch (err) {
-        console.error(`Error getting key ${key} from Redis:`, err);
-        return null;
-    }
+export async function rSet(k: string, v: string, ttl?: number): Promise<void> {
+  if (ttl) await redis.setex(k, ttl, v)
+  else     await redis.set(k, v)
 }
 
-export async function set(
-    key: string, 
-    value: string, 
-    ttlSeconds?: number
-): Promise<void> {
-    try {
-        if (ttlSeconds) {
-            await redis.set(key, value, "EX", ttlSeconds);
-        } else {
-            await redis.set(key, value);
-        }
-    } catch (err) {
-        console.error(`Error setting key ${key} in Redis:`, err);
-    }
+export async function rDelPattern(pattern: string): Promise<void> {
+  let cursor = '0'
+  do {
+    const [next, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100)
+    cursor = next
+    if (keys.length) await redis.del(...keys)
+  } while (cursor !== '0')
 }
 
-export async function del(...keys: string[]): Promise<void> {
-    if (keys.length === 0) return;
-    await redis.del(...keys);
+export async function rSadd(k: string, members: string[], ttl?: number): Promise<void> {
+  if (!members.length) return
+  await redis.sadd(k, ...members)
+  if (ttl) await redis.expire(k, ttl)
 }
 
-export async function delPattern(pattern: string): Promise<void> {
-    let cursor = "0";
-    do {
-        const [newCursor, keys] = await redis.scan(cursor, "MATCH", pattern, "COUNT", 100);
-        cursor = newCursor;
-        if (keys.length > 0) {
-            await redis.del(...keys);
-        }
-    } while (cursor !== "0");
+export async function rSetJson(k: string, v: unknown, ttl?: number): Promise<void> {
+  await rSet(k, JSON.stringify(v), ttl)
 }
 
-export async function exists(key: string): Promise<boolean> {
-    return (await redis.exists(key)) === 1;
-}
-
-export async function isMember(key: string, member: string) : Promise<boolean> {
-    return (await redis.sismember(key, member)) === 1;
-}
-
-export async function incr(key: string): Promise<number> {
-    return await redis.incr(key);
-}
-
-export async function getJson<T>(key: string): Promise<T | null> {
-    const value = await get(key);
-    if (value) {
-        try {
-            return JSON.parse(value) as T;
-        } catch (err) {
-            console.error(`Error parsing JSON from Redis key ${key}:`, err);
-            return null;
-        }
-    }
-    return null;
-}
-
-export async function setJson<T>(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
-    try {        
-        const stringValue = JSON.stringify(value); 
-        await set(key, stringValue, ttlSeconds);
-    }
-    catch (err) {
-        console.error(`Error setting JSON in Redis key ${key}:`, err);
-    }
-}
-
-export async function sadd(key: string, members: string[], ttlSeconds?: number): Promise<void> {
-    if (members.length === 0) return;
-    await redis.sadd(key, ...members);
-    if (ttlSeconds) {
-        await redis.expire(key, ttlSeconds);
-    }
-}
-
-export async function flushAll(): Promise<void> {
-    try {
-        await redis.flushall();
-    } catch (err) {
-        console.error("Error flushing Redis:", err);
-    }
-}
-
-export async function disconnect(): Promise<void> {
-    try {
-        await redis.quit();
-    } catch (err) {
-        console.error("Error disconnecting from Redis:", err);
-    }
-}
-
-export async function ping(): Promise<string> {
-    try {
-        return await redis.ping();
-    } catch (err) {
-        console.error("Error pinging Redis:", err);
-        return "Error";
-    }
+export async function rGetJson<T>(k: string): Promise<T | null> {
+  const raw = await rGet(k)
+  if (!raw) return null
+  try { return JSON.parse(raw) as T } catch { return null }
 }
