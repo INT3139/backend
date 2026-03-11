@@ -10,8 +10,8 @@
     "test": "tests"
   },
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only server.ts",
-    "build": "tsc",
+    "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only server.ts",
+    "build": "tsc && tsc-alias",
     "start": "node dist/server.js",
     "migrate": "psql $DATABASE_URL -f src/db/migrations/001_initial_schema.sql",
     "seed": "psql $DATABASE_URL -f src/db/seeds/01_roles.sql -f src/db/seeds/02_permissions.sql",
@@ -76,6 +76,8 @@
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
+    "tsc-alias": "^1.8.16",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.0"
   },
