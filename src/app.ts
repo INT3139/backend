@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import compression from 'compression'
 import morgan from 'morgan'
 import swaggerUi from 'swagger-ui-express'
+import { swaggerSpec } from './configs/swagger'
 
 import { requestId } from './core/middlewares/requestId'
 import { apiLimiter } from './core/middlewares/rateLimit'
@@ -11,6 +12,8 @@ import { errorHandler } from './core/middlewares/errorHandler'
 import { httpLogStream } from './configs/logger'
 
 import { authRoutes } from './modules/auth/auth.routes'
+import { adminRoutes } from './modules/admin/admin.routes'
+import { profileRoutes } from './modules/profile/profile.routes'
 
 const API_PREFIX = '/api/v1'
 
@@ -36,5 +39,7 @@ export function createApp(): Application {
 
     // Register module routes
     app.use(`${API_PREFIX}/auth`, authRoutes)
+    app.use(`${API_PREFIX}/admin`, adminRoutes)
+    app.use(`${API_PREFIX}/profile`, profileRoutes)
     return app
 }
