@@ -2,7 +2,7 @@ import { adminRepo, UserRow, RoleRow, UnitRow, AuditLogRow } from "./admin.repo"
 import { UUID, PaginationQuery, AuthUser } from "@/types"
 import { hashPassword } from "@/utils/hash"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
-import { emailService } from "@/emails/email.service"
+import { emailService } from "@/services/email.service"
 import { logger } from "@/configs/logger"
 
 export interface CreateUserDto {

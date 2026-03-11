@@ -17,6 +17,7 @@ const envSchema = z.object({
     SMTP_USER: z.string().nonempty(),
     SMTP_PASS: z.string().nonempty(),
     S3_ENDPOINT: z.url(),
+    S3_REGION: z.string().default("ap-southeast-1"),
     S3_BUCKET: z.string().default("hrm-files"),
     S3_ACCESS_KEY: z.string(),
     S3_SECRET_KEY: z.string(),

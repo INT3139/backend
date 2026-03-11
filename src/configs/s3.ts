@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import path from 'path'
 
 export const s3Client = new S3Client({
-  endpoint: env.S3_ENDPOINT, region: 'us-east-1',
+  endpoint: env.S3_ENDPOINT, region: env.S3_REGION,
   credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY },
   forcePathStyle: true,
 })

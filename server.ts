@@ -3,6 +3,7 @@ import { pool } from "@/configs/db";
 import { redis } from "@/configs/redis";
 import { logger } from "@/configs/logger";
 import { env } from "@/configs/env";
+// import { startJobs } from "@/jobs/scheduler";
 
 async function bootstrap(): Promise<void> {
     await pool.query('SELECT 1')
@@ -10,6 +11,11 @@ async function bootstrap(): Promise<void> {
 
     await redis.ping()
     logger.info('Redis connected')
+
+    // Khởi động background jobs
+    // startJobs()
+    // logger.info('Background jobs started')
+
 
     const app = createApp()
     app.listen(env.PORT, () => {
