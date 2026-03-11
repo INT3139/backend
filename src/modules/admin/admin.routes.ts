@@ -41,4 +41,4 @@ router.post(
 
 router.get("/audit-logs", requirePermission(PERM.SYSTEM.AUDIT_READ), controller.getAuditLogs)
 
-export const adminRoutes = router
+export const adminRoutes: Router = router

@@ -14,4 +14,4 @@ router.post("/logout", authenticate, controller.logoutCtrl)
 
 router.post("/change-password", authenticate, validateBody(schema.changePasswordSchema), controller.changePasswordCtrl)
 
-export const authRoutes = router;
+export const authRoutes: Router = router;
