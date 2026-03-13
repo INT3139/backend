@@ -74,8 +74,8 @@ router.get("/commendations", requirePermission(PERM.REWARD.READ), controller.get
  *         description: Created
  */
 router.post(
-    "/commendations", 
-    requirePermission(PERM.REWARD.WRITE), 
+    "/commendations",
+    requirePermission(PERM.REWARD.WRITE),
     validateBody(schema.createCommendationSchema),
     controller.createCommendation
 )
@@ -110,8 +110,8 @@ router.post(
  *         description: Success
  */
 router.put(
-    "/commendations/:id", 
-    requirePermission(PERM.REWARD.WRITE), 
+    "/commendations/:id",
+    requirePermission(PERM.REWARD.WRITE),
     validateBody(schema.updateCommendationSchema),
     controller.updateCommendation
 )
@@ -189,8 +189,8 @@ router.get("/titles", requirePermission(PERM.REWARD.READ), controller.getTitles)
  *         description: Created
  */
 router.post(
-    "/titles", 
-    requirePermission(PERM.REWARD.WRITE), 
+    "/titles",
+    requirePermission(PERM.REWARD.WRITE),
     validateBody(schema.createTitleSchema),
     controller.createTitle
 )
@@ -225,8 +225,8 @@ router.post(
  *         description: Success
  */
 router.put(
-    "/titles/:id", 
-    requirePermission(PERM.REWARD.WRITE), 
+    "/titles/:id",
+    requirePermission(PERM.REWARD.WRITE),
     validateBody(schema.updateTitleSchema),
     controller.updateTitle
 )
@@ -310,8 +310,8 @@ router.get("/discipline", requirePermission(PERM.REWARD.DISCIPLINE), controller.
  *         description: Created
  */
 router.post(
-    "/discipline", 
-    requirePermission(PERM.REWARD.DISCIPLINE), 
+    "/discipline",
+    requirePermission(PERM.REWARD.DISCIPLINE),
     validateBody(schema.createDisciplineSchema),
     controller.createDiscipline
 )
@@ -346,8 +346,8 @@ router.post(
  *         description: Success
  */
 router.put(
-    "/discipline/:id", 
-    requirePermission(PERM.REWARD.DISCIPLINE), 
+    "/discipline/:id",
+    requirePermission(PERM.REWARD.DISCIPLINE),
     validateBody(schema.updateDisciplineSchema),
     controller.updateDiscipline
 )
@@ -374,4 +374,4 @@ router.put(
  */
 router.delete("/discipline/:id", requirePermission(PERM.REWARD.DISCIPLINE), controller.deleteDiscipline)
 
-export const rewardRoutes = router
+export const rewardRoutes: Router = router

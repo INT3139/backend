@@ -58,8 +58,8 @@ router.get("/me", requirePermission(PERM.WORKLOAD.SELF_READ), controller.getMyWo
  *         description: Created
  */
 router.post(
-    "/evidences", 
-    requirePermission(PERM.WORKLOAD.WRITE), 
+    "/evidences",
+    requirePermission(PERM.WORKLOAD.WRITE),
     validateBody(schema.createEvidenceSchema),
     controller.createEvidence
 )
@@ -133,8 +133,8 @@ router.post("/evidences/:id/approve", requirePermission(PERM.WORKLOAD.APPROVE), 
  *         description: Success
  */
 router.post(
-    "/evidences/:id/reject", 
-    requirePermission(PERM.WORKLOAD.APPROVE), 
+    "/evidences/:id/reject",
+    requirePermission(PERM.WORKLOAD.APPROVE),
     validateBody(schema.rejectEvidenceSchema),
     controller.rejectEvidence
 )
@@ -154,4 +154,4 @@ router.post(
  */
 router.get("/summaries", requirePermission(PERM.WORKLOAD.READ), controller.getSummaries)
 
-export const workloadRoutes = router
+export const workloadRoutes: Router = router

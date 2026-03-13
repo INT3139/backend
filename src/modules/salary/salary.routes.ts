@@ -78,8 +78,8 @@ router.get("/info/:profileId", requirePermission(PERM.SALARY.READ), controller.g
  *         description: Success
  */
 router.put(
-    "/info/:profileId", 
-    requirePermission(PERM.SALARY.WRITE), 
+    "/info/:profileId",
+    requirePermission(PERM.SALARY.WRITE),
     validateBody(schema.updateSalarySchema),
     controller.updateSalary
 )
@@ -135,8 +135,8 @@ router.get("/proposals", requirePermission(PERM.SALARY.READ), controller.getProp
  *         description: Created
  */
 router.post(
-    "/proposals", 
-    requirePermission(PERM.SALARY.PROPOSE), 
+    "/proposals",
+    requirePermission(PERM.SALARY.PROPOSE),
     validateBody(schema.createSalaryProposalSchema),
     controller.createProposal
 )
@@ -163,5 +163,5 @@ router.post(
  */
 router.post("/proposals/:id/approve", requirePermission(PERM.SALARY.APPROVE), controller.approveProposal)
 
-export const salaryRoutes = router
+export const salaryRoutes: Router = router
 

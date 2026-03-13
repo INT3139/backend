@@ -80,8 +80,8 @@ router.get("/proposals/:id", requirePermission(PERM.RECRUITMENT.READ), controlle
  *         description: Created
  */
 router.post(
-    "/proposals", 
-    requirePermission(PERM.RECRUITMENT.WRITE), 
+    "/proposals",
+    requirePermission(PERM.RECRUITMENT.WRITE),
     validateBody(schema.createProposalSchema),
     controller.createProposal
 )
@@ -116,8 +116,8 @@ router.post(
  *         description: Success
  */
 router.put(
-    "/proposals/:id", 
-    requirePermission(PERM.RECRUITMENT.WRITE), 
+    "/proposals/:id",
+    requirePermission(PERM.RECRUITMENT.WRITE),
     validateBody(schema.updateProposalSchema),
     controller.updateProposal
 )
@@ -197,8 +197,8 @@ router.get("/proposals/:id/candidates", requirePermission(PERM.RECRUITMENT.READ)
  *         description: Created
  */
 router.post(
-    "/candidates", 
-    requirePermission(PERM.RECRUITMENT.WRITE), 
+    "/candidates",
+    requirePermission(PERM.RECRUITMENT.WRITE),
     validateBody(schema.createCandidateSchema),
     controller.createCandidate
 )
@@ -233,8 +233,8 @@ router.post(
  *         description: Success
  */
 router.put(
-    "/candidates/:id", 
-    requirePermission(PERM.RECRUITMENT.WRITE), 
+    "/candidates/:id",
+    requirePermission(PERM.RECRUITMENT.WRITE),
     validateBody(schema.updateCandidateSchema),
     controller.updateCandidate
 )
@@ -261,4 +261,4 @@ router.put(
  */
 router.delete("/candidates/:id", requirePermission(PERM.RECRUITMENT.WRITE), controller.deleteCandidate)
 
-export const recruitmentRoutes = router
+export const recruitmentRoutes: Router = router
