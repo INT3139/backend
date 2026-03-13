@@ -9,28 +9,28 @@ import { permissionService } from "../permissions/permission.service";
 const KEY = (uid: string) => `refresh:${uid}`
 
 export async function login(
-    username: string,
-    password: string,
+  username: string,
+  password: string,
 ) {
-    const row = await queryOne<any>(
-        'SELECT id,username,email,full_name,password_hash,unit_id,is_active FROM users WHERE username=$1 AND deleted_at IS NULL', 
-        [username]
-    );
-    
-    if (!row || !row.is_active || !(await comparePassword(password, row.password_hash))) 
-        throw new UnauthorizedError('Invalid credentials')
+  const row = await queryOne<any>(
+    'SELECT id,username,email,full_name,password_hash,unit_id,is_active FROM users WHERE username=$1 AND deleted_at IS NULL',
+    [username]
+  );
 
-    const user: AuthUser = {
-        id: row.id,
-        username: row.username,
-        email: row.email,
-        fullName: row.full_name,
-        unitId: row.unit_id
-    };
-    const { accessToken, refreshToken } = issueTokenPair(user);
-    await redis.setex(KEY(user.id), 7*24*3600, refreshToken)
-    await permissionService.loadForUser(user.id)
-    return { user, accessToken, refreshToken }
+  if (!row || !row.is_active || !(await comparePassword(password, row.password_hash)))
+    throw new UnauthorizedError('Invalid credentials')
+
+  const user: AuthUser = {
+    id: row.id,
+    username: row.username,
+    email: row.email,
+    fullName: row.full_name,
+    unitId: row.unit_id
+  };
+  const { accessToken, refreshToken } = issueTokenPair(user);
+  await redis.setex(KEY(user.id), 7 * 24 * 3600, refreshToken)
+  await permissionService.loadForUser(user.id)
+  return { user, accessToken, refreshToken }
 }
 
 export async function refreshToken(token: string) {
