@@ -2,7 +2,7 @@ import { recruitmentRepo, RecruitmentProposalFilter, RecruitmentProposalRow } fr
 import { UUID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
-import { emailService } from "@/emails/email.service"
+import { emailService } from "@/services/email.service"
 
 export interface CreateProposalDto {
     proposing_unit: UUID
@@ -15,7 +15,7 @@ export interface CreateProposalDto {
     status?: string
 }
 
-export interface UpdateProposalDto extends Partial<CreateProposalDto> {}
+export interface UpdateProposalDto extends Partial<CreateProposalDto> { }
 
 export interface CreateCandidateDto {
     proposal_id: UUID
@@ -27,7 +27,7 @@ export interface CreateCandidateDto {
     notes?: string
 }
 
-export interface UpdateCandidateDto extends Partial<CreateCandidateDto> {}
+export interface UpdateCandidateDto extends Partial<CreateCandidateDto> { }
 
 export class RecruitmentService {
     /**
@@ -218,7 +218,7 @@ export class RecruitmentService {
                 console.error('Failed to send candidate status email', err)
             })
         }
-        
+
         return updated
     }
 

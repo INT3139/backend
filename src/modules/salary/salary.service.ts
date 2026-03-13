@@ -2,12 +2,12 @@ import { salaryRepo, SalaryFilter, SalaryInfoRow, SalaryUpgradeProposalRow } fro
 import { UUID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
-import { emailService } from "@/emails/email.service"
 import { queryOne } from "@/configs/db"
+import { emailService } from "@/services/email.service"
 
-export interface UpdateSalaryDto extends Partial<SalaryInfoRow> {}
+export interface UpdateSalaryDto extends Partial<SalaryInfoRow> { }
 
-export interface CreateSalaryProposalDto extends Partial<SalaryUpgradeProposalRow> {}
+export interface CreateSalaryProposalDto extends Partial<SalaryUpgradeProposalRow> { }
 
 export class SalaryService {
     /**
