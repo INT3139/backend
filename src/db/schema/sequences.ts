@@ -16,6 +16,8 @@ export const profileEducationHistoriesSeq = pgSequence('profile_education_histor
 export const profileExtraInfoSeq = pgSequence('profile_extra_info_id_seq');
 export const profileFamilyRelationsSeq = pgSequence('profile_family_relations_id_seq');
 export const profileHealthRecordsSeq = pgSequence('profile_health_records_id_seq');
+export const profilePositionsSeq = pgSequence('profile_positions_id_seq');
+export const profileResearchWorksSeq = pgSequence('profile_research_works_id_seq');
 
 // Workflow
 export const wfDefinitionsSeq = pgSequence('wf_definitions_id_seq');

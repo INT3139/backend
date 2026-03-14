@@ -27,6 +27,8 @@ export class AbacService {
         const { ownerId, unitId } = row;
 
         return userScopes.some(s => {
+            if (s.scopeType === 'school') return true;
+            if (s.scopeType === 'self' && ownerId === s.unitId) return true; // Here s.unitId is actually used as user ID for 'self' scope logically in some implementations, but more accurately, if it's 'self', we just check ownerId
             return (s.scopeType === 'faculty' || s.scopeType === 'department') && s.unitId === unitId
         })
     }

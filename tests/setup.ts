@@ -1,8 +1,11 @@
-import { pool } from '@/configs/db';
+import { pool, db } from '@/configs/db';
 import { redis } from '@/configs/redis';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import path from 'path';
 
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = 'postgresql://localhost:5432/test';
+// Use the credentials from .env but point to 'yumeio_test' database
+process.env.DATABASE_URL = 'postgresql://postgres:03082005@localhost:5432/yumeio_test';
 process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long-!!!';
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-at-least-32-chars-long-!!!';
@@ -50,9 +53,16 @@ jest.mock('uuid', () => ({
     v4: () => 'mocked-uuid'
 }));
 
+beforeAll(async () => {
+    try {
+        await migrate(db, { migrationsFolder: path.resolve(__dirname, '../src/db/migrations') });
+    } catch (e) {
+        console.error("Migration failed. Please ensure the test database 'yumeio_test' exists.", e);
+    }
+});
+
 afterAll(async () => {
     await pool.end();
-    await redis.quit();
 });
 
 beforeEach(() => {

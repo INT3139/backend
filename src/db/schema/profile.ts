@@ -1,13 +1,13 @@
-import { pgTable, text, timestamp, date, numeric, jsonb, boolean, index, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, date, numeric, jsonb, boolean, index, integer, unique } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from './auth';
 import { organizationalUnits } from './core';
-import { genderEnum, maritalStatusEnum, academicDegreeEnum, academicTitleEnum, politicalTheoryEnum, employmentStatusEnum, historyTypeEnum, statusEnum, eduTypeEnum, langLevelEnum } from './enums';
-import { profileStaffSeq, profileWorkHistoriesSeq, profileEducationHistoriesSeq, profileExtraInfoSeq, profileFamilyRelationsSeq, profileHealthRecordsSeq } from './sequences';
+import { statusEnum, academicDegreeEnum, academicTitleEnum, genderEnum, maritalStatusEnum, politicalTheoryEnum } from './enums';
+import { profileStaffSeq, profileWorkHistoriesSeq, profileEducationHistoriesSeq, profileExtraInfoSeq, profileFamilyRelationsSeq, profileHealthRecordsSeq, profilePositionsSeq, profileResearchWorksSeq } from './sequences';
 
 export const profileStaff = pgTable('profile_staff', {
   id: integer('id').primaryKey().default(sql`nextval('profile_staff_id_seq')`).notNull(),
-  userId: integer('user_id').notNull().references(() => users.id),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   unitId: integer('unit_id').references(() => organizationalUnits.id, { onDelete: 'set null' }),
   emailVnu: text('email_vnu'),
   emailPersonal: text('email_personal'),
@@ -41,26 +41,26 @@ export const profileStaff = pgTable('profile_staff', {
   foreignLangLevel: text('foreign_lang_level'),
   itLevel: text('it_level'),
   staffType: text('staff_type').notNull(),
-  employmentStatus: employmentStatusEnum('employment_status').default('active').notNull(),
+  employmentStatus: text('employment_status').default('active').notNull(),
   joinDate: date('join_date'),
   retireDate: date('retire_date'),
   profileStatus: text('profile_status').default('draft').notNull(),
-  lastUpdatedBy: integer('last_updated_by').references(() => users.id, { onDelete: 'set null' }),
+  lastUpdatedBy: integer('last_updated_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => {
   return {
-    employmentIdx: index('idx_staff_employment').on(table.employmentStatus),
-    profileStatusIdx: index('idx_staff_profile_status').on(table.profileStatus),
-    unitIdx: index('idx_staff_unit').on(table.unitId),
+    staffEmploymentIdx: index('idx_staff_employment').on(table.employmentStatus),
+    staffProfileStatusIdx: index('idx_staff_profile_status').on(table.profileStatus),
+    staffUnitIdx: index('idx_staff_unit').on(table.unitId),
   };
 });
 
 export const profileWorkHistories = pgTable('profile_work_histories', {
   id: integer('id').primaryKey().default(sql`nextval('profile_work_histories_id_seq')`).notNull(),
   profileId: integer('profile_id').notNull().references(() => profileStaff.id, { onDelete: 'cascade' }),
-  historyType: historyTypeEnum('history_type').notNull(),
+  historyType: text('history_type').notNull(),
   fromDate: date('from_date'),
   toDate: date('to_date'),
   unitName: text('unit_name').notNull(),
@@ -71,15 +71,15 @@ export const profileWorkHistories = pgTable('profile_work_histories', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => {
   return {
-    profileIdx: index('idx_work_hist_profile').on(table.profileId),
-    typeIdx: index('idx_work_hist_type').on(table.profileId, table.historyType),
+    workHistProfileIdx: index('idx_work_hist_profile').on(table.profileId),
+    workHistTypeIdx: index('idx_work_hist_type').on(table.profileId, table.historyType),
   };
 });
 
 export const profileEducationHistories = pgTable('profile_education_histories', {
   id: integer('id').primaryKey().default(sql`nextval('profile_education_histories_id_seq')`).notNull(),
   profileId: integer('profile_id').notNull().references(() => profileStaff.id, { onDelete: 'cascade' }),
-  eduType: eduTypeEnum('edu_type').notNull(),
+  eduType: text('edu_type').notNull(),
   fromDate: date('from_date'),
   toDate: date('to_date'),
   degreeLevel: text('degree_level'),
@@ -90,18 +90,18 @@ export const profileEducationHistories = pgTable('profile_education_histories', 
   isStudying: boolean('is_studying').default(false).notNull(),
   certName: text('cert_name'),
   langName: text('lang_name'),
-  langLevel: langLevelEnum('lang_level'),
+  langLevel: text('lang_level'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => {
   return {
-    profileIdx: index('idx_edu_hist_profile').on(table.profileId),
-    typeIdx: index('idx_edu_hist_type').on(table.profileId, table.eduType),
+    eduHistProfileIdx: index('idx_edu_hist_profile').on(table.profileId),
+    eduHistTypeIdx: index('idx_edu_hist_type').on(table.profileId, table.eduType),
   };
 });
 
 export const profileExtraInfo = pgTable('profile_extra_info', {
   id: integer('id').primaryKey().default(sql`nextval('profile_extra_info_id_seq')`).notNull(),
-  profileId: integer('profile_id').notNull().references(() => profileStaff.id, { onDelete: 'cascade' }),
+  profileId: integer('profile_id').notNull().unique().references(() => profileStaff.id, { onDelete: 'cascade' }),
   arrestHistory: text('arrest_history'),
   oldRegimeWork: text('old_regime_work'),
   foreignOrgRelations: text('foreign_org_relations'),
@@ -143,4 +143,36 @@ export const profileHealthRecords = pgTable('profile_health_records', {
   bloodType: text('blood_type'),
   notes: text('notes'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const profilePositions = pgTable('profile_positions', {
+  id: integer('id').primaryKey().default(sql`nextval('profile_positions_id_seq')`).notNull(),
+  profileId: integer('profile_id').notNull().references(() => profileStaff.id, { onDelete: 'cascade' }),
+  unitId: integer('unit_id').references(() => organizationalUnits.id, { onDelete: 'set null' }),
+  positionName: text('position_name').notNull(),
+  positionType: text('position_type'),
+  startDate: date('start_date'),
+  endDate: date('end_date'),
+  decisionRef: text('decision_ref'),
+  isPrimary: boolean('is_primary').default(false),
+});
+
+export const profileResearchWorks = pgTable('profile_research_works', {
+  id: integer('id').primaryKey().default(sql`nextval('profile_research_works_id_seq')`).notNull(),
+  profileId: integer('profile_id').notNull().references(() => profileStaff.id, { onDelete: 'cascade' }),
+  workType: text('work_type').notNull(),
+  title: text('title').notNull(),
+  journalName: text('journal_name'),
+  indexing: text('indexing'),
+  publishYear: integer('publish_year'),
+  doi: text('doi'),
+  academicYear: text('academic_year'),
+  status: text('status').default('pending'),
+  verifiedBy: integer('verified_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    researchProfileIdx: index('idx_research_profile').on(table.profileId),
+    researchYearIdx: index('idx_research_year').on(table.publishYear),
+  };
 });

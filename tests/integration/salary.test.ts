@@ -6,6 +6,7 @@ import { issueTokenPair } from '@/core/auth/jwt'
 import { TestDbHelper } from '../helpers/testHelpers'
 import { grantPermission } from '../helpers/permHelpers'
 import { PERM } from '@/constants/permission'
+import { abacService } from '@/core/permissions/abac'
 
 const app = createApp()
 
@@ -72,6 +73,14 @@ describe('Salary Integration Tests', () => {
                 salaryCoefficient: '2.34' as any
             })
 
+            // Mock resource scope
+            await abacService.registerScope({
+                resourceType: 'salary',
+                resourceId: testProfile.id,
+                ownerId: testUser.id,
+                unitId: testUnit.id
+            })
+
             const res = await request(app)
                 .get('/api/v1/salary/me')
                 .set('Authorization', `Bearer ${authToken}`)
@@ -89,6 +98,14 @@ describe('Salary Integration Tests', () => {
                 profileId: testProfile.id,
                 salaryGrade: 1,
                 salaryCoefficient: '2.34' as any
+            })
+
+            // Mock resource scope
+            await abacService.registerScope({
+                resourceType: 'salary',
+                resourceId: testProfile.id,
+                ownerId: testUser.id,
+                unitId: testUnit.id
             })
 
             const res = await request(app)

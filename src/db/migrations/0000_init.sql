@@ -31,6 +31,9 @@ CREATE SEQUENCE "public"."permissions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE
 CREATE SEQUENCE "public"."profile_education_histories_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
 CREATE SEQUENCE "public"."profile_extra_info_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
 CREATE SEQUENCE "public"."profile_family_relations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
+CREATE SEQUENCE "public"."profile_health_records_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
+CREATE SEQUENCE "public"."profile_positions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
+CREATE SEQUENCE "public"."profile_research_works_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
 CREATE SEQUENCE "public"."profile_staff_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
 CREATE SEQUENCE "public"."profile_work_histories_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
 CREATE SEQUENCE "public"."recruitment_candidates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;--> statement-breakpoint
@@ -69,6 +72,15 @@ CREATE TABLE "organizational_units" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"deleted_at" timestamp with time zone,
 	CONSTRAINT "organizational_units_code_unique" UNIQUE("code")
+);
+--> statement-breakpoint
+CREATE TABLE "resource_scopes" (
+	"resource_type" text NOT NULL,
+	"resource_id" integer NOT NULL,
+	"owner_id" integer,
+	"unit_id" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "resource_scopes_resource_type_resource_id_pk" PRIMARY KEY("resource_type","resource_id")
 );
 --> statement-breakpoint
 CREATE TABLE "permissions" (
@@ -129,7 +141,7 @@ CREATE TABLE "users" (
 CREATE TABLE "profile_education_histories" (
 	"id" integer PRIMARY KEY DEFAULT nextval('profile_education_histories_id_seq') NOT NULL,
 	"profile_id" integer NOT NULL,
-	"edu_type" "edu_type" NOT NULL,
+	"edu_type" text NOT NULL,
 	"from_date" date,
 	"to_date" date,
 	"degree_level" text,
@@ -140,7 +152,7 @@ CREATE TABLE "profile_education_histories" (
 	"is_studying" boolean DEFAULT false NOT NULL,
 	"cert_name" text,
 	"lang_name" text,
-	"lang_level" "lang_level",
+	"lang_level" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -160,7 +172,8 @@ CREATE TABLE "profile_extra_info" (
 	"land_granted_m2" numeric(10, 2),
 	"land_purchased_m2" numeric(10, 2),
 	"land_business_m2" numeric(10, 2),
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "profile_extra_info_profile_id_unique" UNIQUE("profile_id")
 );
 --> statement-breakpoint
 CREATE TABLE "profile_family_relations" (
@@ -172,6 +185,45 @@ CREATE TABLE "profile_family_relations" (
 	"birth_year" integer,
 	"description" text,
 	"status" "status" DEFAULT 'pending' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "profile_health_records" (
+	"id" integer PRIMARY KEY DEFAULT nextval('profile_health_records_id_seq') NOT NULL,
+	"profile_id" integer NOT NULL,
+	"health_status" text,
+	"weight_kg" numeric(5, 1),
+	"height_cm" numeric(5, 1),
+	"blood_type" text,
+	"notes" text,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "profile_health_records_profile_id_unique" UNIQUE("profile_id")
+);
+--> statement-breakpoint
+CREATE TABLE "profile_positions" (
+	"id" integer PRIMARY KEY DEFAULT nextval('profile_positions_id_seq') NOT NULL,
+	"profile_id" integer NOT NULL,
+	"unit_id" integer,
+	"position_name" text NOT NULL,
+	"position_type" text,
+	"start_date" date,
+	"end_date" date,
+	"decision_ref" text,
+	"is_primary" boolean DEFAULT false
+);
+--> statement-breakpoint
+CREATE TABLE "profile_research_works" (
+	"id" integer PRIMARY KEY DEFAULT nextval('profile_research_works_id_seq') NOT NULL,
+	"profile_id" integer NOT NULL,
+	"work_type" text NOT NULL,
+	"title" text NOT NULL,
+	"journal_name" text,
+	"indexing" text,
+	"publish_year" integer,
+	"doi" text,
+	"academic_year" text,
+	"status" text DEFAULT 'pending',
+	"verified_by" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -211,7 +263,7 @@ CREATE TABLE "profile_staff" (
 	"foreign_lang_level" text,
 	"it_level" text,
 	"staff_type" text NOT NULL,
-	"employment_status" "employment_status" DEFAULT 'active' NOT NULL,
+	"employment_status" text DEFAULT 'active' NOT NULL,
 	"join_date" date,
 	"retire_date" date,
 	"profile_status" text DEFAULT 'draft' NOT NULL,
@@ -224,7 +276,7 @@ CREATE TABLE "profile_staff" (
 CREATE TABLE "profile_work_histories" (
 	"id" integer PRIMARY KEY DEFAULT nextval('profile_work_histories_id_seq') NOT NULL,
 	"profile_id" integer NOT NULL,
-	"history_type" "history_type" NOT NULL,
+	"history_type" text NOT NULL,
 	"from_date" date,
 	"to_date" date,
 	"unit_name" text NOT NULL,
@@ -536,7 +588,7 @@ CREATE TABLE "sys_attachments" (
 	"resource_type" text NOT NULL,
 	"resource_id" integer NOT NULL,
 	"uploaded_by" integer NOT NULL,
-	"fileName" text NOT NULL,
+	"file_name" text NOT NULL,
 	"file_size_bytes" bigint,
 	"mime_type" text,
 	"storage_key" text NOT NULL,
@@ -620,6 +672,8 @@ CREATE TABLE "appointment_records" (
 );
 --> statement-breakpoint
 ALTER TABLE "organizational_units" ADD CONSTRAINT "organizational_units_parent_id_organizational_units_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."organizational_units"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resource_scopes" ADD CONSTRAINT "resource_scopes_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resource_scopes" ADD CONSTRAINT "resource_scopes_unit_id_organizational_units_id_fk" FOREIGN KEY ("unit_id") REFERENCES "public"."organizational_units"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -629,9 +683,14 @@ ALTER TABLE "users" ADD CONSTRAINT "users_unit_id_organizational_units_id_fk" FO
 ALTER TABLE "profile_education_histories" ADD CONSTRAINT "profile_education_histories_profile_id_profile_staff_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profile_staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "profile_extra_info" ADD CONSTRAINT "profile_extra_info_profile_id_profile_staff_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profile_staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "profile_family_relations" ADD CONSTRAINT "profile_family_relations_profile_id_profile_staff_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profile_staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "profile_staff" ADD CONSTRAINT "profile_staff_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profile_health_records" ADD CONSTRAINT "profile_health_records_profile_id_profile_staff_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profile_staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profile_positions" ADD CONSTRAINT "profile_positions_profile_id_profile_staff_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profile_staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profile_positions" ADD CONSTRAINT "profile_positions_unit_id_organizational_units_id_fk" FOREIGN KEY ("unit_id") REFERENCES "public"."organizational_units"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profile_research_works" ADD CONSTRAINT "profile_research_works_profile_id_profile_staff_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profile_staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profile_research_works" ADD CONSTRAINT "profile_research_works_verified_by_users_id_fk" FOREIGN KEY ("verified_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profile_staff" ADD CONSTRAINT "profile_staff_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "profile_staff" ADD CONSTRAINT "profile_staff_unit_id_organizational_units_id_fk" FOREIGN KEY ("unit_id") REFERENCES "public"."organizational_units"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "profile_staff" ADD CONSTRAINT "profile_staff_last_updated_by_users_id_fk" FOREIGN KEY ("last_updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "profile_staff" ADD CONSTRAINT "profile_staff_last_updated_by_users_id_fk" FOREIGN KEY ("last_updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "profile_work_histories" ADD CONSTRAINT "profile_work_histories_profile_id_profile_staff_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profile_staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "profile_work_histories" ADD CONSTRAINT "profile_work_histories_approved_by_users_id_fk" FOREIGN KEY ("approved_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "wf_instances" ADD CONSTRAINT "wf_instances_definition_id_wf_definitions_id_fk" FOREIGN KEY ("definition_id") REFERENCES "public"."wf_definitions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -676,6 +735,8 @@ ALTER TABLE "appointment_records" ADD CONSTRAINT "appointment_records_profile_id
 ALTER TABLE "appointment_records" ADD CONSTRAINT "appointment_records_unit_id_organizational_units_id_fk" FOREIGN KEY ("unit_id") REFERENCES "public"."organizational_units"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointment_records" ADD CONSTRAINT "appointment_records_workflow_id_wf_instances_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."wf_instances"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointment_records" ADD CONSTRAINT "appointment_records_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "idx_resource_scopes_owner" ON "resource_scopes" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX "idx_resource_scopes_unit" ON "resource_scopes" USING btree ("unit_id");--> statement-breakpoint
 CREATE INDEX "idx_permissions_domain_module" ON "permissions" USING btree ("domain","module");--> statement-breakpoint
 CREATE INDEX "idx_role_perms_code" ON "role_permissions" USING btree ("permission_code");--> statement-breakpoint
 CREATE INDEX "idx_user_roles_expires" ON "user_roles" USING btree ("expires_at") WHERE expires_at IS NOT NULL;--> statement-breakpoint
@@ -685,6 +746,8 @@ CREATE INDEX "idx_users_unit" ON "users" USING btree ("unit_id");--> statement-b
 CREATE INDEX "idx_edu_hist_profile" ON "profile_education_histories" USING btree ("profile_id");--> statement-breakpoint
 CREATE INDEX "idx_edu_hist_type" ON "profile_education_histories" USING btree ("profile_id","edu_type");--> statement-breakpoint
 CREATE INDEX "idx_family_profile" ON "profile_family_relations" USING btree ("profile_id");--> statement-breakpoint
+CREATE INDEX "idx_research_profile" ON "profile_research_works" USING btree ("profile_id");--> statement-breakpoint
+CREATE INDEX "idx_research_year" ON "profile_research_works" USING btree ("publish_year");--> statement-breakpoint
 CREATE INDEX "idx_staff_employment" ON "profile_staff" USING btree ("employment_status");--> statement-breakpoint
 CREATE INDEX "idx_staff_profile_status" ON "profile_staff" USING btree ("profile_status");--> statement-breakpoint
 CREATE INDEX "idx_staff_unit" ON "profile_staff" USING btree ("unit_id");--> statement-breakpoint

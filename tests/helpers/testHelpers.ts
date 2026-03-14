@@ -33,17 +33,24 @@ export class TestDbHelper {
             'workload_annual_summaries',
             'workload_evidences',
             'workload_individual_quotas',
+            'workload_quota_parameters',
             'reward_commendations',
+            'reward_profiles',
             'reward_titles',
             'reward_disciplinary_records',
             'recruitment_candidates',
             'recruitment_proposals',
             'recruitment_contracts',
+            'recruitment_contract_extensions',
+            'recruitment_info',
+            'appointment_records',
             'profile_work_histories',
             'profile_education_histories',
             'profile_extra_info',
             'profile_health_records',
             'profile_family_relations',
+            'profile_positions',
+            'profile_research_works',
             'profile_staff',
             'organizational_units',
             'resource_scopes',
@@ -57,9 +64,9 @@ export class TestDbHelper {
         for (const table of tablesToClear) {
             if (existingTables.includes(table)) {
                 try {
-                    await db.execute(sql.raw(`TRUNCATE TABLE ${table} CASCADE`))
+                    await db.execute(sql.raw(`DELETE FROM ${table}`))
                 } catch (error) {
-                    console.error(`Failed to truncate ${table}`, error)
+                    console.error(`Failed to delete ${table}`, error)
                 }
             }
         }
@@ -89,7 +96,6 @@ export class TestRedisHelper {
      * Clear all Redis keys with prefix
      */
     static async clearKeys(prefix: string): Promise<void> {
-        // Since ioredis is mocked in setup.ts, these might not do anything real
         try {
             await redis.del(`${prefix}*`)
         } catch (e) {}
