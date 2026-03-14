@@ -2,6 +2,8 @@ import { Router } from "express"
 import * as controller from "./profile.controller"
 import { authenticate } from "@/core/middlewares/auth"
 import { requirePermission } from "@/core/middlewares/requirePermission"
+import { requireResource, requireSelfOrPermission } from "@/core/middlewares/requireResource"
+import { profileService } from "./profile.service"
 import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./profile.schema"
@@ -9,6 +11,8 @@ import * as schema from "./profile.schema"
 const router = Router()
 
 router.use(authenticate)
+
+const getOwner = async (req: any) => (await profileService.getProfileById(+req.params.id))?.userId ?? 0
 
 /**
  * @openapi
@@ -79,7 +83,11 @@ router.get("/", requirePermission(PERM.PROFILE.READ), controller.getProfiles)
  *       200:
  *         description: Success
  */
-router.get("/:id", requirePermission(PERM.PROFILE.READ), controller.getProfileById)
+router.get(
+    "/:id",
+    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    controller.getProfileById
+)
 
 /**
  * @openapi
@@ -134,7 +142,7 @@ router.post(
  */
 router.put(
     "/:id",
-    requirePermission(PERM.PROFILE.WRITE),
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
     validateBody(schema.updateProfileSchema),
     controller.updateProfile
 )
@@ -158,7 +166,11 @@ router.put(
  *       200:
  *         description: Success
  */
-router.delete("/:id", requirePermission(PERM.PROFILE.DELETE), controller.deleteProfile)
+router.delete(
+    "/:id",
+    requireResource(PERM.PROFILE.DELETE, 'profile', r => +r.params.id),
+    controller.deleteProfile
+)
 
 /**
  * @openapi
@@ -179,7 +191,11 @@ router.delete("/:id", requirePermission(PERM.PROFILE.DELETE), controller.deleteP
  *       200:
  *         description: Success
  */
-router.post("/:id/approve", requirePermission(PERM.PROFILE.APPROVE), controller.approveProfile)
+router.post(
+    "/:id/approve",
+    requireResource(PERM.PROFILE.APPROVE, 'profile', r => +r.params.id),
+    controller.approveProfile
+)
 
 /**
  * @openapi
@@ -200,7 +216,11 @@ router.post("/:id/approve", requirePermission(PERM.PROFILE.APPROVE), controller.
  *       200:
  *         description: Success
  */
-router.post("/:id/reject", requirePermission(PERM.PROFILE.REJECT), controller.rejectProfile)
+router.post(
+    "/:id/reject",
+    requireResource(PERM.PROFILE.REJECT, 'profile', r => +r.params.id),
+    controller.rejectProfile
+)
 
 import * as subSchema from "./profileSub.schema"
 
@@ -236,7 +256,7 @@ import * as subSchema from "./profileSub.schema"
  */
 router.patch(
     "/:id/status",
-    requirePermission(PERM.PROFILE.STATUS),
+    requireResource(PERM.PROFILE.STATUS, 'profile', r => +r.params.id),
     validateBody(schema.changeStatusSchema),
     controller.changeStatus
 )
@@ -262,7 +282,11 @@ router.patch(
  *       200:
  *         description: Success
  */
-router.get("/:id/education", requirePermission(PERM.PROFILE.READ), controller.getEducation)
+router.get(
+    "/:id/education",
+    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    controller.getEducation
+)
 
 /**
  * @openapi
@@ -295,7 +319,12 @@ router.get("/:id/education", requirePermission(PERM.PROFILE.READ), controller.ge
  *       201:
  *         description: Created
  */
-router.post("/:id/education", requirePermission(PERM.PROFILE.WRITE), validateBody(subSchema.educationSchema), controller.createEducation)
+router.post(
+    "/:id/education",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.educationSchema),
+    controller.createEducation
+)
 
 /**
  * @openapi
@@ -321,7 +350,11 @@ router.post("/:id/education", requirePermission(PERM.PROFILE.WRITE), validateBod
  *       200:
  *         description: Success
  */
-router.delete("/:id/education/:subId", requirePermission(PERM.PROFILE.WRITE), controller.deleteEducation)
+router.delete(
+    "/:id/education/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    controller.deleteEducation
+)
 
 // Family
 /**
@@ -343,7 +376,11 @@ router.delete("/:id/education/:subId", requirePermission(PERM.PROFILE.WRITE), co
  *       200:
  *         description: Success
  */
-router.get("/:id/family", requirePermission(PERM.PROFILE.READ), controller.getFamily)
+router.get(
+    "/:id/family",
+    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    controller.getFamily
+)
 
 /**
  * @openapi
@@ -382,7 +419,12 @@ router.get("/:id/family", requirePermission(PERM.PROFILE.READ), controller.getFa
  *       201:
  *         description: Created
  */
-router.post("/:id/family", requirePermission(PERM.PROFILE.WRITE), validateBody(subSchema.familySchema), controller.createFamily)
+router.post(
+    "/:id/family",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.familySchema),
+    controller.createFamily
+)
 
 /**
  * @openapi
@@ -408,7 +450,11 @@ router.post("/:id/family", requirePermission(PERM.PROFILE.WRITE), validateBody(s
  *       200:
  *         description: Success
  */
-router.delete("/:id/family/:subId", requirePermission(PERM.PROFILE.WRITE), controller.deleteFamily)
+router.delete(
+    "/:id/family/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    controller.deleteFamily
+)
 
 // Work History
 /**
@@ -430,7 +476,11 @@ router.delete("/:id/family/:subId", requirePermission(PERM.PROFILE.WRITE), contr
  *       200:
  *         description: Success
  */
-router.get("/:id/work-history", requirePermission(PERM.PROFILE.READ), controller.getWorkHistory)
+router.get(
+    "/:id/work-history",
+    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    controller.getWorkHistory
+)
 
 /**
  * @openapi
@@ -466,7 +516,12 @@ router.get("/:id/work-history", requirePermission(PERM.PROFILE.READ), controller
  *       201:
  *         description: Created
  */
-router.post("/:id/work-history", requirePermission(PERM.PROFILE.WRITE), validateBody(subSchema.workHistorySchema), controller.createWorkHistory)
+router.post(
+    "/:id/work-history",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.workHistorySchema),
+    controller.createWorkHistory
+)
 
 /**
  * @openapi
@@ -492,7 +547,11 @@ router.post("/:id/work-history", requirePermission(PERM.PROFILE.WRITE), validate
  *       200:
  *         description: Success
  */
-router.delete("/:id/work-history/:subId", requirePermission(PERM.PROFILE.WRITE), controller.deleteWorkHistory)
+router.delete(
+    "/:id/work-history/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    controller.deleteWorkHistory
+)
 
 // Extra Info
 /**
@@ -514,7 +573,11 @@ router.delete("/:id/work-history/:subId", requirePermission(PERM.PROFILE.WRITE),
  *       200:
  *         description: Success
  */
-router.get("/:id/extra", requirePermission(PERM.PROFILE.READ), controller.getEducation)
+router.get(
+    "/:id/extra",
+    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    controller.getExtraInfo
+)
 
 /**
  * @openapi
@@ -544,7 +607,12 @@ router.get("/:id/extra", requirePermission(PERM.PROFILE.READ), controller.getEdu
  *       200:
  *         description: Success
  */
-router.put("/:id/extra", requirePermission(PERM.PROFILE.WRITE), validateBody(subSchema.extraInfoSchema), controller.updateExtraInfo)
+router.put(
+    "/:id/extra",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.extraInfoSchema),
+    controller.updateExtraInfo
+)
 
 // Health Records
 /**
@@ -566,7 +634,11 @@ router.put("/:id/extra", requirePermission(PERM.PROFILE.WRITE), validateBody(sub
  *       200:
  *         description: Success
  */
-router.get("/:id/health", requirePermission(PERM.PROFILE.READ), controller.getHealthRecords)
+router.get(
+    "/:id/health",
+    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    controller.getHealthRecords
+)
 
 /**
  * @openapi
@@ -596,6 +668,11 @@ router.get("/:id/health", requirePermission(PERM.PROFILE.READ), controller.getHe
  *       200:
  *         description: Success
  */
-router.put("/:id/health", requirePermission(PERM.PROFILE.WRITE), validateBody(subSchema.healthSchema), controller.updateHealthRecords)
+router.put(
+    "/:id/health",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.healthSchema),
+    controller.updateHealthRecords
+)
 
 export const profileRoutes: Router = router

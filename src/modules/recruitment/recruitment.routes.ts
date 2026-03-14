@@ -2,6 +2,8 @@ import { Router } from "express"
 import * as controller from "./recruitment.controller"
 import { authenticate } from "@/core/middlewares/auth"
 import { requirePermission } from "@/core/middlewares/requirePermission"
+import { requireResource, requireSelfOrPermission } from "@/core/middlewares/requireResource"
+import { recruitmentService } from "./recruitment.service"
 import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./recruitment.schema"
@@ -10,6 +12,8 @@ const router = Router()
 
 // Tất cả routes đều yêu cầu authentication
 router.use(authenticate)
+
+const getOwner = async (req: any) => (await recruitmentService.getProposalById(+req.params.id))?.createdBy ?? 0
 
 /**
  * @openapi
@@ -45,7 +49,11 @@ router.get("/proposals", requirePermission(PERM.RECRUITMENT.READ), controller.ge
  *       200:
  *         description: Success
  */
-router.get("/proposals/:id", requirePermission(PERM.RECRUITMENT.READ), controller.getProposalById)
+router.get(
+    "/proposals/:id",
+    requireSelfOrPermission(PERM.RECRUITMENT.READ, 'recruitment_proposal', r => +r.params.id, getOwner),
+    controller.getProposalById
+)
 
 /**
  * @openapi
@@ -114,7 +122,7 @@ router.post(
  */
 router.put(
     "/proposals/:id",
-    requirePermission(PERM.RECRUITMENT.WRITE),
+    requireSelfOrPermission(PERM.RECRUITMENT.WRITE, 'recruitment_proposal', r => +r.params.id, getOwner),
     validateBody(schema.updateProposalSchema),
     controller.updateProposal
 )
@@ -138,7 +146,11 @@ router.put(
  *       200:
  *         description: Success
  */
-router.post("/proposals/:id/approve", requirePermission(PERM.RECRUITMENT.APPROVE), controller.approveProposal)
+router.post(
+    "/proposals/:id/approve",
+    requireResource(PERM.RECRUITMENT.APPROVE, 'recruitment_proposal', r => +r.params.id),
+    controller.approveProposal
+)
 
 // --- CANDIDATE ROUTES ---
 
@@ -161,7 +173,11 @@ router.post("/proposals/:id/approve", requirePermission(PERM.RECRUITMENT.APPROVE
  *       200:
  *         description: Success
  */
-router.get("/proposals/:id/candidates", requirePermission(PERM.RECRUITMENT.READ), controller.getCandidates)
+router.get(
+    "/proposals/:id/candidates",
+    requireSelfOrPermission(PERM.RECRUITMENT.READ, 'recruitment_proposal', r => +r.params.id, getOwner),
+    controller.getCandidates
+)
 
 /**
  * @openapi

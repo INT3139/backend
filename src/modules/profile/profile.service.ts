@@ -2,6 +2,7 @@ import { profileRepo, ProfileFilter, ProfileRow } from "./profile.repo"
 import { profileSubRepo } from "./profileSub.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
+import { permissionService } from "@/core/permissions/permission.service"
 import { CacheKey, CacheTTL } from "@/core/cache/cacheKey"
 import { rSetJson, rGetJson, rDel } from "@/configs/redis"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
@@ -67,13 +68,11 @@ export class ProfileService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        const scopes = await abacService.getUnitFilter([
-            { scopeType: 'faculty', unitId: user.unitId },
-            { scopeType: 'department', unitId: user.unitId }
-        ])
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
 
-        if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = (scopes as number) || undefined
+        if (unitIds !== 'all') {
+            filter.unitIds = unitIds
         }
 
         return await profileRepo.findMany(filter, pagination)
@@ -148,12 +147,10 @@ export class ProfileService {
             throw new NotFoundError('Profile not found')
         }
 
+        const scopes = await permissionService.getScopes(user.id)
         const canUpdate = await abacService.canAccess(
-            [
-                { scopeType: 'school', unitId: null },
-                { scopeType: 'faculty', unitId: user.unitId },
-                { scopeType: 'self', unitId: null }
-            ],
+            user.id,
+            scopes,
             'profile',
             id
         )
@@ -183,8 +180,10 @@ export class ProfileService {
             throw new NotFoundError('Profile not found')
         }
 
+        const scopes = await permissionService.getScopes(user.id)
         const canDelete = await abacService.canAccess(
-            [{ scopeType: 'school', unitId: null }],
+            user.id,
+            scopes,
             'profile',
             id
         )

@@ -1,5 +1,6 @@
 import { Request, Response } from "express"
 import { adminService } from "./admin.service"
+import { permissionService } from "@/core/permissions/permission.service"
 import { success, created } from "@/utils/response"
 import { logAction } from "@/core/middlewares/auditContext"
 import { asyncHandler } from "@/core/middlewares/errorHandler"
@@ -47,6 +48,12 @@ export const updateUser = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     const updated = await adminService.updateUser(id, req.body)
+    
+    // Invalidate permission cache if status or unit changed
+    if (req.body.isActive !== undefined || req.body.unitId !== undefined) {
+        await permissionService.invalidate(id)
+    }
+
     await logAction(req.userId!, 'update', 'user', id.toString(), req.body)
 
     return success(res, updated)
@@ -105,6 +112,21 @@ export const assignRole = asyncHandler(async (
     await logAction(req.userId!, 'create', 'user_role', undefined, { userId, ...req.body })
 
     return success(res, { message: 'Role assigned successfully' })
+})
+
+/**
+ * DELETE /api/v1/admin/users/:id/roles/:roleId
+ */
+export const revokeRole = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    const userId = parseInt(req.params.id as string, 10)
+    const roleId = parseInt(req.params.roleId as string, 10)
+    await adminService.revokeRole(userId, roleId)
+    await logAction(req.userId!, 'delete', 'user_role', undefined, { userId, roleId })
+
+    return success(res, { message: 'Role revoked successfully' })
 })
 
 /**

@@ -1,10 +1,11 @@
 import { db } from "@/configs/db"
 import { ID, PaginationQuery, PaginatedResult } from "@/types"
 import { profileStaff } from "@/db/schema"
-import { eq, ilike, or, and, sql, count, desc, asc, isNull } from "drizzle-orm"
+import { eq, ilike, or, and, sql, count, desc, asc, isNull, inArray } from "drizzle-orm"
 
 export interface ProfileFilter {
     unitId?: ID
+    unitIds?: ID[]
     staffType?: string
     employmentStatus?: string
     keyword?: string
@@ -25,6 +26,8 @@ export class ProfileRepository {
 
         if (filter.unitId) {
             conditions.push(eq(profileStaff.unitId, filter.unitId))
+        } else if (filter.unitIds && filter.unitIds.length > 0) {
+            conditions.push(inArray(profileStaff.unitId, filter.unitIds))
         }
         if (filter.staffType) {
             conditions.push(eq(profileStaff.staffType, filter.staffType as any))

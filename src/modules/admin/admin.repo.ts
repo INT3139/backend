@@ -168,6 +168,15 @@ export class AdminRepo {
             })
         return true
     }
+
+    /**
+     * Revoke Role
+     */
+    async revokeRole(userId: ID, roleId: ID) {
+        await db.delete(userRoles)
+            .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleId)))
+        return true
+    }
 }
 
 export const adminRepo = new AdminRepo()

@@ -180,6 +180,32 @@ router.post(
 
 /**
  * @openapi
+ * /admin/users/{id}/roles/{roleId}:
+ *   delete:
+ *     tags:
+ *       - Admin
+ *     summary: Revoke role from user
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *       - in: path
+ *         name: roleId
+ *         required: true
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.delete(
+    "/users/:id/roles/:roleId",
+    requirePermission(PERM.SYSTEM.ROLE_GRANT),
+    controller.revokeRole
+)
+
+/**
+ * @openapi
  * /admin/roles:
  *   get:
  *     tags:

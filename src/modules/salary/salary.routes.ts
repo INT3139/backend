@@ -2,6 +2,8 @@ import { Router } from "express"
 import * as controller from "./salary.controller"
 import { authenticate } from "@/core/middlewares/auth"
 import { requirePermission } from "@/core/middlewares/requirePermission"
+import { requireResource, requireSelfOrPermission } from "@/core/middlewares/requireResource"
+import { profileService } from "../profile/profile.service"
 import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./salary.schema"
@@ -10,6 +12,8 @@ const router = Router()
 
 // Tất cả routes đều yêu cầu authentication
 router.use(authenticate)
+
+const getOwner = async (req: any) => (await profileService.getProfileById(+req.params.profileId))?.userId ?? 0
 
 /**
  * @openapi
@@ -45,7 +49,11 @@ router.get("/me", requirePermission(PERM.SALARY.SELF_READ), controller.getMySala
  *       200:
  *         description: Success
  */
-router.get("/info/:profileId", requirePermission(PERM.SALARY.READ), controller.getSalaryByProfileId)
+router.get(
+    "/info/:profileId",
+    requireSelfOrPermission(PERM.SALARY.READ, 'salary', r => +r.params.profileId, getOwner),
+    controller.getSalaryByProfileId
+)
 
 /**
  * @openapi
@@ -77,7 +85,7 @@ router.get("/info/:profileId", requirePermission(PERM.SALARY.READ), controller.g
  */
 router.put(
     "/info/:profileId",
-    requirePermission(PERM.SALARY.WRITE),
+    requireResource(PERM.SALARY.WRITE, 'salary', r => +r.params.profileId),
     validateBody(schema.updateSalarySchema),
     controller.updateSalary
 )

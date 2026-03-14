@@ -1,6 +1,7 @@
 import { recruitmentRepo, RecruitmentProposalFilter, RecruitmentProposalRow } from "./recruitment.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
+import { permissionService } from "@/core/permissions/permission.service"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { emailService } from "@/services/email.service"
 
@@ -38,15 +39,11 @@ export class RecruitmentService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        // ABAC: Check nếu user chỉ được xem unit của mình
-        const scopes = await abacService.getUnitFilter([
-            { scopeType: 'faculty', unitId: user.unitId },
-            { scopeType: 'department', unitId: user.unitId }
-        ])
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
 
-        // Nếu không phải school-level, chỉ cho xem unit của mình
-        if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = (scopes as number) || undefined
+        if (unitIds !== 'all') {
+            filter.unitIds = unitIds
         }
 
         return await recruitmentRepo.findMany(filter, pagination)
@@ -97,13 +94,10 @@ export class RecruitmentService {
             throw new ForbiddenError('Cannot update proposal in current status')
         }
 
-        // ABAC: Check permission update
+        const scopes = await permissionService.getScopes(user.id)
         const canUpdate = await abacService.canAccess(
-            [
-                { scopeType: 'school', unitId: null },
-                { scopeType: 'faculty', unitId: user.unitId },
-                { scopeType: 'self', unitId: null }
-            ],
+            user.id,
+            scopes,
             'recruitment_proposal',
             id
         )
@@ -144,13 +138,10 @@ export class RecruitmentService {
             throw new NotFoundError('Proposal not found')
         }
 
-        // ABAC: Check permission xem đề xuất (từ đó xem được ứng viên)
+        const scopes = await permissionService.getScopes(user.id)
         const canRead = await abacService.canAccess(
-            [
-                { scopeType: 'school', unitId: null },
-                { scopeType: 'faculty', unitId: user.unitId },
-                { scopeType: 'department', unitId: user.unitId }
-            ],
+            user.id,
+            scopes,
             'recruitment_proposal',
             proposalId
         )
@@ -183,13 +174,10 @@ export class RecruitmentService {
             throw new NotFoundError('Proposal not found')
         }
 
-        // ABAC: Check permission update đề xuất (để thêm ứng viên)
+        const scopes = await permissionService.getScopes(user.id)
         const canWrite = await abacService.canAccess(
-            [
-                { scopeType: 'school', unitId: null },
-                { scopeType: 'faculty', unitId: user.unitId },
-                { scopeType: 'self', unitId: null }
-            ],
+            user.id,
+            scopes,
             'recruitment_proposal',
             data.proposalId
         )

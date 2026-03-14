@@ -1,6 +1,7 @@
 import { adminRepo, UserRow, RoleRow, UnitRow, AuditLogRow } from "./admin.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { hashPassword } from "@/utils/hash"
+import { permissionService } from "@/core/permissions/permission.service"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { emailService } from "@/services/email.service"
 import { logger } from "@/configs/logger"
@@ -81,7 +82,18 @@ export class AdminService {
      * Assign role
      */
     async assignRole(userId: ID, roleId: ID, grantedBy: ID, scopeType?: string, scopeUnitId?: ID, expiresAt?: Date) {
-        return await adminRepo.assignRole(userId, roleId, grantedBy, scopeType, scopeUnitId, expiresAt)
+        const res = await adminRepo.assignRole(userId, roleId, grantedBy, scopeType, scopeUnitId, expiresAt)
+        await permissionService.invalidate(userId)
+        return res
+    }
+
+    /**
+     * Revoke role
+     */
+    async revokeRole(userId: ID, roleId: ID) {
+        const res = await adminRepo.revokeRole(userId, roleId)
+        await permissionService.invalidate(userId)
+        return res
     }
 
     /**

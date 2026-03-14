@@ -1,10 +1,11 @@
 import { db } from "@/configs/db"
 import { ID, PaginationQuery, PaginatedResult } from "@/types"
 import { recruitmentProposals, recruitmentCandidates } from "@/db/schema"
-import { eq, and, sql, count, desc, asc, ilike, or } from "drizzle-orm"
+import { eq, and, sql, count, desc, asc, ilike, or, inArray } from "drizzle-orm"
 
 export interface RecruitmentProposalFilter {
     unitId?: number
+    unitIds?: number[]
     status?: string
     keyword?: string
 }
@@ -26,6 +27,8 @@ export class RecruitmentRepo {
         const conditions = []
         if (filter.unitId) {
             conditions.push(eq(recruitmentProposals.proposingUnit, filter.unitId))
+        } else if (filter.unitIds && filter.unitIds.length > 0) {
+            conditions.push(inArray(recruitmentProposals.proposingUnit, filter.unitIds))
         }
         if (filter.status) {
             conditions.push(eq(recruitmentProposals.status, filter.status as any))

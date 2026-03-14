@@ -1,6 +1,7 @@
 import { workloadRepo, WorkloadFilter, EvidenceRow } from "./workload.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
+import { permissionService } from "@/core/permissions/permission.service"
 import { db } from "@/configs/db"
 import { profileStaff } from "@/db/schema"
 import { eq } from "drizzle-orm"
@@ -27,7 +28,7 @@ export class WorkloadService {
      * Create evidence
      */
     async createEvidence(data: any, userId: ID) {
-        const rows = await db.select({ id: profileStaff.id })
+        const rows = await db.select({ id: profileStaff.id, unitId: profileStaff.unitId })
             .from(profileStaff)
             .where(eq(profileStaff.userId, userId))
             .limit(1)
@@ -47,7 +48,16 @@ export class WorkloadService {
             status: 'pending'
         }
 
-        return await workloadRepo.createEvidence(values)
+        const evidence = await workloadRepo.createEvidence(values)
+
+        await abacService.registerScope({
+            resourceType: 'workload_evidence',
+            resourceId: evidence.id,
+            ownerId: userId,
+            unitId: profile.unitId
+        })
+
+        return evidence
     }
 
     /**
@@ -58,14 +68,11 @@ export class WorkloadService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        // ABAC: Check nếu user chỉ được xem unit của mình
-        const scopes = await abacService.getUnitFilter([
-            { scopeType: 'faculty', unitId: user.unitId },
-            { scopeType: 'department', unitId: user.unitId }
-        ])
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
 
-        if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = (scopes as number) || undefined
+        if (unitIds !== 'all') {
+            filter.unitIds = unitIds
         }
 
         return await workloadRepo.findEvidences(filter, pagination)
@@ -93,14 +100,11 @@ export class WorkloadService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        // ABAC: Check nếu user chỉ được xem unit của mình
-        const scopes = await abacService.getUnitFilter([
-            { scopeType: 'faculty', unitId: user.unitId },
-            { scopeType: 'department', unitId: user.unitId }
-        ])
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
 
-        if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = (scopes as number) || undefined
+        if (unitIds !== 'all') {
+            filter.unitIds = unitIds
         }
 
         return await workloadRepo.findSummaries(filter, pagination)

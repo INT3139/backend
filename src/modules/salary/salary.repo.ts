@@ -9,6 +9,7 @@ export type SalaryLogRow = typeof salaryLogs.$inferSelect
 
 export interface SalaryFilter {
     unitId?: number
+    unitIds?: number[]
     status?: string
 }
 
@@ -78,6 +79,11 @@ export class SalaryRepo {
             const profileIds = db.select({ id: profileStaff.id })
                 .from(profileStaff)
                 .where(eq(profileStaff.unitId, filter.unitId))
+            conditions.push(inArray(salaryUpgradeProposals.profileId, profileIds))
+        } else if (filter.unitIds && filter.unitIds.length > 0) {
+            const profileIds = db.select({ id: profileStaff.id })
+                .from(profileStaff)
+                .where(inArray(profileStaff.unitId, filter.unitIds))
             conditions.push(inArray(salaryUpgradeProposals.profileId, profileIds))
         }
         if (filter.status) {

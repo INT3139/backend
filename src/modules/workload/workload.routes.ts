@@ -2,6 +2,7 @@ import { Router } from "express"
 import * as controller from "./workload.controller"
 import { authenticate } from "@/core/middlewares/auth"
 import { requirePermission } from "@/core/middlewares/requirePermission"
+import { requireResource } from "@/core/middlewares/requireResource"
 import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./workload.schema"
@@ -98,7 +99,11 @@ router.get("/evidences", requirePermission(PERM.WORKLOAD.READ), controller.getEv
  *       200:
  *         description: Success
  */
-router.post("/evidences/:id/approve", requirePermission(PERM.WORKLOAD.APPROVE), controller.approveEvidence)
+router.post(
+    "/evidences/:id/approve",
+    requireResource(PERM.WORKLOAD.APPROVE, 'workload_evidence', r => +r.params.id),
+    controller.approveEvidence
+)
 
 /**
  * @openapi
@@ -132,7 +137,7 @@ router.post("/evidences/:id/approve", requirePermission(PERM.WORKLOAD.APPROVE), 
  */
 router.post(
     "/evidences/:id/reject",
-    requirePermission(PERM.WORKLOAD.APPROVE),
+    requireResource(PERM.WORKLOAD.APPROVE, 'workload_evidence', r => +r.params.id),
     validateBody(schema.rejectEvidenceSchema),
     controller.rejectEvidence
 )

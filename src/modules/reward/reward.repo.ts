@@ -5,6 +5,7 @@ import { eq, and, sql, count, desc, asc, inArray } from "drizzle-orm"
 
 export interface RewardFilter {
     unitId?: number
+    unitIds?: number[]
     academicYear?: string
     awardedYear?: string
 }
@@ -29,6 +30,11 @@ export class RewardRepo {
             const profileIdsQuery = db.select({ id: profileStaff.id })
                 .from(profileStaff)
                 .where(eq(profileStaff.unitId, filter.unitId))
+            conditions.push(inArray(rewardCommendations.profileId, profileIdsQuery))
+        } else if (filter.unitIds && filter.unitIds.length > 0) {
+            const profileIdsQuery = db.select({ id: profileStaff.id })
+                .from(profileStaff)
+                .where(inArray(profileStaff.unitId, filter.unitIds))
             conditions.push(inArray(rewardCommendations.profileId, profileIdsQuery))
         }
         if (filter.academicYear) {
@@ -141,6 +147,11 @@ export class RewardRepo {
                 .from(profileStaff)
                 .where(eq(profileStaff.unitId, filter.unitId))
             conditions.push(inArray(rewardTitles.profileId, profileIdsQuery))
+        } else if (filter.unitIds && filter.unitIds.length > 0) {
+            const profileIdsQuery = db.select({ id: profileStaff.id })
+                .from(profileStaff)
+                .where(inArray(profileStaff.unitId, filter.unitIds))
+            conditions.push(inArray(rewardTitles.profileId, profileIdsQuery))
         }
         if (filter.awardedYear) {
             conditions.push(eq(rewardTitles.awardedYear, filter.awardedYear))
@@ -221,6 +232,11 @@ export class RewardRepo {
             const profileIdsQuery = db.select({ id: profileStaff.id })
                 .from(profileStaff)
                 .where(eq(profileStaff.unitId, filter.unitId))
+            conditions.push(inArray(rewardDisciplinaryRecords.profileId, profileIdsQuery))
+        } else if (filter.unitIds && filter.unitIds.length > 0) {
+            const profileIdsQuery = db.select({ id: profileStaff.id })
+                .from(profileStaff)
+                .where(inArray(profileStaff.unitId, filter.unitIds))
             conditions.push(inArray(rewardDisciplinaryRecords.profileId, profileIdsQuery))
         }
 

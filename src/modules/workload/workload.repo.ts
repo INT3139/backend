@@ -9,6 +9,7 @@ export type SummaryRow = typeof workloadAnnualSummaries.$inferSelect
 
 export interface WorkloadFilter {
     unitId?: number
+    unitIds?: number[]
     academicYear?: string
     status?: string
 }
@@ -61,6 +62,11 @@ export class WorkloadRepo {
             const profileIds = db.select({ id: profileStaff.id })
                 .from(profileStaff)
                 .where(eq(profileStaff.unitId, filter.unitId))
+            conditions.push(inArray(workloadEvidences.profileId, profileIds))
+        } else if (filter.unitIds && filter.unitIds.length > 0) {
+            const profileIds = db.select({ id: profileStaff.id })
+                .from(profileStaff)
+                .where(inArray(profileStaff.unitId, filter.unitIds))
             conditions.push(inArray(workloadEvidences.profileId, profileIds))
         }
         if (filter.academicYear) {
@@ -116,6 +122,11 @@ export class WorkloadRepo {
             const profileIds = db.select({ id: profileStaff.id })
                 .from(profileStaff)
                 .where(eq(profileStaff.unitId, filter.unitId))
+            conditions.push(inArray(workloadAnnualSummaries.profileId, profileIds))
+        } else if (filter.unitIds && filter.unitIds.length > 0) {
+            const profileIds = db.select({ id: profileStaff.id })
+                .from(profileStaff)
+                .where(inArray(profileStaff.unitId, filter.unitIds))
             conditions.push(inArray(workloadAnnualSummaries.profileId, profileIds))
         }
         if (filter.academicYear) {

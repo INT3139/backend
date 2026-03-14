@@ -1,6 +1,7 @@
 import { salaryRepo, SalaryFilter, SalaryInfoRow, SalaryUpgradeProposalRow } from "./salary.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
+import { permissionService } from "@/core/permissions/permission.service"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { db } from "@/configs/db"
 import { users, profileStaff } from "@/db/schema"
@@ -65,9 +66,10 @@ export class SalaryService {
         data: UpdateSalaryDto,
         user: AuthUser
     ): Promise<SalaryInfoRow> {
-        // ABAC: Check permission update salary
+        const scopes = await permissionService.getScopes(user.id)
         const canUpdate = await abacService.canAccess(
-            [{ scopeType: 'school', unitId: null }],
+            user.id,
+            scopes,
             'salary',
             profileId
         )
@@ -126,14 +128,11 @@ export class SalaryService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        // ABAC: Check nếu user chỉ được xem unit của mình
-        const scopes = await abacService.getUnitFilter([
-            { scopeType: 'faculty', unitId: user.unitId },
-            { scopeType: 'department', unitId: user.unitId }
-        ])
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
 
-        if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = (scopes as number) || undefined
+        if (unitIds !== 'all') {
+            filter.unitIds = unitIds
         }
 
         return await salaryRepo.findProposals(filter, pagination)

@@ -1,6 +1,7 @@
 import { rewardRepo, RewardFilter, CommendationRow, TitleRow, DisciplineRow } from "./reward.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
+import { permissionService } from "@/core/permissions/permission.service"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 
 export class RewardService {
@@ -19,14 +20,11 @@ export class RewardService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        // ABAC: Check nếu user chỉ được xem unit của mình
-        const scopes = await abacService.getUnitFilter([
-            { scopeType: 'faculty', unitId: user.unitId },
-            { scopeType: 'department', unitId: user.unitId }
-        ])
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
 
-        if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = (scopes as number) || undefined
+        if (unitIds !== 'all') {
+            filter.unitIds = unitIds
         }
 
         return await rewardRepo.findCommendations(filter, pagination)
@@ -65,14 +63,11 @@ export class RewardService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        // ABAC: Check nếu user chỉ được xem unit của mình
-        const scopes = await abacService.getUnitFilter([
-            { scopeType: 'faculty', unitId: user.unitId },
-            { scopeType: 'department', unitId: user.unitId }
-        ])
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
 
-        if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = (scopes as number) || undefined
+        if (unitIds !== 'all') {
+            filter.unitIds = unitIds
         }
 
         return await rewardRepo.findTitles(filter, pagination)
@@ -111,14 +106,11 @@ export class RewardService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        // ABAC: Check nếu user chỉ được xem unit của mình
-        const scopes = await abacService.getUnitFilter([
-            { scopeType: 'faculty', unitId: user.unitId },
-            { scopeType: 'department', unitId: user.unitId }
-        ])
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
 
-        if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = (scopes as number) || undefined
+        if (unitIds !== 'all') {
+            filter.unitIds = unitIds
         }
 
         return await rewardRepo.findDisciplinaryRecords(filter, pagination)

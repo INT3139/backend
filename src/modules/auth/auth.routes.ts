@@ -101,4 +101,19 @@ router.post("/logout", authenticate, controller.logoutCtrl)
  */
 router.post("/change-password", authenticate, validateBody(schema.changePasswordSchema), controller.changePasswordCtrl)
 
+/**
+ * @openapi
+ * /auth/permissions:
+ *   get:
+ *     tags:
+ *       - Auth
+ *     summary: Get user permissions and scopes
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.get("/permissions", authenticate, controller.getPermissionsCtrl)
+
 export const authRoutes: Router = router;
