@@ -9,7 +9,6 @@ import { asyncHandler } from "@/core/middlewares/errorHandler";
 
 interface AuthRequest extends Request {
     user?: AuthUser;
-    userId?: string;
 }
 
 export const loginCtrl = asyncHandler(async (

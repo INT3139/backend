@@ -1,20 +1,14 @@
 import { Request, Response } from "express"
 import { rewardService } from "./reward.service"
 import { success, created } from "@/utils/response"
-import { AuthUser } from "@/types"
 import { logAction } from "@/core/middlewares/auditContext"
 import { asyncHandler } from "@/core/middlewares/errorHandler"
-
-interface AuthRequest extends Request {
-    user?: AuthUser
-    userId?: string
-}
 
 /**
  * GET /api/v1/reward/me
  */
 export const getMyRewards = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const rewards = await rewardService.getRewardsByUserId(req.user!.id)
@@ -27,12 +21,12 @@ export const getMyRewards = asyncHandler(async (
  * GET /api/v1/reward/commendations
  */
 export const getCommendations = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const { page = 1, limit = 20, unitId, academicYear } = req.query
     const filter = {
-        unitId: unitId as string | undefined,
+        unitId: unitId ? parseInt(unitId as string, 10) : undefined,
         academicYear: academicYear as string | undefined
     }
     const pagination = {
@@ -50,11 +44,11 @@ export const getCommendations = asyncHandler(async (
  * POST /api/v1/reward/commendations
  */
 export const createCommendation = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const reward = await rewardService.createCommendation(req.body)
-    await logAction(req.userId!, 'create', 'reward_commendation', reward.id, req.body)
+    await logAction(req.userId!, 'create', 'reward_commendation', reward.id.toString(), req.body)
 
     return created(res, reward)
 })
@@ -63,12 +57,12 @@ export const createCommendation = asyncHandler(async (
  * PUT /api/v1/reward/commendations/:id
  */
 export const updateCommendation = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
-    const updated = await rewardService.updateCommendation(id as string, req.body)
-    await logAction(req.userId!, 'update', 'reward_commendation', id as string, req.body)
+    const id = parseInt(req.params.id as string, 10)
+    const updated = await rewardService.updateCommendation(id, req.body)
+    await logAction(req.userId!, 'update', 'reward_commendation', id.toString(), req.body)
 
     return success(res, updated)
 })
@@ -77,12 +71,12 @@ export const updateCommendation = asyncHandler(async (
  * DELETE /api/v1/reward/commendations/:id
  */
 export const deleteCommendation = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
-    await rewardService.deleteCommendation(id as string)
-    await logAction(req.userId!, 'delete', 'reward_commendation', id as string)
+    const id = parseInt(req.params.id as string, 10)
+    await rewardService.deleteCommendation(id)
+    await logAction(req.userId!, 'delete', 'reward_commendation', id.toString())
 
     return success(res, { message: 'Commendation deleted' })
 })
@@ -91,12 +85,12 @@ export const deleteCommendation = asyncHandler(async (
  * GET /api/v1/reward/titles
  */
 export const getTitles = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const { page = 1, limit = 20, unitId, awardedYear } = req.query
     const filter = {
-        unitId: unitId as string | undefined,
+        unitId: unitId ? parseInt(unitId as string, 10) : undefined,
         awardedYear: awardedYear as string | undefined
     }
     const pagination = {
@@ -114,11 +108,11 @@ export const getTitles = asyncHandler(async (
  * POST /api/v1/reward/titles
  */
 export const createTitle = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const title = await rewardService.createTitle(req.body)
-    await logAction(req.userId!, 'create', 'reward_title', title.id as string, req.body)
+    await logAction(req.userId!, 'create', 'reward_title', title.id.toString(), req.body)
 
     return created(res, title)
 })
@@ -127,12 +121,12 @@ export const createTitle = asyncHandler(async (
  * PUT /api/v1/reward/titles/:id
  */
 export const updateTitle = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
-    const updated = await rewardService.updateTitle(id as string, req.body)
-    await logAction(req.userId!, 'update', 'reward_title', id as string, req.body)
+    const id = parseInt(req.params.id as string, 10)
+    const updated = await rewardService.updateTitle(id, req.body)
+    await logAction(req.userId!, 'update', 'reward_title', id.toString(), req.body)
 
     return success(res, updated)
 })
@@ -141,12 +135,12 @@ export const updateTitle = asyncHandler(async (
  * DELETE /api/v1/reward/titles/:id
  */
 export const deleteTitle = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
-    await rewardService.deleteTitle(id as string)
-    await logAction(req.userId!, 'delete', 'reward_title', id as string)
+    const id = parseInt(req.params.id as string, 10)
+    await rewardService.deleteTitle(id)
+    await logAction(req.userId!, 'delete', 'reward_title', id.toString())
 
     return success(res, { message: 'Title deleted' })
 })
@@ -155,12 +149,12 @@ export const deleteTitle = asyncHandler(async (
  * GET /api/v1/reward/discipline
  */
 export const getDisciplinaryRecords = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const { page = 1, limit = 20, unitId } = req.query
     const filter = {
-        unitId: unitId as string | undefined
+        unitId: unitId ? parseInt(unitId as string, 10) : undefined
     }
     const pagination = {
         page: parseInt(page as string, 10),
@@ -177,11 +171,11 @@ export const getDisciplinaryRecords = asyncHandler(async (
  * POST /api/v1/reward/discipline
  */
 export const createDiscipline = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const discipline = await rewardService.createDiscipline({ ...req.body, issued_by: req.userId })
-    await logAction(req.userId!, 'create', 'reward_discipline', discipline.id as string, req.body)
+    const discipline = await rewardService.createDiscipline({ ...req.body, issuedBy: req.userId })
+    await logAction(req.userId!, 'create', 'reward_discipline', discipline.id.toString(), req.body)
 
     return created(res, discipline)
 })
@@ -190,12 +184,12 @@ export const createDiscipline = asyncHandler(async (
  * PUT /api/v1/reward/discipline/:id
  */
 export const updateDiscipline = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
-    const updated = await rewardService.updateDiscipline(id as string, req.body)
-    await logAction(req.userId!, 'update', 'reward_discipline', id as string, req.body)
+    const id = parseInt(req.params.id as string, 10)
+    const updated = await rewardService.updateDiscipline(id, req.body)
+    await logAction(req.userId!, 'update', 'reward_discipline', id.toString(), req.body)
 
     return success(res, updated)
 })
@@ -204,12 +198,13 @@ export const updateDiscipline = asyncHandler(async (
  * DELETE /api/v1/reward/discipline/:id
  */
 export const deleteDiscipline = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
-    await rewardService.deleteDiscipline(id as string)
-    await logAction(req.userId!, 'delete', 'reward_discipline', id as string)
+    const id = parseInt(req.params.id as string, 10)
+    await rewardService.deleteDiscipline(id)
+    await logAction(req.userId!, 'delete', 'reward_discipline', id.toString())
 
     return success(res, { message: 'Disciplinary record deleted' })
 })
+

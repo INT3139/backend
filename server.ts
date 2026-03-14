@@ -1,12 +1,13 @@
 import { createApp } from "@/app";
-import { pool } from "@/configs/db";
+import { db, pool } from "@/configs/db";
+import { sql } from "drizzle-orm";
 import { redis } from "@/configs/redis";
 import { logger } from "@/configs/logger";
 import { env } from "@/configs/env";
 import { startJobs } from "@/jobs/scheduler";
 
 async function bootstrap(): Promise<void> {
-    await pool.query('SELECT 1')
+    await db.execute(sql`SELECT 1`)
     logger.info('PostgreSQL connected')
 
     await redis.ping()

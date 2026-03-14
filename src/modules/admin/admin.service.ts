@@ -1,5 +1,5 @@
 import { adminRepo, UserRow, RoleRow, UnitRow, AuditLogRow } from "./admin.repo"
-import { UUID, PaginationQuery, AuthUser } from "@/types"
+import { ID, PaginationQuery, AuthUser } from "@/types"
 import { hashPassword } from "@/utils/hash"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { emailService } from "@/services/email.service"
@@ -10,7 +10,7 @@ export interface CreateUserDto {
     email: string
     fullName: string
     password?: string
-    unitId?: UUID
+    unitId?: ID
 }
 
 export class AdminService {
@@ -31,14 +31,14 @@ export class AdminService {
         const user = await adminRepo.createUser({
             username: data.username,
             email: data.email,
-            full_name: data.fullName,
-            unit_id: data.unitId,
-            password_hash: hashedPassword,
-            is_active: true
+            fullName: data.fullName,
+            unitId: data.unitId,
+            passwordHash: hashedPassword,
+            isActive: true
         })
 
         // Gửi email chào mừng (không block flow chính)
-        emailService.sendWelcomeEmail(user.email, user.full_name).catch(err => {
+        emailService.sendWelcomeEmail(user.email, user.fullName).catch(err => {
             logger.error('Failed to send welcome email', { error: err, userId: user.id })
         })
 
@@ -48,7 +48,7 @@ export class AdminService {
     /**
      * Update user
      */
-    async updateUser(id: UUID, data: Partial<UserRow>) {
+    async updateUser(id: ID, data: Partial<UserRow>) {
         const updated = await adminRepo.updateUser(id, data)
         if (!updated) {
             throw new NotFoundError('User not found')
@@ -59,7 +59,7 @@ export class AdminService {
     /**
      * Delete user
      */
-    async deleteUser(id: UUID) {
+    async deleteUser(id: ID) {
         return await adminRepo.deleteUser(id)
     }
 
@@ -80,7 +80,7 @@ export class AdminService {
     /**
      * Assign role
      */
-    async assignRole(userId: UUID, roleId: UUID, grantedBy: UUID, scopeType?: string, scopeUnitId?: UUID, expiresAt?: Date) {
+    async assignRole(userId: ID, roleId: ID, grantedBy: ID, scopeType?: string, scopeUnitId?: ID, expiresAt?: Date) {
         return await adminRepo.assignRole(userId, roleId, grantedBy, scopeType, scopeUnitId, expiresAt)
     }
 
@@ -107,3 +107,4 @@ export class AdminService {
 }
 
 export const adminService = new AdminService()
+

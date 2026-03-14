@@ -1,13 +1,13 @@
 import { Request, Response } from "express"
 import { workloadService } from "./workload.service"
 import { success, created } from "@/utils/response"
-import { AuthUser } from "@/types"
+import { AuthUser, ID } from "@/types"
 import { logAction } from "@/core/middlewares/auditContext"
 import { asyncHandler } from "@/core/middlewares/errorHandler"
 
 interface AuthRequest extends Request {
     user?: AuthUser
-    userId?: string
+    userId?: ID
 }
 
 /**
@@ -31,7 +31,7 @@ export const createEvidence = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const evidence = await workloadService.createEvidence(req.body, req.user!.id)
-    await logAction(req.userId!, 'create', 'workload_evidence', evidence.id, req.body)
+    await logAction(req.userId!, 'create', 'workload_evidence', evidence.id.toString(), req.body)
 
     return created(res, evidence)
 })
@@ -45,7 +45,7 @@ export const getEvidences = asyncHandler(async (
 ): Promise<Response> => {
     const { page = 1, limit = 20, unitId, academicYear, status } = req.query
     const filter = {
-        unitId: unitId as string | undefined,
+        unitId: unitId ? parseInt(unitId as string, 10) : undefined,
         academicYear: academicYear as string | undefined,
         status: status as string | undefined
     }
@@ -68,7 +68,7 @@ export const approveEvidence = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const { id } = req.params
-    const updated = await workloadService.approveEvidence(id as string, req.user!.id)
+    const updated = await workloadService.approveEvidence(parseInt(id as string, 10), req.user!.id)
     await logAction(req.userId!, 'approve', 'workload_evidence', id as string)
 
     return success(res, updated)
@@ -83,7 +83,7 @@ export const rejectEvidence = asyncHandler(async (
 ): Promise<Response> => {
     const { id } = req.params
     const { reject_reason } = req.body
-    const updated = await workloadService.rejectEvidence(id as string, req.user!.id, reject_reason)
+    const updated = await workloadService.rejectEvidence(parseInt(id as string, 10), req.user!.id, reject_reason)
     await logAction(req.userId!, 'reject', 'workload_evidence', id as string, { reject_reason })
 
     return success(res, updated)
@@ -98,7 +98,7 @@ export const getSummaries = asyncHandler(async (
 ): Promise<Response> => {
     const { page = 1, limit = 20, unitId, academicYear } = req.query
     const filter = {
-        unitId: unitId as string | undefined,
+        unitId: unitId ? parseInt(unitId as string, 10) : undefined,
         academicYear: academicYear as string | undefined
     }
     const pagination = {

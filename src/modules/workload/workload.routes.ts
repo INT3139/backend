@@ -93,8 +93,7 @@ router.get("/evidences", requirePermission(PERM.WORKLOAD.READ), controller.getEv
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -115,8 +114,7 @@ router.post("/evidences/:id/approve", requirePermission(PERM.WORKLOAD.APPROVE), 
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:

@@ -1,34 +1,35 @@
-import { query, queryOne } from "@/configs/db"
+import { db } from "@/configs/db"
+import { userRoles, rolePermissions, permissions } from "@/db/schema/auth"
+import { eq, and, isNull } from "drizzle-orm"
 import { rSadd, rIsMember, rSmembers, rGetJson, rSetJson, rDel, rExists } from "@/configs/redis"
-import { expandAll, expandPattern } from "./wildcardExpand"
+import { expandAll } from "./wildcardExpand"
 import { CacheKey, CacheTTL} from "../cache/cacheKey"
-import { UUID, AuthUser, UserScope } from "@/types"
-
-interface StoredPermission {
-    code: string
-    scope_type: string
-    scope_unit_id: UUID | null
-}
+import { ID, UserScope } from "@/types"
 
 export class PermissionService {
     /**
      * Load tất cả permissions + scopes của user vào cache
      * Called sau khi login
      */
-    async loadForUser(userId: UUID): Promise<void> {
-        const rows = await query<StoredPermission>(
-            `SELECT p.code, ur.scope_type, ur.scope_unit_id
-            FROM user_roles ur
-            JOIN role_permissions rp ON rp.role_id = ur.role_id
-            JOIN permissions p ON p.code = rp.permission_code
-            WHERE ur.user_id = $1 AND ur.expires_at IS NULL AND p.is_active = TRUE`,
-            [userId]
-        )
+    async loadForUser(userId: ID): Promise<void> {
+        const rows = await db.select({
+            code: permissions.code,
+            scopeType: userRoles.scopeType,
+            scopeUnitId: userRoles.scopeUnitId
+        })
+        .from(userRoles)
+        .innerJoin(rolePermissions, eq(rolePermissions.roleId, userRoles.roleId))
+        .innerJoin(permissions, eq(permissions.code, rolePermissions.permissionCode))
+        .where(and(
+            eq(userRoles.userId, userId),
+            isNull(userRoles.expiresAt),
+            eq(permissions.isActive, true)
+        ))
 
         const permCodes = rows.map(r => r.code)
         const scopes: UserScope[] = rows.map(r => ({
-            scopeType: r.scope_type as UserScope['scopeType'],
-            unitId: r.scope_unit_id
+            scopeType: r.scopeType as UserScope['scopeType'],
+            unitId: r.scopeUnitId as ID | null
         }))
 
         // Cache perm codes
@@ -46,7 +47,7 @@ export class PermissionService {
     /**
      * Check xem user có permission cụ thể không
      */
-    async hasPermission(userId: UUID, permissionCode: string): Promise<boolean> {
+    async hasPermission(userId: ID, permissionCode: string): Promise<boolean> {
         const key = CacheKey.permCodes(userId)
         if (!await rExists(key)) {
             await this.loadForUser(userId)
@@ -57,7 +58,7 @@ export class PermissionService {
     /**
      * Check user có bất kỳ permission nào trong danh sách không
      */
-    async hasAnyPermission(userId: UUID, permissionCodes: string[]): Promise<boolean> {
+    async hasAnyPermission(userId: ID, permissionCodes: string[]): Promise<boolean> {
         for (const code of permissionCodes) {
             if (await this.hasPermission(userId, code)) {
                 return true
@@ -69,7 +70,7 @@ export class PermissionService {
     /**
      * Check user có tất cả permissions trong danh sách không
      */
-    async hasAllPermissions(userId: UUID, permissionCodes: string[]): Promise<boolean> {
+    async hasAllPermissions(userId: ID, permissionCodes: string[]): Promise<boolean> {
         for (const code of permissionCodes) {
             if (!await this.hasPermission(userId, code)) {
                 return false
@@ -81,7 +82,7 @@ export class PermissionService {
     /**
      * Get scopes của user từ cache
      */
-    async getScopes(userId: UUID): Promise<UserScope[]> {
+    async getScopes(userId: ID): Promise<UserScope[]> {
         const key = CacheKey.permScopes(userId)
         const cached = await rGetJson<UserScope[]>(key)
         if (cached) {
@@ -94,7 +95,7 @@ export class PermissionService {
     /**
      * Alias for getScopes
      */
-    async getScopesForUser(userId: UUID): Promise<UserScope[]> {
+    async getScopesForUser(userId: ID): Promise<UserScope[]> {
         return await this.getScopes(userId)
     }
 
@@ -102,7 +103,7 @@ export class PermissionService {
      * Invalidate cache permissions của user
      * Called khi có thay đổi role/permission
      */
-    async invalidate(userId: UUID): Promise<void> {
+    async invalidate(userId: ID): Promise<void> {
         await rDel(CacheKey.permCodes(userId))
         await rDel(CacheKey.permScopes(userId))
     }
@@ -110,19 +111,19 @@ export class PermissionService {
     /**
      * Đảm bảo role có permission cụ thể (dùng cho admin)
      */
-    async ensureRoleHasPerm(roleId: UUID, permissionCode: string): Promise<void> {
-        await query(
-            `INSERT INTO role_permissions (role_id, permission_code)
-            VALUES ($1, $2)
-            ON CONFLICT (role_id, permission_code) DO NOTHING`,
-            [roleId, permissionCode]
-        )
+    async ensureRoleHasPerm(roleId: ID, permissionCode: string): Promise<void> {
+        await db.insert(rolePermissions)
+            .values({
+                roleId: roleId,
+                permissionCode: permissionCode
+            })
+            .onConflictDoNothing()
     }
 
     /**
      * Grant permission cho role
      */
-    async grantPermissionToRole(roleId: UUID, permissionCode: string): Promise<void> {
+    async grantPermissionToRole(roleId: ID, permissionCode: string): Promise<void> {
         await this.ensureRoleHasPerm(roleId, permissionCode)
         // Invalidate cache của tất cả user có role này
         await this.invalidateUsersWithRole(roleId)
@@ -131,32 +132,36 @@ export class PermissionService {
     /**
      * Revoke permission khỏi role
      */
-    async revokePermissionFromRole(roleId: UUID, permissionCode: string): Promise<void> {
-        await query(
-            `DELETE FROM role_permissions
-            WHERE role_id = $1 AND permission_code = $2`,
-            [roleId, permissionCode]
-        )
+    async revokePermissionFromRole(roleId: ID, permissionCode: string): Promise<void> {
+        await db.delete(rolePermissions)
+            .where(and(
+                eq(rolePermissions.roleId, roleId),
+                eq(rolePermissions.permissionCode, permissionCode)
+            ))
         await this.invalidateUsersWithRole(roleId)
     }
 
     /**
      * Invalidate cache của tất cả user có role cụ thể
      */
-    async invalidateUsersWithRole(roleId: UUID): Promise<void> {
-        const rows = await query<{ user_id: UUID }>(
-            'SELECT DISTINCT user_id FROM user_roles WHERE role_id = $1 AND expires_at IS NULL',
-            [roleId]
-        )
-        for (const row of rows) {
-            await this.invalidate(row.user_id)
+    async invalidateUsersWithRole(roleId: ID): Promise<void> {
+        const rows = await db.select({ userId: userRoles.userId })
+            .from(userRoles)
+            .where(and(
+                eq(userRoles.roleId, roleId),
+                isNull(userRoles.expiresAt)
+            ))
+            
+        const userIds = Array.from(new Set(rows.map(r => r.userId)))
+        for (const uid of userIds) {
+            await this.invalidate(uid)
         }
     }
 
     /**
      * Alias for invalidateUsersWithRole to match invalidation service usage
      */
-    async invalidateByRole(roleId: UUID): Promise<void> {
+    async invalidateByRole(roleId: ID): Promise<void> {
         return await this.invalidateUsersWithRole(roleId)
     }
 
@@ -170,7 +175,7 @@ export class PermissionService {
     /**
      * Get permissions raw của user (cho debugging)
      */
-    async getRawPermissions(userId: UUID): Promise<string[]> {
+    async getRawPermissions(userId: ID): Promise<string[]> {
         const key = CacheKey.permCodes(userId)
         if (!await rExists(key)) {
             await this.loadForUser(userId)

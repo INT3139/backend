@@ -1,11 +1,11 @@
 import { profileSubRepo } from "../profileSub.repo"
-import { UUID } from "@/types"
+import { ID } from "@/types"
 
 export class EducationService {
     /**
      * Get danh sách quá trình đào tạo của cán bộ
      */
-    async getByProfileId(profileId: UUID) {
+    async getByProfileId(profileId: ID) {
         return await profileSubRepo.getEducation(profileId)
     }
 
@@ -19,7 +19,7 @@ export class EducationService {
     /**
      * Xóa quá trình đào tạo
      */
-    async delete(id: UUID) {
+    async delete(id: ID) {
         return await profileSubRepo.deleteEducation(id)
     }
 }

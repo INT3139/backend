@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 export const createProfileSchema = z.object({
-    userId: z.string().uuid(),
-    unitId: z.string().uuid(),
+    userId: z.number().int().positive(),
+    unitId: z.number().int().positive(),
     emailVnu: z.string().email().optional(),
     emailPersonal: z.string().email().optional(),
     phoneWork: z.string().optional(),

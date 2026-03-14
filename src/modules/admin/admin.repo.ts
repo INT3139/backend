@@ -1,49 +1,12 @@
-import { query, queryOne } from "@/configs/db"
-import { UUID, PaginationQuery, PaginatedResult } from "@/types"
+import { db } from "@/configs/db"
+import { ID, PaginationQuery, PaginatedResult } from "@/types"
+import { users, roles, organizationalUnits, sysAuditLogs, userRoles } from "@/db/schema"
+import { eq, and, sql, count, desc, asc } from "drizzle-orm"
 
-export interface UserRow {
-    id: UUID
-    username: string
-    email: string
-    full_name: string
-    unit_id: UUID | null
-    is_active: boolean
-    last_login_at: Date | null
-    created_at: Date
-}
-
-export interface RoleRow {
-    id: UUID
-    code: string
-    name: string
-    description: string
-    created_at: Date
-}
-
-export interface UnitRow {
-    id: UUID
-    code: string
-    name: string
-    unit_type: string
-    parent_id: UUID | null
-    created_at: Date
-}
-
-export interface AuditLogRow {
-    id: number
-    event_time: Date
-    actor_id: UUID | null
-    actor_ip: string | null
-    action: string
-    resource_type: string
-    resource_id: string | null
-    table_name: string | null
-    old_values: any
-    new_values: any
-    diff: any
-    session_id: string | null
-    request_id: string | null
-}
+export type UserRow = typeof users.$inferSelect
+export type RoleRow = typeof roles.$inferSelect
+export type UnitRow = typeof organizationalUnits.$inferSelect
+export type AuditLogRow = typeof sysAuditLogs.$inferSelect
 
 export class AdminRepo {
     /**
@@ -55,19 +18,25 @@ export class AdminRepo {
         const { page, limit, sort, order } = pagination
         const offset = (page - 1) * limit
 
-        const countRes = await queryOne<{ total: string }>(
-            `SELECT COUNT(*) as total FROM users WHERE deleted_at IS NULL`
-        )
-        const total = parseInt(countRes?.total || '0', 10)
+        const countRes = await db.select({ total: count() })
+            .from(users)
+            .where(sql`${users.deletedAt} IS NULL`)
+        const total = Number(countRes[0].total)
 
-        const rows = await query<UserRow>(
-            `SELECT id, username, email, full_name, unit_id, is_active, last_login_at, created_at
-             FROM users 
-             WHERE deleted_at IS NULL
-             ORDER BY ${sort || 'created_at'} ${order || 'desc'}
-             LIMIT $1 OFFSET $2`,
-            [limit, offset]
-        )
+        let orderBy: any = desc(users.createdAt)
+        if (sort) {
+            const column = (users as any)[sort]
+            if (column) {
+                orderBy = order === 'asc' ? asc(column) : desc(column)
+            }
+        }
+
+        const rows = await db.select()
+            .from(users)
+            .where(sql`${users.deletedAt} IS NULL`)
+            .limit(limit)
+            .offset(offset)
+            .orderBy(orderBy)
 
         return {
             data: rows,
@@ -82,14 +51,20 @@ export class AdminRepo {
      * Get all roles
      */
     async findAllRoles(): Promise<RoleRow[]> {
-        return await query<RoleRow>(`SELECT * FROM roles WHERE deleted_at IS NULL ORDER BY code`)
+        return await db.select()
+            .from(roles)
+            .where(sql`${roles.deletedAt} IS NULL`)
+            .orderBy(roles.code)
     }
 
     /**
      * Get all organizational units
      */
     async findAllUnits(): Promise<UnitRow[]> {
-        return await query<UnitRow>(`SELECT * FROM organizational_units WHERE deleted_at IS NULL ORDER BY name`)
+        return await db.select()
+            .from(organizationalUnits)
+            .where(sql`${organizationalUnits.deletedAt} IS NULL`)
+            .orderBy(organizationalUnits.name)
     }
 
     /**
@@ -101,15 +76,22 @@ export class AdminRepo {
         const { page, limit, sort, order } = pagination
         const offset = (page - 1) * limit
 
-        const countRes = await queryOne<{ total: string }>(`SELECT COUNT(*) as total FROM sys_audit_logs`)
-        const total = parseInt(countRes?.total || '0', 10)
+        const countRes = await db.select({ total: count() }).from(sysAuditLogs)
+        const total = Number(countRes[0].total)
 
-        const rows = await query<AuditLogRow>(
-            `SELECT * FROM sys_audit_logs 
-             ORDER BY ${sort || 'event_time'} ${order || 'desc'}
-             LIMIT $1 OFFSET $2`,
-            [limit, offset]
-        )
+        let orderBy: any = desc(sysAuditLogs.eventTime)
+        if (sort) {
+            const column = (sysAuditLogs as any)[sort]
+            if (column) {
+                orderBy = order === 'asc' ? asc(column) : desc(column)
+            }
+        }
+
+        const rows = await db.select()
+            .from(sysAuditLogs)
+            .limit(limit)
+            .offset(offset)
+            .orderBy(orderBy)
 
         return {
             data: rows,
@@ -123,84 +105,70 @@ export class AdminRepo {
     /**
      * Create new user
      */
-    async createUser(data: Partial<UserRow> & { password_hash: string }): Promise<UserRow> {
-        const res = await queryOne<UserRow>(
-            `INSERT INTO users (
-                username, email, password_hash, full_name, unit_id, is_active
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6
-            ) RETURNING *`,
-            [data.username, data.email, data.password_hash, data.full_name, data.unit_id, data.is_active ?? true]
-        )
-        return res!
+    async createUser(data: any): Promise<UserRow> {
+        const res = await db.insert(users)
+            .values(data)
+            .returning()
+        return res[0]
     }
 
     /**
      * Update user
      */
-    async updateUser(id: UUID, data: Partial<UserRow>): Promise<UserRow | null> {
-        const fields: string[] = []
-        const params: any[] = []
-        let paramIdx = 1
-
-        for (const [key, value] of Object.entries(data)) {
-            if (value !== undefined) {
-                fields.push(`${key} = $${paramIdx++}`)
-                params.push(value)
-            }
-        }
-
-        if (fields.length === 0) return null
-
-        params.push(id)
-        const res = await queryOne<UserRow>(
-            `UPDATE users SET ${fields.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
-            params
-        )
-        return res
+    async updateUser(id: ID, data: any): Promise<UserRow | null> {
+        const res = await db.update(users)
+            .set(data)
+            .where(eq(users.id, id))
+            .returning()
+        return res[0] ?? null
     }
 
     /**
      * Delete user
      */
-    async deleteUser(id: UUID): Promise<boolean> {
-        await query(`UPDATE users SET deleted_at = NOW() WHERE id = $1`, [id])
+    async deleteUser(id: ID): Promise<boolean> {
+        await db.update(users)
+            .set({ deletedAt: new Date() })
+            .where(eq(users.id, id))
         return true
     }
 
     /**
      * Create Role
      */
-    async createRole(data: Partial<RoleRow>): Promise<RoleRow> {
-        const res = await queryOne<RoleRow>(
-            `INSERT INTO roles (code, name, description) VALUES ($1, $2, $3) RETURNING *`,
-            [data.code, data.name, data.description]
-        )
-        return res!
+    async createRole(data: any): Promise<RoleRow> {
+        const res = await db.insert(roles)
+            .values(data)
+            .returning()
+        return res[0]
     }
 
     /**
      * Create Unit
      */
-    async createUnit(data: Partial<UnitRow>): Promise<UnitRow> {
-        const res = await queryOne<UnitRow>(
-            `INSERT INTO organizational_units (code, name, unit_type, parent_id) VALUES ($1, $2, $3, $4) RETURNING *`,
-            [data.code, data.name, data.unit_type, data.parent_id]
-        )
-        return res!
+    async createUnit(data: any): Promise<UnitRow> {
+        const res = await db.insert(organizationalUnits)
+            .values(data)
+            .returning()
+        return res[0]
     }
 
     /**
      * Assign Role
      */
-    async assignRole(userId: UUID, roleId: UUID, grantedBy: UUID, scopeType = 'school', scopeUnitId?: UUID, expiresAt?: Date) {
-        await query(
-            `INSERT INTO user_roles (user_id, role_id, scope_type, scope_unit_id, granted_by, expires_at)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [userId, roleId, scopeType, scopeUnitId, grantedBy, expiresAt]
-        )
+    async assignRole(userId: ID, roleId: ID, grantedBy: ID, scopeType: any = 'school', scopeUnitId?: ID, expiresAt?: Date) {
+        await db.insert(userRoles)
+            .values({
+                userId,
+                roleId,
+                scopeType,
+                scopeUnitId,
+                grantedBy,
+                expiresAt
+            })
         return true
     }
 }
 
 export const adminRepo = new AdminRepo()
+

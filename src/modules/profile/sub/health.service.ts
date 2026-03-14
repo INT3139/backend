@@ -1,18 +1,18 @@
 import { profileSubRepo } from "../profileSub.repo"
-import { UUID } from "@/types"
+import { ID } from "@/types"
 
 export class HealthService {
     /**
      * Get hồ sơ sức khỏe
      */
-    async getByProfileId(profileId: UUID) {
+    async getByProfileId(profileId: ID) {
         return await profileSubRepo.getHealthRecords(profileId)
     }
 
     /**
      * Cập nhật hồ sơ sức khỏe (upsert)
      */
-    async update(profileId: UUID, data: any) {
+    async update(profileId: ID, data: any) {
         return await profileSubRepo.upsertHealthRecords(profileId, data)
     }
 }

@@ -1,7 +1,10 @@
-import { query, queryOne } from '@/configs/db'
+import { db } from '@/configs/db'
+import { sysNotifications, sysNotificationTemplates } from '@/db/schema/system'
+import { users } from '@/db/schema/auth'
+import { eq, and, ne, inArray, lte, desc } from 'drizzle-orm'
 import { cacheService } from '@/core/cache/cache.service'
 import { renderTemplate } from '@/utils/notification'
-import { NotificationPayload, UUID } from '@/types'
+import { NotificationPayload, ID } from '@/types'
 import { logger } from '@/configs/logger'
 import nodemailer from 'nodemailer'
 import { env } from '@/configs/env'
@@ -10,46 +13,87 @@ export class NotificationService {
   private smtp = nodemailer.createTransport({ host: env.SMTP_HOST, port: env.SMTP_PORT, auth: { user: env.SMTP_USER, pass: env.SMTP_PASS } })
 
   async enqueue(p: NotificationPayload): Promise<void> {
-    await query(`INSERT INTO sys_notifications (template_code,recipient_id,resource_type,resource_id,payload,channel,scheduled_at) VALUES ($1,$2,$3,$4,$5::jsonb,'in_app',COALESCE($6,now()))`,
-      [p.templateCode, p.recipientId, p.resourceType??null, p.resourceId??null, JSON.stringify(p.payload), p.scheduledAt??null])
+    await db.insert(sysNotifications).values({
+      templateCode: p.templateCode,
+      recipientId: p.recipientId,
+      resourceType: p.resourceType ?? null,
+      resourceId: p.resourceId ?? null,
+      payload: p.payload,
+      channel: 'in_app',
+      scheduledAt: p.scheduledAt ?? new Date()
+    })
     await cacheService.incrementUnread(p.recipientId)
   }
 
   async enqueueBulk(payloads: NotificationPayload[]): Promise<void> { await Promise.all(payloads.map(p => this.enqueue(p))) }
 
   async renderTemplate(code: string, data: Record<string, unknown>) {
-    const tpl = await queryOne<{ title_template: string; body_template: string }>('SELECT title_template,body_template FROM sys_notification_templates WHERE code=$1', [code])
+    const rows = await db.select({
+      titleTemplate: sysNotificationTemplates.titleTemplate,
+      bodyTemplate: sysNotificationTemplates.bodyTemplate
+    }).from(sysNotificationTemplates).where(eq(sysNotificationTemplates.code, code))
+    const tpl = rows[0]
     if (!tpl) return { title: '', body: '' }
-    return { title: renderTemplate(tpl.title_template, data), body: renderTemplate(tpl.body_template, data) }
+    return { title: renderTemplate(tpl.titleTemplate, data), body: renderTemplate(tpl.bodyTemplate, data) }
   }
 
-  async markAsRead(id: UUID, userId: UUID): Promise<void> {
-    await query('UPDATE sys_notifications SET status=$1,read_at=now() WHERE id=$2 AND recipient_id=$3', ['read', id, userId])
+  async markAsRead(id: ID, userId: ID): Promise<void> {
+    await db.update(sysNotifications)
+      .set({ status: 'read', readAt: new Date() })
+      .where(and(eq(sysNotifications.id, id), eq(sysNotifications.recipientId, userId)))
   }
 
-  async markAllAsRead(userId: UUID): Promise<void> {
-    await query("UPDATE sys_notifications SET status='read',read_at=now() WHERE recipient_id=$1 AND status!='read'", [userId])
+  async markAllAsRead(userId: ID): Promise<void> {
+    await db.update(sysNotifications)
+      .set({ status: 'read', readAt: new Date() })
+      .where(and(eq(sysNotifications.recipientId, userId), ne(sysNotifications.status, 'read')))
     await cacheService.resetUnread(userId)
   }
 
-  async getUnread(userId: UUID) {
-    return query("SELECT * FROM sys_notifications WHERE recipient_id=$1 AND status IN ('pending','sent') ORDER BY created_at DESC LIMIT 50", [userId])
+  async getUnread(userId: ID) {
+    return db.select().from(sysNotifications)
+      .where(and(
+        eq(sysNotifications.recipientId, userId),
+        inArray(sysNotifications.status, ['pending', 'sent'])
+      ))
+      .orderBy(desc(sysNotifications.createdAt))
+      .limit(50)
   }
 
   async flushPending(batch = 50): Promise<{ sent: number; failed: number }> {
-    const rows = await query<any>(`SELECT id,recipient_id,template_code,payload,channel FROM sys_notifications WHERE status='pending' AND scheduled_at<=now() LIMIT $1`, [batch])
+    const rows = await db.select({
+      id: sysNotifications.id,
+      recipientId: sysNotifications.recipientId,
+      templateCode: sysNotifications.templateCode,
+      payload: sysNotifications.payload,
+      channel: sysNotifications.channel
+    }).from(sysNotifications)
+      .where(and(
+        eq(sysNotifications.status, 'pending'),
+        lte(sysNotifications.scheduledAt, new Date())
+      ))
+      .limit(batch)
+
     let sent = 0, failed = 0
     for (const r of rows) {
       try {
         if (r.channel === 'email') {
-          const u = await queryOne<{ email: string }>('SELECT email FROM users WHERE id=$1', [r.recipient_id])
-          if (u) { const rendered = await this.renderTemplate(r.template_code, r.payload); await this.sendEmail(u.email, rendered.title, rendered.body) }
+          const userRows = await db.select({ email: users.email }).from(users).where(eq(users.id, r.recipientId))
+          const u = userRows[0]
+          if (u && r.templateCode) {
+            const rendered = await this.renderTemplate(r.templateCode, r.payload as Record<string, unknown>);
+            await this.sendEmail(u.email, rendered.title, rendered.body)
+          }
         }
-        await query("UPDATE sys_notifications SET status='sent',sent_at=now() WHERE id=$1", [r.id])
+        await db.update(sysNotifications)
+          .set({ status: 'sent', sentAt: new Date() })
+          .where(eq(sysNotifications.id, r.id))
         sent++
       } catch (err) {
         logger.error('Notification send failed', { err, id: r.id })
-        await query("UPDATE sys_notifications SET status='failed' WHERE id=$1", [r.id])
+        await db.update(sysNotifications)
+          .set({ status: 'failed' })
+          .where(eq(sysNotifications.id, r.id))
         failed++
       }
     }

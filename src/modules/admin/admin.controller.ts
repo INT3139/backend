@@ -1,20 +1,14 @@
 import { Request, Response } from "express"
 import { adminService } from "./admin.service"
 import { success, created } from "@/utils/response"
-import { AuthUser } from "@/types"
 import { logAction } from "@/core/middlewares/auditContext"
 import { asyncHandler } from "@/core/middlewares/errorHandler"
-
-interface AuthRequest extends Request {
-    user?: AuthUser
-    userId?: string
-}
 
 /**
  * GET /api/v1/admin/users
  */
 export const getUsers = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const { page = 1, limit = 20, sort, order } = req.query
@@ -35,11 +29,11 @@ export const getUsers = asyncHandler(async (
  * POST /api/v1/admin/users
  */
 export const createUser = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const user = await adminService.createUser(req.body)
-    await logAction(req.userId!, 'create', 'user', user.id as string, req.body)
+    await logAction(req.userId!, 'create', 'user', user.id.toString(), req.body)
 
     return created(res, user)
 })
@@ -48,12 +42,12 @@ export const createUser = asyncHandler(async (
  * PUT /api/v1/admin/users/:id
  */
 export const updateUser = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
-    const updated = await adminService.updateUser(id as string, req.body)
-    await logAction(req.userId!, 'update', 'user', id as string, req.body)
+    const id = parseInt(req.params.id as string, 10)
+    const updated = await adminService.updateUser(id, req.body)
+    await logAction(req.userId!, 'update', 'user', id.toString(), req.body)
 
     return success(res, updated)
 })
@@ -62,12 +56,12 @@ export const updateUser = asyncHandler(async (
  * DELETE /api/v1/admin/users/:id
  */
 export const deleteUser = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
-    await adminService.deleteUser(id as string)
-    await logAction(req.userId!, 'delete', 'user', id as string)
+    const id = parseInt(req.params.id as string, 10)
+    await adminService.deleteUser(id)
+    await logAction(req.userId!, 'delete', 'user', id.toString())
 
     return success(res, { message: 'User deleted' })
 })
@@ -76,7 +70,7 @@ export const deleteUser = asyncHandler(async (
  * GET /api/v1/admin/roles
  */
 export const getRoles = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const roles = await adminService.getRoles()
@@ -89,11 +83,11 @@ export const getRoles = asyncHandler(async (
  * POST /api/v1/admin/roles
  */
 export const createRole = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const role = await adminService.createRole(req.body)
-    await logAction(req.userId!, 'create', 'role', role.id as string, req.body)
+    await logAction(req.userId!, 'create', 'role', role.id.toString(), req.body)
 
     return created(res, role)
 })
@@ -102,13 +96,13 @@ export const createRole = asyncHandler(async (
  * POST /api/v1/admin/users/:id/roles
  */
 export const assignRole = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
+    const userId = parseInt(req.params.id as string, 10)
     const { roleId, scopeType, scopeUnitId, expiresAt } = req.body
-    await adminService.assignRole(id as string, roleId, req.userId!, scopeType, scopeUnitId, expiresAt)
-    await logAction(req.userId!, 'create', 'user_role', undefined, { userId: id, ...req.body })
+    await adminService.assignRole(userId, roleId, req.userId!, scopeType, scopeUnitId, expiresAt)
+    await logAction(req.userId!, 'create', 'user_role', undefined, { userId, ...req.body })
 
     return success(res, { message: 'Role assigned successfully' })
 })
@@ -117,7 +111,7 @@ export const assignRole = asyncHandler(async (
  * GET /api/v1/admin/units
  */
 export const getUnits = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const units = await adminService.getUnits()
@@ -130,11 +124,11 @@ export const getUnits = asyncHandler(async (
  * POST /api/v1/admin/units
  */
 export const createUnit = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const unit = await adminService.createUnit(req.body)
-    await logAction(req.userId!, 'create', 'unit', unit.id as string, req.body)
+    await logAction(req.userId!, 'create', 'unit', unit.id.toString(), req.body)
 
     return created(res, unit)
 })
@@ -143,7 +137,7 @@ export const createUnit = asyncHandler(async (
  * GET /api/v1/admin/audit-logs
  */
 export const getAuditLogs = asyncHandler(async (
-    req: AuthRequest,
+    req: Request,
     res: Response
 ): Promise<Response> => {
     const { page = 1, limit = 50, sort, order } = req.query
@@ -157,3 +151,4 @@ export const getAuditLogs = asyncHandler(async (
     const result = await adminService.getAuditLogs(pagination)
     return success(res, result)
 })
+

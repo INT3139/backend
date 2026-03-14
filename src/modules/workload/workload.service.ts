@@ -1,18 +1,22 @@
-import { workloadRepo, WorkloadFilter, EvidenceRow, QuotaRow, SummaryRow } from "./workload.repo"
-import { UUID, PaginationQuery, AuthUser } from "@/types"
+import { workloadRepo, WorkloadFilter, EvidenceRow } from "./workload.repo"
+import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
-import { queryOne } from "@/configs/db"
+import { db } from "@/configs/db"
+import { profileStaff } from "@/db/schema"
+import { eq } from "drizzle-orm"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 
 export class WorkloadService {
     /**
      * Get workload by user ID
      */
-    async getWorkloadByUserId(userId: UUID) {
-        const profile = await queryOne<{ id: UUID }>(
-            `SELECT id FROM profile_staff WHERE user_id = $1`,
-            [userId]
-        )
+    async getWorkloadByUserId(userId: ID) {
+        const rows = await db.select({ id: profileStaff.id })
+            .from(profileStaff)
+            .where(eq(profileStaff.userId, userId))
+            .limit(1)
+            
+        const profile = rows[0]
         if (!profile) return null
         
         const academicYear = '2025-2026' // Demo default
@@ -22,18 +26,28 @@ export class WorkloadService {
     /**
      * Create evidence
      */
-    async createEvidence(data: Partial<EvidenceRow>, userId: UUID) {
-        const profile = await queryOne<{ id: UUID }>(
-            `SELECT id FROM profile_staff WHERE user_id = $1`,
-            [userId]
-        )
+    async createEvidence(data: any, userId: ID) {
+        const rows = await db.select({ id: profileStaff.id })
+            .from(profileStaff)
+            .where(eq(profileStaff.userId, userId))
+            .limit(1)
+            
+        const profile = rows[0]
         if (!profile) throw new NotFoundError('Profile not found')
 
-        return await workloadRepo.createEvidence({
-            ...data,
-            profile_id: profile.id,
+        // Map snake_case from body to camelCase for Drizzle
+        // Provide defaults for required fields if missing
+        const values = {
+            profileId: profile.id,
+            academicYear: data.academic_year || '2025-2026',
+            evidenceType: data.evidence_type || 'other_task',
+            title: data.title,
+            hoursClaimed: (data.hours_claimed || 0).toString(),
+            coefApplied: (data.coef_applied || 1).toString(),
             status: 'pending'
-        })
+        }
+
+        return await workloadRepo.createEvidence(values)
     }
 
     /**
@@ -51,7 +65,7 @@ export class WorkloadService {
         ])
 
         if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = scopes || undefined
+            filter.unitId = (scopes as number) || undefined
         }
 
         return await workloadRepo.findEvidences(filter, pagination)
@@ -60,14 +74,14 @@ export class WorkloadService {
     /**
      * Approve evidence
      */
-    async approveEvidence(id: UUID, approvedBy: UUID) {
+    async approveEvidence(id: ID, approvedBy: ID) {
         return await workloadRepo.updateEvidenceStatus(id, 'approved', approvedBy)
     }
 
     /**
      * Reject evidence
      */
-    async rejectEvidence(id: UUID, rejectedBy: UUID, reason: string) {
+    async rejectEvidence(id: ID, rejectedBy: ID, reason: string) {
         return await workloadRepo.updateEvidenceStatus(id, 'rejected', rejectedBy, reason)
     }
 
@@ -86,7 +100,7 @@ export class WorkloadService {
         ])
 
         if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = scopes || undefined
+            filter.unitId = (scopes as number) || undefined
         }
 
         return await workloadRepo.findSummaries(filter, pagination)

@@ -62,8 +62,7 @@ router.get("/commendations", requirePermission(PERM.REWARD.READ), controller.get
  *               - award_name
  *             properties:
  *               profile_id:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *               award_level:
  *                 type: string
  *                 enum: [co_so, dhqg, bo, chinh_phu, nha_nuoc]
@@ -94,8 +93,7 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -130,8 +128,7 @@ router.put(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -175,8 +172,7 @@ router.get("/titles", requirePermission(PERM.REWARD.READ), controller.getTitles)
  *               - awarded_year
  *             properties:
  *               profile_id:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *               title_name:
  *                 type: string
  *               title_level:
@@ -209,8 +205,7 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -245,8 +240,7 @@ router.put(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -292,8 +286,7 @@ router.get("/discipline", requirePermission(PERM.REWARD.DISCIPLINE), controller.
  *               - issued_date
  *             properties:
  *               profile_id:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *               discipline_type:
  *                 type: string
  *               reason:
@@ -330,8 +323,7 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -366,8 +358,7 @@ router.put(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success

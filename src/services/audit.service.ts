@@ -1,81 +1,47 @@
-import { query } from "@/configs/db";
-import { UUID } from "@/types";
+import { db } from '@/configs/db'
+import { sysAuditLogs } from '@/db/schema/system'
+import { eq, and, desc } from 'drizzle-orm'
+import { AuditLogData, ID } from '@/types'
+import { logger } from '@/configs/logger'
 
 export class AuditService {
-    async log(
-        actorId: UUID | null,
-        action: string, 
-        resourceType: string,
-        resourceId?: UUID | null,
-        metadata?: Record<string, any>,
-        ip?: string
-    ): Promise<void> {
-        await query(
-            `INSERT INTO sys_audit_logs (actor_id,action,resource_type,resource_id,new_values,actor_ip) VALUES ($1,$2,$3,$4,$5::jsonb,$6::inet)`,
-            [
-                actorId, 
-                action, 
-                resourceType, 
-                resourceId??null, 
-                metadata?JSON.stringify(metadata):null, 
-                ip??null
-            ]
-        );
+  async log(data: AuditLogData): Promise<void> {
+    try {
+      await db.insert(sysAuditLogs).values({
+        actorId: data.actorId,
+        action: data.action,
+        resourceType: data.resourceType,
+        resourceId: data.resourceId,
+        oldValues: data.oldValues,
+        newValues: data.newValues,
+        actorIp: data.actorIp as any
+      })
+    } catch (err) {
+      logger.error('Failed to write audit log', { err, data })
     }
+  }
 
-    async queryLogs(filter: {
-        actorId?: UUID; 
-        resourceType?: string; 
-        resourceId?: string; 
-        action?: string; 
-        from?: Date; to?: Date; 
-        page?: number; limit?: number
-    }) {
-        const conds = ['1=1']; 
-        const params: unknown[] = []; 
-        let i = 1
+  async getLogs(filter: { resourceType?: string; resourceId?: string; actorId?: ID }, limit = 50, offset = 0) {
+    const conditions = []
+    if (filter.resourceType) conditions.push(eq(sysAuditLogs.resourceType, filter.resourceType))
+    if (filter.resourceId) conditions.push(eq(sysAuditLogs.resourceId, filter.resourceId))
+    if (filter.actorId) conditions.push(eq(sysAuditLogs.actorId, filter.actorId))
 
-        if (filter.actorId)      { 
-            conds.push(`actor_id=$${i++}`);       
-            params.push(filter.actorId) 
-        }
-        if (filter.resourceType) { 
-            conds.push(`resource_type=$${i++}`);  
-            params.push(filter.resourceType) 
-        }
-        if (filter.resourceId) { 
-            conds.push(`resource_id=$${i++}`);    
-            params.push(filter.resourceId) 
-        }
-        if (filter.action) { 
-            conds.push(`action=$${i++}`);         
-            params.push(filter.action) 
-        }
-        if (filter.from) { 
-            conds.push(`event_time>=$${i++}`);    
-            params.push(filter.from) 
-        }
-        if (filter.to) { 
-            conds.push(`event_time<=$${i++}`);    
-            params.push(filter.to) 
-        }
+    return db.select().from(sysAuditLogs)
+      .where(and(...conditions))
+      .orderBy(desc(sysAuditLogs.eventTime))
+      .limit(limit)
+      .offset(offset)
+  }
 
-        const limit = filter.limit ?? 50; 
-        const offset = ((filter.page ?? 1) - 1) * limit;
-        return query(`SELECT * FROM sys_audit_logs WHERE ${conds.join(' AND ')} ORDER BY event_time DESC LIMIT ${limit} OFFSET ${offset}`, params)
-    }
-
-    async getObjectHistory(type: string, id: string) { 
-        return query('SELECT * FROM sys_audit_logs WHERE resource_type=$1 AND resource_id=$2 ORDER BY event_time DESC', 
-            [type, id]) 
-        }
-    async getUserActivity(userId: UUID, from?: Date, to?: Date) { 
-        return this.queryLogs({ 
-            actorId: userId, 
-            from, 
-            to, 
-            limit: 100 
-        })}
+  async getResourceHistory(type: string, id: string) {
+    return db.select().from(sysAuditLogs)
+      .where(and(
+        eq(sysAuditLogs.resourceType, type),
+        eq(sysAuditLogs.resourceId, id)
+      ))
+      .orderBy(desc(sysAuditLogs.eventTime))
+  }
 }
 
 export const auditService = new AuditService()

@@ -13,13 +13,16 @@
     "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only server.ts",
     "build": "tsc && tsc-alias",
     "start": "node dist/server.js",
-    "migrate": "psql $DATABASE_URL -f src/db/migrations/01_init.sql",
+    "migrate": "drizzle-kit push",
     "seed": "psql $DATABASE_URL -f src/db/seeds/01_roles.sql -f src/db/seeds/02_permissions.sql",
     "test": "jest --runInBand",
     "test:cov": "jest --coverage",
     "test:watch": "jest --watch",
     "lint": "eslint . --ext .ts",
-    "lint:fix": "eslint . --ext .ts --fix"
+    "lint:fix": "eslint . --ext .ts --fix",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1006.0",
@@ -68,6 +71,8 @@
     "@types/supertest": "^7.2.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
+    "drizzle-kit": "^0.30.6",
+    "drizzle-orm": "^0.39.0",
     "eslint-plugin-prettier": "^5.5.5",
     "globals": "^17.4.0",
     "jest": "^30.3.0",

@@ -1,25 +1,25 @@
 import { recruitmentRepo, RecruitmentProposalFilter, RecruitmentProposalRow } from "./recruitment.repo"
-import { UUID, PaginationQuery, AuthUser } from "@/types"
+import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { emailService } from "@/services/email.service"
 
 export interface CreateProposalDto {
-    proposing_unit: UUID
-    position_name: string
-    required_degree: string
-    required_exp_years: number
+    proposingUnit: ID
+    positionName: string
+    requiredDegree: string
+    requiredExpYears: number
     quota: number
     reason?: string
-    academic_year: string
+    academicYear: string
     status?: string
 }
 
 export interface UpdateProposalDto extends Partial<CreateProposalDto> { }
 
 export interface CreateCandidateDto {
-    proposal_id: UUID
-    full_name: string
+    proposalId: ID
+    fullName: string
     email?: string
     phone?: string
     degree?: string
@@ -46,7 +46,7 @@ export class RecruitmentService {
 
         // Nếu không phải school-level, chỉ cho xem unit của mình
         if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = scopes || undefined
+            filter.unitId = (scopes as number) || undefined
         }
 
         return await recruitmentRepo.findMany(filter, pagination)
@@ -55,25 +55,25 @@ export class RecruitmentService {
     /**
      * Get đề xuất by ID
      */
-    async getProposalById(id: UUID): Promise<RecruitmentProposalRow | null> {
+    async getProposalById(id: ID): Promise<RecruitmentProposalRow | null> {
         return await recruitmentRepo.findById(id)
     }
 
     /**
      * Create đề xuất mới
      */
-    async createProposal(data: CreateProposalDto, createdBy: UUID): Promise<RecruitmentProposalRow> {
+    async createProposal(data: CreateProposalDto, createdBy: ID): Promise<RecruitmentProposalRow> {
         const proposal = await recruitmentRepo.create({
             ...data,
-            created_by: createdBy
+            createdBy: createdBy
         })
 
         // Register resource scope cho ABAC
         await abacService.registerScope({
             resourceType: 'recruitment_proposal',
             resourceId: proposal.id,
-            ownerId: proposal.created_by,
-            unitId: proposal.proposing_unit
+            ownerId: proposal.createdBy,
+            unitId: proposal.proposingUnit
         })
 
         return proposal
@@ -83,7 +83,7 @@ export class RecruitmentService {
      * Update đề xuất
      */
     async updateProposal(
-        id: UUID,
+        id: ID,
         data: UpdateProposalDto,
         user: AuthUser
     ): Promise<RecruitmentProposalRow> {
@@ -92,8 +92,8 @@ export class RecruitmentService {
             throw new NotFoundError('Proposal not found')
         }
 
-        // Check if status allows update (only draft/submitted)
-        if (existing.status !== 'draft' && existing.status !== 'submitted') {
+        // Check if status allows update (only pending)
+        if (existing.status !== 'pending') {
             throw new ForbiddenError('Cannot update proposal in current status')
         }
 
@@ -109,7 +109,7 @@ export class RecruitmentService {
         )
 
         // Cho phép người tạo update
-        const isOwner = existing.created_by === user.id
+        const isOwner = existing.createdBy === user.id
 
         if (!canUpdate && !isOwner) {
             throw new ForbiddenError('You do not have permission to update this proposal')
@@ -121,7 +121,7 @@ export class RecruitmentService {
     /**
      * Approve đề xuất
      */
-    async approveProposal(id: UUID, approvedBy: UUID): Promise<RecruitmentProposalRow> {
+    async approveProposal(id: ID, approvedBy: ID): Promise<RecruitmentProposalRow> {
         const updated = await recruitmentRepo.update(id, {
             status: 'approved'
         })
@@ -138,7 +138,7 @@ export class RecruitmentService {
     /**
      * Get danh sách ứng viên của một đề xuất
      */
-    async getCandidates(proposalId: UUID, pagination: PaginationQuery, user: AuthUser) {
+    async getCandidates(proposalId: ID, pagination: PaginationQuery, user: AuthUser) {
         const proposal = await recruitmentRepo.findById(proposalId)
         if (!proposal) {
             throw new NotFoundError('Proposal not found')
@@ -155,7 +155,7 @@ export class RecruitmentService {
             proposalId
         )
 
-        if (!canRead && proposal.created_by !== user.id) {
+        if (!canRead && proposal.createdBy !== user.id) {
             throw new ForbiddenError('You do not have permission to view candidates for this proposal')
         }
 
@@ -165,7 +165,7 @@ export class RecruitmentService {
     /**
      * Get chi tiết ứng viên
      */
-    async getCandidateById(id: UUID, user: AuthUser) {
+    async getCandidateById(id: ID, user: AuthUser) {
         const candidate = await recruitmentRepo.findCandidateById(id)
         if (!candidate) {
             throw new NotFoundError('Candidate not found')
@@ -178,7 +178,7 @@ export class RecruitmentService {
      * Create ứng viên cho đề xuất
      */
     async createCandidate(data: CreateCandidateDto, user: AuthUser) {
-        const proposal = await recruitmentRepo.findById(data.proposal_id)
+        const proposal = await recruitmentRepo.findById(data.proposalId)
         if (!proposal) {
             throw new NotFoundError('Proposal not found')
         }
@@ -191,10 +191,10 @@ export class RecruitmentService {
                 { scopeType: 'self', unitId: null }
             ],
             'recruitment_proposal',
-            data.proposal_id
+            data.proposalId
         )
 
-        if (!canWrite && proposal.created_by !== user.id) {
+        if (!canWrite && proposal.createdBy !== user.id) {
             throw new ForbiddenError('You do not have permission to add candidates to this proposal')
         }
 
@@ -204,7 +204,7 @@ export class RecruitmentService {
     /**
      * Update thông tin ứng viên
      */
-    async updateCandidate(id: UUID, data: UpdateCandidateDto, user: AuthUser) {
+    async updateCandidate(id: ID, data: UpdateCandidateDto, user: AuthUser) {
         const candidate = await recruitmentRepo.findCandidateById(id)
         if (!candidate) {
             throw new NotFoundError('Candidate not found')
@@ -214,7 +214,7 @@ export class RecruitmentService {
 
         // Nếu status thay đổi, gửi email notify
         if (data.status && data.status !== candidate.status && updated.email) {
-            emailService.sendCandidateStatusEmail(updated.email, updated.full_name, updated.status).catch(err => {
+            emailService.sendCandidateStatusEmail(updated.email as string, updated.fullName, updated.status as string).catch(err => {
                 console.error('Failed to send candidate status email', err)
             })
         }
@@ -225,7 +225,7 @@ export class RecruitmentService {
     /**
      * Xóa ứng viên
      */
-    async deleteCandidate(id: UUID, user: AuthUser) {
+    async deleteCandidate(id: ID, user: AuthUser) {
         const candidate = await recruitmentRepo.findCandidateById(id)
         if (!candidate) {
             throw new NotFoundError('Candidate not found')

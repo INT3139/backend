@@ -32,7 +32,6 @@ export function createApp(): Application {
     app.use(requestId)
     app.use(morgan('combined', { stream: httpLogStream }))
     app.use('/api', apiLimiter)
-    app.use(errorHandler);
 
     app.get('/health', (_, res) => res.json(
         { status: 'ok', ts: new Date().toISOString() }
@@ -49,6 +48,9 @@ export function createApp(): Application {
     app.use(`${API_PREFIX}/salary`, salaryRoutes)
     app.use(`${API_PREFIX}/reward`, rewardRoutes)
     app.use(`${API_PREFIX}/workload`, workloadRoutes)
+
+    // Error handler MUST be last
+    app.use(errorHandler);
 
     return app
 }

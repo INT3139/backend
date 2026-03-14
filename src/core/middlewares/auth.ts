@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
-import { queryOne } from '@/configs/db'
+import { db } from '@/configs/db'
+import { users } from '@/db/schema/auth'
+import { eq, and, isNull } from 'drizzle-orm'
 import { verifyToken } from '../auth/jwt'
 import { UnauthorizedError } from './errorHandler'
 
@@ -9,13 +11,21 @@ export async function authenticate(req: Request, _: Response, next: NextFunction
     if (!header?.startsWith('Bearer ')) throw new UnauthorizedError('No token provided')
     
     const payload = verifyToken(header.slice(7))
-    const row = await queryOne<any>(
-        'SELECT id,username,email,full_name,unit_id,is_active FROM users WHERE id=$1 AND deleted_at IS NULL', 
-        [payload.sub]
-    )
-    if (!row || !row.is_active) throw new UnauthorizedError('Account inactive')
+    const [row] = await db.select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        fullName: users.fullName,
+        unitId: users.unitId,
+        isActive: users.isActive
+    })
+    .from(users)
+    .where(and(eq(users.id, payload.sub as any), isNull(users.deletedAt)))
+    .limit(1)
+
+    if (!row || !row.isActive) throw new UnauthorizedError('Account inactive')
         
-    req.user   = { id: row.id, username: row.username, email: row.email, fullName: row.full_name, unitId: row.unit_id }
+    req.user   = { id: row.id, username: row.username, email: row.email, fullName: row.fullName, unitId: row.unitId }
     req.userId = row.id
     next()
   } catch (err) {

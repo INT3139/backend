@@ -1,5 +1,5 @@
 import { rewardRepo, RewardFilter, CommendationRow, TitleRow, DisciplineRow } from "./reward.repo"
-import { UUID, PaginationQuery, AuthUser } from "@/types"
+import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 
@@ -7,7 +7,7 @@ export class RewardService {
     /**
      * Get rewards by user ID
      */
-    async getRewardsByUserId(userId: UUID) {
+    async getRewardsByUserId(userId: ID) {
         return await rewardRepo.findByUserId(userId)
     }
 
@@ -26,7 +26,7 @@ export class RewardService {
         ])
 
         if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = scopes || undefined
+            filter.unitId = (scopes as number) || undefined
         }
 
         return await rewardRepo.findCommendations(filter, pagination)
@@ -42,7 +42,7 @@ export class RewardService {
     /**
      * Update commendation
      */
-    async updateCommendation(id: UUID, data: Partial<CommendationRow>) {
+    async updateCommendation(id: ID, data: Partial<CommendationRow>) {
         const updated = await rewardRepo.updateCommendation(id, data)
         if (!updated) {
             throw new NotFoundError('Commendation not found')
@@ -53,7 +53,7 @@ export class RewardService {
     /**
      * Delete commendation
      */
-    async deleteCommendation(id: UUID) {
+    async deleteCommendation(id: ID) {
         return await rewardRepo.deleteCommendation(id)
     }
 
@@ -72,7 +72,7 @@ export class RewardService {
         ])
 
         if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = scopes || undefined
+            filter.unitId = (scopes as number) || undefined
         }
 
         return await rewardRepo.findTitles(filter, pagination)
@@ -88,7 +88,7 @@ export class RewardService {
     /**
      * Update title
      */
-    async updateTitle(id: UUID, data: Partial<TitleRow>) {
+    async updateTitle(id: ID, data: Partial<TitleRow>) {
         const updated = await rewardRepo.updateTitle(id, data)
         if (!updated) {
             throw new NotFoundError('Title not found')
@@ -99,7 +99,7 @@ export class RewardService {
     /**
      * Delete title
      */
-    async deleteTitle(id: UUID) {
+    async deleteTitle(id: ID) {
         return await rewardRepo.deleteTitle(id)
     }
 
@@ -118,7 +118,7 @@ export class RewardService {
         ])
 
         if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = scopes || undefined
+            filter.unitId = (scopes as number) || undefined
         }
 
         return await rewardRepo.findDisciplinaryRecords(filter, pagination)
@@ -134,7 +134,7 @@ export class RewardService {
     /**
      * Update disciplinary record
      */
-    async updateDiscipline(id: UUID, data: Partial<DisciplineRow>) {
+    async updateDiscipline(id: ID, data: Partial<DisciplineRow>) {
         const updated = await rewardRepo.updateDiscipline(id, data)
         if (!updated) {
             throw new NotFoundError('Disciplinary record not found')
@@ -145,9 +145,10 @@ export class RewardService {
     /**
      * Delete disciplinary record
      */
-    async deleteDiscipline(id: UUID) {
+    async deleteDiscipline(id: ID) {
         return await rewardRepo.deleteDiscipline(id)
     }
 }
 
 export const rewardService = new RewardService()
+

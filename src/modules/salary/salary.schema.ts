@@ -23,7 +23,7 @@ export const updateSalarySchema = z.object({
 })
 
 export const createSalaryProposalSchema = z.object({
-    profile_id: z.string().uuid(),
+    profile_id: z.number().int().positive(),
     current_occupation_code: z.string().optional(),
     current_grade: z.number().int().min(1).optional(),
     current_coefficient: z.number().min(0).optional(),

@@ -1,38 +1,16 @@
-import { query, queryOne } from "@/configs/db"
-import { UUID, PaginationQuery, PaginatedResult } from "@/types"
+import { db } from "@/configs/db"
+import { ID, PaginationQuery, PaginatedResult } from "@/types"
+import { recruitmentProposals, recruitmentCandidates } from "@/db/schema"
+import { eq, and, sql, count, desc, asc, ilike, or } from "drizzle-orm"
 
 export interface RecruitmentProposalFilter {
-    unitId?: string
+    unitId?: number
     status?: string
     keyword?: string
 }
 
-export interface RecruitmentProposalRow {
-    id: UUID
-    proposing_unit: UUID
-    position_name: string
-    required_degree: string
-    required_exp_years: number
-    quota: number
-    reason: string
-    academic_year: string
-    status: string
-    workflow_id: UUID | null
-    created_by: UUID | null
-    created_at: Date
-}
-
-export interface CandidateRow {
-    id: UUID
-    proposal_id: UUID | null
-    full_name: string
-    email: string | null
-    phone: string | null
-    degree: string | null
-    status: string
-    notes: string | null
-    created_at: Date
-}
+export type RecruitmentProposalRow = typeof recruitmentProposals.$inferSelect
+export type CandidateRow = typeof recruitmentCandidates.$inferSelect
 
 export class RecruitmentRepo {
     /**
@@ -45,40 +23,42 @@ export class RecruitmentRepo {
         const { page, limit, sort, order } = pagination
         const offset = (page - 1) * limit
 
-        const conditions: string[] = ['1=1']
-        const params: any[] = []
-        let paramIdx = 1
-
+        const conditions = []
         if (filter.unitId) {
-            conditions.push(`proposing_unit = $${paramIdx++}`)
-            params.push(filter.unitId)
+            conditions.push(eq(recruitmentProposals.proposingUnit, filter.unitId))
         }
         if (filter.status) {
-            conditions.push(`status = $${paramIdx++}`)
-            params.push(filter.status)
+            conditions.push(eq(recruitmentProposals.status, filter.status as any))
         }
         if (filter.keyword) {
-            const keywordParam = `%${filter.keyword}%`
-            conditions.push(`(position_name ILIKE $${paramIdx} OR reason ILIKE $${paramIdx})`)
-            params.push(keywordParam)
-            paramIdx++
+            const kw = `%${filter.keyword}%`
+            conditions.push(or(
+                ilike(recruitmentProposals.positionName, kw),
+                ilike(recruitmentProposals.reason, kw)
+            ))
         }
 
-        const whereClause = `WHERE ${conditions.join(' AND ')}`
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-        const countRes = await queryOne<{ total: string }>(
-            `SELECT COUNT(*) as total FROM recruitment_proposals ${whereClause}`,
-            params
-        )
-        const total = parseInt(countRes?.total || '0', 10)
+        const countRes = await db.select({ total: count() })
+            .from(recruitmentProposals)
+            .where(whereClause)
+        const total = Number(countRes[0].total)
 
-        const rows = await query<RecruitmentProposalRow>(
-            `SELECT * FROM recruitment_proposals 
-            ${whereClause} 
-            ORDER BY ${sort || 'created_at'} ${order || 'desc'}
-            LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
-            [...params, limit, offset]
-        )
+        let orderBy: any = desc(recruitmentProposals.createdAt)
+        if (sort) {
+            const column = (recruitmentProposals as any)[sort]
+            if (column) {
+                orderBy = order === 'asc' ? asc(column) : desc(column)
+            }
+        }
+
+        const rows = await db.select()
+            .from(recruitmentProposals)
+            .where(whereClause)
+            .limit(limit)
+            .offset(offset)
+            .orderBy(orderBy)
 
         return {
             data: rows,
@@ -92,59 +72,33 @@ export class RecruitmentRepo {
     /**
      * Find proposal by ID
      */
-    async findById(id: UUID): Promise<RecruitmentProposalRow | null> {
-        return await queryOne<RecruitmentProposalRow>(
-            `SELECT * FROM recruitment_proposals WHERE id = $1`,
-            [id]
-        )
+    async findById(id: ID): Promise<RecruitmentProposalRow | null> {
+        const result = await db.select()
+            .from(recruitmentProposals)
+            .where(eq(recruitmentProposals.id, id))
+            .limit(1)
+        return result[0] ?? null
     }
 
     /**
      * Create new proposal
      */
-    async create(data: Partial<RecruitmentProposalRow>): Promise<RecruitmentProposalRow> {
-        const res = await queryOne<RecruitmentProposalRow>(
-            `INSERT INTO recruitment_proposals (
-                proposing_unit, position_name, required_degree, 
-                required_exp_years, quota, reason, academic_year, 
-                status, created_by
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9
-            ) RETURNING *`,
-            [
-                data.proposing_unit, data.position_name, data.required_degree,
-                data.required_exp_years, data.quota, data.reason, data.academic_year,
-                data.status || 'draft', data.created_by
-            ]
-        )
-        return res!
+    async create(data: any): Promise<RecruitmentProposalRow> {
+        const res = await db.insert(recruitmentProposals)
+            .values(data)
+            .returning()
+        return res[0]
     }
 
     /**
      * Update proposal
      */
-    async update(id: UUID, data: Partial<RecruitmentProposalRow>): Promise<RecruitmentProposalRow> {
-        const fields: string[] = []
-        const params: any[] = []
-        let paramIdx = 1
-
-        for (const [key, value] of Object.entries(data)) {
-            if (value !== undefined) {
-                fields.push(`${key} = $${paramIdx++}`)
-                params.push(value)
-            }
-        }
-
-        if (fields.length === 0) {
-            return (await this.findById(id))!
-        }
-
-        params.push(id)
-        const res = await queryOne<RecruitmentProposalRow>(
-            `UPDATE recruitment_proposals SET ${fields.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
-            params
-        )
-        return res!
+    async update(id: ID, data: any): Promise<RecruitmentProposalRow> {
+        const res = await db.update(recruitmentProposals)
+            .set(data)
+            .where(eq(recruitmentProposals.id, id))
+            .returning()
+        return res[0]
     }
 
     // --- CANDIDATE METHODS ---
@@ -153,25 +107,23 @@ export class RecruitmentRepo {
      * Find many candidates with filter and pagination
      */
     async findCandidates(
-        proposalId: UUID,
+        proposalId: ID,
         pagination: PaginationQuery
     ): Promise<PaginatedResult<CandidateRow>> {
         const { page, limit } = pagination
         const offset = (page - 1) * limit
 
-        const countRes = await queryOne<{ total: string }>(
-            `SELECT COUNT(*) as total FROM recruitment_candidates WHERE proposal_id = $1`,
-            [proposalId]
-        )
-        const total = parseInt(countRes?.total || '0', 10)
+        const countRes = await db.select({ total: count() })
+            .from(recruitmentCandidates)
+            .where(eq(recruitmentCandidates.proposalId, proposalId))
+        const total = Number(countRes[0].total)
 
-        const rows = await query<CandidateRow>(
-            `SELECT * FROM recruitment_candidates 
-            WHERE proposal_id = $1
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3`,
-            [proposalId, limit, offset]
-        )
+        const rows = await db.select()
+            .from(recruitmentCandidates)
+            .where(eq(recruitmentCandidates.proposalId, proposalId))
+            .orderBy(desc(recruitmentCandidates.createdAt))
+            .limit(limit)
+            .offset(offset)
 
         return {
             data: rows,
@@ -185,66 +137,41 @@ export class RecruitmentRepo {
     /**
      * Find candidate by ID
      */
-    async findCandidateById(id: UUID): Promise<CandidateRow | null> {
-        return await queryOne<CandidateRow>(
-            `SELECT * FROM recruitment_candidates WHERE id = $1`,
-            [id]
-        )
+    async findCandidateById(id: ID): Promise<CandidateRow | null> {
+        const result = await db.select()
+            .from(recruitmentCandidates)
+            .where(eq(recruitmentCandidates.id, id))
+            .limit(1)
+        return result[0] ?? null
     }
 
     /**
      * Create new candidate
      */
-    async createCandidate(data: Partial<CandidateRow>): Promise<CandidateRow> {
-        const res = await queryOne<CandidateRow>(
-            `INSERT INTO recruitment_candidates (
-                proposal_id, full_name, email, phone, "degree", status, notes
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7
-            ) RETURNING *`,
-            [
-                data.proposal_id, data.full_name, data.email, data.phone, 
-                data.degree, data.status || 'pending', data.notes
-            ]
-        )
-        return res!
+    async createCandidate(data: any): Promise<CandidateRow> {
+        const res = await db.insert(recruitmentCandidates)
+            .values(data)
+            .returning()
+        return res[0]
     }
 
     /**
      * Update candidate
      */
-    async updateCandidate(id: UUID, data: Partial<CandidateRow>): Promise<CandidateRow> {
-        const fields: string[] = []
-        const params: any[] = []
-        let paramIdx = 1
-
-        for (const [key, value] of Object.entries(data)) {
-            if (value !== undefined) {
-                fields.push(`${key} = $${paramIdx++}`)
-                params.push(value)
-            }
-        }
-
-        if (fields.length === 0) {
-            return (await this.findCandidateById(id))!
-        }
-
-        params.push(id)
-        const res = await queryOne<CandidateRow>(
-            `UPDATE recruitment_candidates SET ${fields.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
-            params
-        )
-        return res!
+    async updateCandidate(id: ID, data: any): Promise<CandidateRow> {
+        const res = await db.update(recruitmentCandidates)
+            .set(data)
+            .where(eq(recruitmentCandidates.id, id))
+            .returning()
+        return res[0]
     }
 
     /**
      * Delete candidate
      */
-    async deleteCandidate(id: UUID): Promise<boolean> {
-        const res = await query(
-            `DELETE FROM recruitment_candidates WHERE id = $1`,
-            [id]
-        )
+    async deleteCandidate(id: ID): Promise<boolean> {
+        await db.delete(recruitmentCandidates)
+            .where(eq(recruitmentCandidates.id, id))
         return true
     }
 }

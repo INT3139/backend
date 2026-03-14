@@ -1,21 +1,23 @@
+import { ID } from "@/types";
+
 export const CacheKey = {
-  permCodes:               (u: string)          => `perm:codes:${u}`,
-  permScopes:              (u: string)          => `perm:scopes:${u}`,
+  permCodes:               (u: ID | string)          => `perm:codes:${u}`,
+  permScopes:              (u: ID | string)          => `perm:scopes:${u}`,
   permCatalog:             ()                   => `perm:catalog`,
-  profileFull:             (id: string)         => `profile:full:${id}`,
-  staffListByUnit:         (id: string)         => `staff:list:unit:${id}`,
+  profileFull:             (id: ID | string)         => `profile:full:${id}`,
+  staffListByUnit:         (id: ID | string)         => `staff:list:unit:${id}`,
   orgTree:                 ()                   => `org:tree`,
-  orgUnit:                 (id: string)         => `org:unit:${id}`,
+  orgUnit:                 (id: ID | string)         => `org:unit:${id}`,
   quotaParams:             (yr: string)         => `workload:params:${yr}`,
-  individualQuota:         (id: string, yr: string) => `workload:quota:${id}:${yr}`,
-  annualSummary:           (id: string, yr: string) => `workload:summary:${id}:${yr}`,
-  salaryInfo:              (id: string)         => `salary:info:${id}`,
+  individualQuota:         (id: ID | string, yr: string) => `workload:quota:${id}:${yr}`,
+  annualSummary:           (id: ID | string, yr: string) => `workload:summary:${id}:${yr}`,
+  salaryInfo:              (id: ID | string)         => `salary:info:${id}`,
   appointmentAlertSummary: ()                   => `appointment:alert:summary`,
-  workflowInstance:        (id: string)         => `wf:instance:${id}`,
+  workflowInstance:        (id: ID | string)         => `wf:instance:${id}`,
   workflowDefinition:      (code: string)       => `wf:def:${code}`,
-  unreadCount:             (u: string)          => `notif:unread:${u}`,
+  unreadCount:             (u: ID | string)          => `notif:unread:${u}`,
   roleList:                ()                   => `roles:list`,
-  rolePermissions:         (id: string)         => `roles:perms:${id}`,
+  rolePermissions:         (id: ID | string)         => `roles:perms:${id}`,
 } as const
 
 export const CacheTTL = {

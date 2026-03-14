@@ -1,64 +1,37 @@
-import { query, queryOne } from "@/configs/db"
-import { UUID, PaginationQuery, PaginatedResult } from "@/types"
+import { db } from "@/configs/db"
+import { ID, PaginationQuery, PaginatedResult } from "@/types"
+import { workloadIndividualQuotas, workloadAnnualSummaries, workloadEvidences, profileStaff } from "@/db/schema"
+import { eq, and, sql, count, desc, asc, inArray } from "drizzle-orm"
+
+export type EvidenceRow = typeof workloadEvidences.$inferSelect
+export type QuotaRow = typeof workloadIndividualQuotas.$inferSelect
+export type SummaryRow = typeof workloadAnnualSummaries.$inferSelect
 
 export interface WorkloadFilter {
-    unitId?: string
+    unitId?: number
     academicYear?: string
     status?: string
-}
-
-export interface EvidenceRow {
-    id: UUID
-    profile_id: UUID
-    academic_year: string
-    evidence_type: string
-    title: string
-    hours_claimed: number
-    coef_applied: number
-    hours_converted: number
-    status: string
-    reviewed_by: UUID | null
-    created_at: Date
-}
-
-export interface QuotaRow {
-    id: UUID
-    profile_id: UUID
-    academic_year: string
-    teaching_hours: number
-    research_hours: number
-    other_hours: number
-    reduction_pct: number
-    reduction_reason: string
-}
-
-export interface SummaryRow {
-    id: UUID
-    profile_id: UUID
-    academic_year: string
-    total_teaching: number
-    total_research: number
-    total_other: number
-    quota_teaching: number
-    quota_research: number
-    is_teaching_violation: boolean
-    is_research_violation: boolean
 }
 
 export class WorkloadRepo {
     /**
      * Get workload by profile ID
      */
-    async findByProfileId(profileId: UUID, academicYear: string) {
+    async findByProfileId(profileId: ID, academicYear: string) {
         const [quota, summary, evidences] = await Promise.all([
-            queryOne<QuotaRow>(`SELECT * FROM workload_individual_quotas WHERE profile_id = $1 AND academic_year = $2`, [profileId, academicYear]),
-            queryOne<SummaryRow>(`SELECT * FROM workload_annual_summaries WHERE profile_id = $1 AND academic_year = $2`, [profileId, academicYear]),
-            query<EvidenceRow>(`SELECT * FROM workload_evidences WHERE profile_id = $1 AND academic_year = $2`, [profileId, academicYear])
+            db.select().from(workloadIndividualQuotas)
+                .where(and(eq(workloadIndividualQuotas.profileId, profileId), eq(workloadIndividualQuotas.academicYear, academicYear)))
+                .limit(1),
+            db.select().from(workloadAnnualSummaries)
+                .where(and(eq(workloadAnnualSummaries.profileId, profileId), eq(workloadAnnualSummaries.academicYear, academicYear)))
+                .limit(1),
+            db.select().from(workloadEvidences)
+                .where(and(eq(workloadEvidences.profileId, profileId), eq(workloadEvidences.academicYear, academicYear)))
         ])
 
         return {
-            quota,
-            summary,
+            quota: quota[0] ?? null,
+            summary: summary[0] ?? null,
             evidences
         }
     }
@@ -66,21 +39,11 @@ export class WorkloadRepo {
     /**
      * Create evidence
      */
-    async createEvidence(data: Partial<EvidenceRow>): Promise<EvidenceRow> {
-        const res = await queryOne<EvidenceRow>(
-            `INSERT INTO workload_evidences (
-                profile_id, academic_year, evidence_type, title, 
-                hours_claimed, coef_applied, status
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7
-            ) RETURNING *`,
-            [
-                data.profile_id, data.academic_year, data.evidence_type,
-                data.title, data.hours_claimed, data.coef_applied || 1.0,
-                data.status || 'pending'
-            ]
-        )
-        return res!
+    async createEvidence(data: any): Promise<EvidenceRow> {
+        const res = await db.insert(workloadEvidences)
+            .values(data)
+            .returning()
+        return res[0]
     }
 
     /**
@@ -93,38 +56,41 @@ export class WorkloadRepo {
         const { page, limit, sort, order } = pagination
         const offset = (page - 1) * limit
 
-        const conditions: string[] = ['1=1']
-        const params: any[] = []
-        let paramIdx = 1
-
+        const conditions = []
         if (filter.unitId) {
-            conditions.push(`profile_id IN (SELECT id FROM profile_staff WHERE unit_id = $${paramIdx++})`)
-            params.push(filter.unitId)
+            const profileIds = db.select({ id: profileStaff.id })
+                .from(profileStaff)
+                .where(eq(profileStaff.unitId, filter.unitId))
+            conditions.push(inArray(workloadEvidences.profileId, profileIds))
         }
         if (filter.academicYear) {
-            conditions.push(`academic_year = $${paramIdx++}`)
-            params.push(filter.academicYear)
+            conditions.push(eq(workloadEvidences.academicYear, filter.academicYear))
         }
         if (filter.status) {
-            conditions.push(`status = $${paramIdx++}`)
-            params.push(filter.status)
+            conditions.push(eq(workloadEvidences.status, filter.status as any))
         }
 
-        const whereClause = `WHERE ${conditions.join(' AND ')}`
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-        const countRes = await queryOne<{ total: string }>(
-            `SELECT COUNT(*) as total FROM workload_evidences ${whereClause}`,
-            params
-        )
-        const total = parseInt(countRes?.total || '0', 10)
+        const countRes = await db.select({ total: count() })
+            .from(workloadEvidences)
+            .where(whereClause)
+        const total = Number(countRes[0].total)
 
-        const rows = await query<EvidenceRow>(
-            `SELECT * FROM workload_evidences 
-            ${whereClause} 
-            ORDER BY ${sort || 'created_at'} ${order || 'desc'}
-            LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
-            [...params, limit, offset]
-        )
+        let orderBy: any = desc(workloadEvidences.createdAt)
+        if (sort) {
+            const column = (workloadEvidences as any)[sort]
+            if (column) {
+                orderBy = order === 'asc' ? asc(column) : desc(column)
+            }
+        }
+
+        const rows = await db.select()
+            .from(workloadEvidences)
+            .where(whereClause)
+            .limit(limit)
+            .offset(offset)
+            .orderBy(orderBy)
 
         return {
             data: rows,
@@ -145,34 +111,38 @@ export class WorkloadRepo {
         const { page, limit, sort, order } = pagination
         const offset = (page - 1) * limit
 
-        const conditions: string[] = ['1=1']
-        const params: any[] = []
-        let paramIdx = 1
-
+        const conditions = []
         if (filter.unitId) {
-            conditions.push(`profile_id IN (SELECT id FROM profile_staff WHERE unit_id = $${paramIdx++})`)
-            params.push(filter.unitId)
+            const profileIds = db.select({ id: profileStaff.id })
+                .from(profileStaff)
+                .where(eq(profileStaff.unitId, filter.unitId))
+            conditions.push(inArray(workloadAnnualSummaries.profileId, profileIds))
         }
         if (filter.academicYear) {
-            conditions.push(`academic_year = $${paramIdx++}`)
-            params.push(filter.academicYear)
+            conditions.push(eq(workloadAnnualSummaries.academicYear, filter.academicYear))
         }
 
-        const whereClause = `WHERE ${conditions.join(' AND ')}`
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-        const countRes = await queryOne<{ total: string }>(
-            `SELECT COUNT(*) as total FROM workload_annual_summaries ${whereClause}`,
-            params
-        )
-        const total = parseInt(countRes?.total || '0', 10)
+        const countRes = await db.select({ total: count() })
+            .from(workloadAnnualSummaries)
+            .where(whereClause)
+        const total = Number(countRes[0].total)
 
-        const rows = await query<SummaryRow>(
-            `SELECT * FROM workload_annual_summaries 
-            ${whereClause} 
-            ORDER BY ${sort || 'academic_year'} ${order || 'desc'}
-            LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
-            [...params, limit, offset]
-        )
+        let orderBy: any = desc(workloadAnnualSummaries.academicYear)
+        if (sort) {
+            const column = (workloadAnnualSummaries as any)[sort]
+            if (column) {
+                orderBy = order === 'asc' ? asc(column) : desc(column)
+            }
+        }
+
+        const rows = await db.select()
+            .from(workloadAnnualSummaries)
+            .where(whereClause)
+            .limit(limit)
+            .offset(offset)
+            .orderBy(orderBy)
 
         return {
             data: rows,
@@ -186,15 +156,17 @@ export class WorkloadRepo {
     /**
      * Update evidence status
      */
-    async updateEvidenceStatus(id: UUID, status: string, reviewedBy: UUID, rejectReason?: string): Promise<EvidenceRow> {
-        const res = await queryOne<EvidenceRow>(
-            `UPDATE workload_evidences 
-            SET status = $1, reviewed_by = $2, reviewed_at = NOW(), reject_reason = $3
-            WHERE id = $4
-            RETURNING *`,
-            [status, reviewedBy, rejectReason || null, id]
-        )
-        return res!
+    async updateEvidenceStatus(id: number, status: string, reviewedBy: number, rejectReason?: string): Promise<EvidenceRow> {
+        const res = await db.update(workloadEvidences)
+            .set({
+                status: status as any,
+                reviewedBy,
+                reviewedAt: new Date(),
+                rejectReason: rejectReason || null
+            })
+            .where(eq(workloadEvidences.id, id))
+            .returning()
+        return res[0]
     }
 }
 

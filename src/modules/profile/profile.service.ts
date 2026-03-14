@@ -1,9 +1,9 @@
 import { profileRepo, ProfileFilter, ProfileRow } from "./profile.repo"
 import { profileSubRepo } from "./profileSub.repo"
-import { UUID, PaginationQuery, AuthUser } from "@/types"
+import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
 import { CacheKey, CacheTTL } from "@/core/cache/cacheKey"
-import { rSetJson, rGetJson, rDel, rExists } from "@/configs/redis"
+import { rSetJson, rGetJson, rDel } from "@/configs/redis"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 
 export interface FullProfileRow extends ProfileRow {
@@ -15,16 +15,16 @@ export interface FullProfileRow extends ProfileRow {
 }
 
 export interface CreateProfileDto {
-    userId: UUID
-    unitId: UUID
+    userId: ID
+    unitId: ID
     emailVnu?: string
     emailPersonal?: string
     phoneWork?: string
     phoneHome?: string
-    dateOfBirth?: Date
+    dateOfBirth?: Date | string
     gender?: string
     idNumber?: string
-    idIssuedDate?: Date
+    idIssuedDate?: Date | string
     idIssuedBy?: string
     nationality?: string
     ethnicity?: string
@@ -33,10 +33,10 @@ export interface CreateProfileDto {
     policyObject?: string
     nickName?: string
     passportNumber?: string
-    passportIssuedAt?: Date
+    passportIssuedAt?: Date | string
     passportIssuedBy?: string
     insuranceNumber?: string
-    insuranceJoinedAt?: Date
+    insuranceJoinedAt?: Date | string
     addrHometown?: Record<string, unknown>
     addrBirthplace?: Record<string, unknown>
     addrPermanent?: Record<string, unknown>
@@ -50,13 +50,12 @@ export interface CreateProfileDto {
     itLevel?: string
     staffType?: string
     employmentStatus?: string
-    joinDate?: Date
-    retireDate?: Date
+    joinDate?: Date | string
+    retireDate?: Date | string
     profileStatus?: string
 }
 
 export interface UpdateProfileDto extends Partial<CreateProfileDto> {
-    lastUpdatedBy: UUID
 }
 
 export class ProfileService {
@@ -68,15 +67,13 @@ export class ProfileService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        // ABAC: Check nếu user chỉ được xem unit của mình
         const scopes = await abacService.getUnitFilter([
             { scopeType: 'faculty', unitId: user.unitId },
             { scopeType: 'department', unitId: user.unitId }
         ])
 
-        // Nếu không phải school-level, chỉ cho xem unit của mình
         if (scopes !== 'all' && !filter.unitId) {
-            filter.unitId = scopes || undefined
+            filter.unitId = (scopes as number) || undefined
         }
 
         return await profileRepo.findMany(filter, pagination)
@@ -85,8 +82,7 @@ export class ProfileService {
     /**
      * Get profile by ID với cache
      */
-    async getProfileById(id: UUID): Promise<FullProfileRow | null> {
-        // Try cache first
+    async getProfileById(id: ID, _user?: AuthUser): Promise<FullProfileRow | null> {
         const cacheKey = CacheKey.profileFull(id)
         const cached = await rGetJson<FullProfileRow>(cacheKey)
         if (cached) {
@@ -95,7 +91,6 @@ export class ProfileService {
 
         const profile = await profileRepo.findById(id) as FullProfileRow
         if (profile) {
-            // Fetch sub-sections
             const [education, family, workHistory, extraInfo, healthRecords] = await Promise.all([
                 profileSubRepo.getEducation(id),
                 profileSubRepo.getFamily(id),
@@ -118,7 +113,7 @@ export class ProfileService {
     /**
      * Get profile của user hiện tại
      */
-    async getMyProfile(userId: UUID): Promise<FullProfileRow | null> {
+    async getProfileByUserId(userId: ID): Promise<FullProfileRow | null> {
         const main = await profileRepo.findByUserId(userId)
         if (!main) return null
         return await this.getProfileById(main.id)
@@ -127,20 +122,14 @@ export class ProfileService {
     /**
      * Create profile mới
      */
-    async createProfile(data: CreateProfileDto, createdBy: UUID): Promise<ProfileRow> {
-        const profile = await profileRepo.create({
-            ...data,
-            user_id: data.userId,
-            unit_id: data.unitId,
-            created_by: createdBy
-        })
+    async createProfile(data: CreateProfileDto & { createdBy: ID }): Promise<ProfileRow> {
+        const profile = await profileRepo.create(data)
 
-        // Register resource scope cho ABAC
         await abacService.registerScope({
             resourceType: 'profile',
             resourceId: profile.id,
-            ownerId: profile.user_id,
-            unitId: profile.unit_id
+            ownerId: profile.userId,
+            unitId: profile.unitId
         })
 
         return profile
@@ -150,7 +139,7 @@ export class ProfileService {
      * Update profile
      */
     async updateProfile(
-        id: UUID,
+        id: ID,
         data: UpdateProfileDto,
         user: AuthUser
     ): Promise<ProfileRow> {
@@ -159,7 +148,6 @@ export class ProfileService {
             throw new NotFoundError('Profile not found')
         }
 
-        // ABAC: Check permission update
         const canUpdate = await abacService.canAccess(
             [
                 { scopeType: 'school', unitId: null },
@@ -170,8 +158,7 @@ export class ProfileService {
             id
         )
 
-        // Cho phép self-update
-        const isSelf = existing.user_id === user.id
+        const isSelf = existing.userId === user.id
 
         if (!canUpdate && !isSelf) {
             throw new ForbiddenError('You do not have permission to update this profile')
@@ -179,10 +166,9 @@ export class ProfileService {
 
         const updated = await profileRepo.update(id, {
             ...data,
-            last_updated_by: user.id
+            lastUpdatedBy: user.id
         })
 
-        // Invalidate cache
         await rDel(CacheKey.profileFull(id))
 
         return updated
@@ -191,13 +177,12 @@ export class ProfileService {
     /**
      * Soft delete profile
      */
-    async deleteProfile(id: UUID, user: AuthUser): Promise<void> {
+    async deleteProfile(id: ID, user: AuthUser): Promise<void> {
         const existing = await profileRepo.findById(id)
         if (!existing) {
             throw new NotFoundError('Profile not found')
         }
 
-        // ABAC: Check permission delete
         const canDelete = await abacService.canAccess(
             [{ scopeType: 'school', unitId: null }],
             'profile',
@@ -220,12 +205,12 @@ export class ProfileService {
     }
 
     /**
-     * Approve profile (chuyển status)
+     * Approve profile
      */
-    async approveProfile(id: UUID, approvedBy: UUID): Promise<ProfileRow> {
+    async approveProfile(id: ID, approvedBy: ID): Promise<ProfileRow> {
         const updated = await profileRepo.update(id, {
-            profile_status: 'approved',
-            last_updated_by: approvedBy
+            profileStatus: 'approved',
+            lastUpdatedBy: approvedBy
         })
 
         if (!updated) {
@@ -237,12 +222,12 @@ export class ProfileService {
     }
 
     /**
-     * Reject profile (trở về draft)
+     * Reject profile
      */
-    async rejectProfile(id: UUID, rejectedBy: UUID): Promise<ProfileRow> {
+    async rejectProfile(id: ID, rejectedBy: ID): Promise<ProfileRow> {
         const updated = await profileRepo.update(id, {
-            profile_status: 'draft',
-            last_updated_by: rejectedBy
+            profileStatus: 'draft',
+            lastUpdatedBy: rejectedBy
         })
 
         if (!updated) {
@@ -254,16 +239,16 @@ export class ProfileService {
     }
 
     /**
-     * Change profile status (active, inactive, etc.)
+     * Change profile status
      */
     async changeStatus(
-        id: UUID,
+        id: ID,
         status: string,
         user: AuthUser
     ): Promise<ProfileRow> {
         const updated = await profileRepo.update(id, {
-            employment_status: status,
-            last_updated_by: user.id
+            employmentStatus: status,
+            lastUpdatedBy: user.id
         })
 
         if (!updated) {

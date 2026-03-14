@@ -40,8 +40,7 @@ router.get("/proposals", requirePermission(PERM.RECRUITMENT.READ), controller.ge
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -69,8 +68,7 @@ router.get("/proposals/:id", requirePermission(PERM.RECRUITMENT.READ), controlle
  *               - academic_year
  *             properties:
  *               proposing_unit:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *               position_name:
  *                 type: string
  *               academic_year:
@@ -100,8 +98,7 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -136,8 +133,7 @@ router.put(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -160,8 +156,7 @@ router.post("/proposals/:id/approve", requirePermission(PERM.RECRUITMENT.APPROVE
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -188,8 +183,7 @@ router.get("/proposals/:id/candidates", requirePermission(PERM.RECRUITMENT.READ)
  *               - full_name
  *             properties:
  *               proposal_id:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *               full_name:
  *                 type: string
  *     responses:
@@ -217,8 +211,7 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -253,8 +246,7 @@ router.put(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success

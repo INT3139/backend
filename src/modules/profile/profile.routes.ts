@@ -74,8 +74,7 @@ router.get("/", requirePermission(PERM.PROFILE.READ), controller.getProfiles)
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -122,8 +121,7 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -155,8 +153,7 @@ router.put(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -177,8 +174,7 @@ router.delete("/:id", requirePermission(PERM.PROFILE.DELETE), controller.deleteP
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -199,8 +195,7 @@ router.post("/:id/approve", requirePermission(PERM.PROFILE.APPROVE), controller.
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -223,8 +218,7 @@ import * as subSchema from "./profileSub.schema"
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -263,8 +257,7 @@ router.patch(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -285,8 +278,7 @@ router.get("/:id/education", requirePermission(PERM.PROFILE.READ), controller.ge
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -319,14 +311,12 @@ router.post("/:id/education", requirePermission(PERM.PROFILE.WRITE), validateBod
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *       - in: path
  *         name: subId
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -348,8 +338,7 @@ router.delete("/:id/education/:subId", requirePermission(PERM.PROFILE.WRITE), co
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -370,8 +359,7 @@ router.get("/:id/family", requirePermission(PERM.PROFILE.READ), controller.getFa
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -410,14 +398,12 @@ router.post("/:id/family", requirePermission(PERM.PROFILE.WRITE), validateBody(s
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *       - in: path
  *         name: subId
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -439,8 +425,7 @@ router.delete("/:id/family/:subId", requirePermission(PERM.PROFILE.WRITE), contr
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -461,8 +446,7 @@ router.get("/:id/work-history", requirePermission(PERM.PROFILE.READ), controller
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -498,14 +482,12 @@ router.post("/:id/work-history", requirePermission(PERM.PROFILE.WRITE), validate
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *       - in: path
  *         name: subId
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -527,13 +509,12 @@ router.delete("/:id/work-history/:subId", requirePermission(PERM.PROFILE.WRITE),
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
  */
-router.get("/:id/extra", requirePermission(PERM.PROFILE.READ), controller.getExtraInfo)
+router.get("/:id/extra", requirePermission(PERM.PROFILE.READ), controller.getEducation)
 
 /**
  * @openapi
@@ -549,8 +530,7 @@ router.get("/:id/extra", requirePermission(PERM.PROFILE.READ), controller.getExt
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -581,8 +561,7 @@ router.put("/:id/extra", requirePermission(PERM.PROFILE.WRITE), validateBody(sub
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -603,8 +582,7 @@ router.get("/:id/health", requirePermission(PERM.PROFILE.READ), controller.getHe
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:

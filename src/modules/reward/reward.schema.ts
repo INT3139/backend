@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const createCommendationSchema = z.object({
-    profile_id: z.string().uuid(),
+    profile_id: z.number().int().positive(),
     decision_number: z.string().optional(),
     decision_date: z.string().optional().transform(v => v ? new Date(v) : undefined),
     award_level: z.enum(['co_so', 'dhqg', 'bo', 'chinh_phu', 'nha_nuoc']),
@@ -15,7 +15,7 @@ export const createCommendationSchema = z.object({
 export const updateCommendationSchema = createCommendationSchema.partial()
 
 export const createTitleSchema = z.object({
-    profile_id: z.string().uuid(),
+    profile_id: z.number().int().positive(),
     title_name: z.string().min(1),
     title_level: z.enum(['unit', 'university', 'ministry']),
     awarded_year: z.string().min(4),
@@ -28,13 +28,13 @@ export const createTitleSchema = z.object({
 export const updateTitleSchema = createTitleSchema.partial()
 
 export const createDisciplineSchema = z.object({
-    profile_id: z.string().uuid(),
+    profile_id: z.number().int().positive(),
     discipline_type: z.string().min(1),
     reason: z.string().min(1),
     decision_number: z.string().min(1),
     unit_name: z.string().min(1),
     issued_date: z.string().transform(v => new Date(v)),
-    issued_by: z.string().uuid().optional().nullable(),
+    issued_by: z.number().int().positive().optional().nullable(),
     status: z.string().optional()
 })
 

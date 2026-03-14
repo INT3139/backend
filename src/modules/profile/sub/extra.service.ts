@@ -1,18 +1,18 @@
 import { profileSubRepo } from "../profileSub.repo"
-import { UUID } from "@/types"
+import { ID } from "@/types"
 
 export class ExtraService {
     /**
      * Get thông tin bổ sung
      */
-    async getByProfileId(profileId: UUID) {
+    async getByProfileId(profileId: ID) {
         return await profileSubRepo.getExtraInfo(profileId)
     }
 
     /**
      * Cập nhật thông tin bổ sung (upsert)
      */
-    async update(profileId: UUID, data: any) {
+    async update(profileId: ID, data: any) {
         return await profileSubRepo.upsertExtraInfo(profileId, data)
     }
 }

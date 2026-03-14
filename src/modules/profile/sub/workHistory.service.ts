@@ -1,11 +1,11 @@
 import { profileSubRepo } from "../profileSub.repo"
-import { UUID } from "@/types"
+import { ID } from "@/types"
 
 export class WorkHistoryService {
     /**
      * Get lịch sử công tác
      */
-    async getByProfileId(profileId: UUID) {
+    async getByProfileId(profileId: ID) {
         return await profileSubRepo.getWorkHistory(profileId)
     }
 
@@ -19,7 +19,7 @@ export class WorkHistoryService {
     /**
      * Xóa lịch sử công tác
      */
-    async delete(id: UUID) {
+    async delete(id: ID) {
         return await profileSubRepo.deleteWorkHistory(id)
     }
 }

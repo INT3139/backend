@@ -63,8 +63,7 @@ router.get("/users", requirePermission(PERM.SYSTEM.USER_MANAGE), controller.getU
  *               password:
  *                 type: string
  *               unitId:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *     responses:
  *       201:
  *         description: Created
@@ -90,8 +89,7 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -128,8 +126,7 @@ router.put(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -150,8 +147,7 @@ router.delete("/users/:id", requirePermission(PERM.SYSTEM.USER_MANAGE), controll
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -162,14 +158,12 @@ router.delete("/users/:id", requirePermission(PERM.SYSTEM.USER_MANAGE), controll
  *               - roleId
  *             properties:
  *               roleId:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *               scopeType:
  *                 type: string
  *                 enum: [school, faculty, department, self]
  *               scopeUnitId:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *               expiresAt:
  *                 type: string
  *                 format: date-time
@@ -278,8 +272,7 @@ router.get("/units", requirePermission(PERM.SYSTEM.CONFIG_READ), controller.getU
  *                 type: string
  *                 enum: [school, faculty, department, lab]
  *               parent_id:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *     responses:
  *       201:
  *         description: Created

@@ -40,8 +40,7 @@ router.get("/me", requirePermission(PERM.SALARY.SELF_READ), controller.getMySala
  *         name: profileId
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success
@@ -62,8 +61,7 @@ router.get("/info/:profileId", requirePermission(PERM.SALARY.READ), controller.g
  *         name: profileId
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     requestBody:
  *       required: true
  *       content:
@@ -121,8 +119,7 @@ router.get("/proposals", requirePermission(PERM.SALARY.READ), controller.getProp
  *               - proposed_next_date
  *             properties:
  *               profile_id:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
  *               proposed_grade:
  *                 type: integer
  *               proposed_coefficient:
@@ -155,8 +152,7 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *     responses:
  *       200:
  *         description: Success

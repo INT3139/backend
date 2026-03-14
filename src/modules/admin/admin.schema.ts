@@ -5,7 +5,7 @@ export const createUserSchema = z.object({
     email: z.string().email(),
     fullName: z.string().min(1),
     password: z.string().min(6).optional(),
-    unitId: z.string().uuid().optional()
+    unitId: z.number().int().positive().optional()
 })
 
 export const updateUserSchema = createUserSchema.partial().extend({
@@ -19,15 +19,15 @@ export const createRoleSchema = z.object({
 })
 
 export const assignRoleSchema = z.object({
-    roleId: z.string().uuid(),
+    roleId: z.number().int().positive(),
     scopeType: z.enum(['school', 'faculty', 'department', 'self']).optional(),
-    scopeUnitId: z.string().uuid().optional().nullable(),
+    scopeUnitId: z.number().int().positive().optional().nullable(),
     expiresAt: z.string().optional().transform(v => v ? new Date(v) : undefined)
 })
 
 export const createUnitSchema = z.object({
     code: z.string().min(1),
     name: z.string().min(1),
-    unit_type: z.enum(['school', 'faculty', 'department', 'lab']),
-    parent_id: z.string().uuid().optional().nullable()
+    unitType: z.enum(['school', 'faculty', 'department', 'lab']),
+    parentId: z.number().int().positive().optional().nullable()
 })

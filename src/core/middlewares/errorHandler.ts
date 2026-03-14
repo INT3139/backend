@@ -17,11 +17,17 @@ export class ValidationError   extends AppError {
 }
 
 export function errorHandler(err: Error, req: Request, res: Response, _: NextFunction): void {
+  logger.error('Error in request', { 
+    message: err.message, 
+    stack: err.stack, 
+    path: req.path, 
+    requestId: req.requestId 
+  })
+
   if (err instanceof AppError) {
     res.status(err.statusCode).json({ success: false, error: { message: err.message, code: err.code, ...(err instanceof ValidationError && err.fields ? { fields: err.fields } : {}) } })
     return
   }
-  logger.error('Unhandled error', { err, path: req.path, requestId: req.requestId })
   res.status(HTTP.INTERNAL_SERVER_ERROR).json({ success: false, error: { message: 'Internal server error' } })
 }
 

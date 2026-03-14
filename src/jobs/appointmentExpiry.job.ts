@@ -1,12 +1,45 @@
 import { buildAppointmentExpiryPayload } from '../utils/notification'
-import { query } from '@/configs/db'
+import { db } from '@/configs/db'
+import { appointmentRecords, profileStaff, users, userRoles, roles } from '@/db/schema'
+import { eq, and, sql, inArray } from 'drizzle-orm'
 import { notificationService } from '@/services/notification.service'
 
 export async function appointmentExpiryJob(): Promise<void> {
-  const rows = await query<any>(`SELECT ar.id,ar.profile_id,ar.position_name,ar.end_date,cu.full_name FROM appointment_records ar JOIN profile_staff ps ON ps.id=ar.profile_id JOIN users cu ON cu.id=ps.user_id WHERE ar.status='active' AND ar.end_date=CURRENT_DATE+INTERVAL '90 days'`)
-  const hrm = await query<{ user_id: string }>(`SELECT DISTINCT ur.user_id FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE r.code IN ('cv_hrm','hrm_director')`)
+  const rows = await db.select({
+    id: appointmentRecords.id,
+    profileId: appointmentRecords.profileId,
+    positionName: appointmentRecords.positionName,
+    endDate: appointmentRecords.endDate,
+    fullName: users.fullName
+  })
+  .from(appointmentRecords)
+  .innerJoin(profileStaff, eq(profileStaff.id, appointmentRecords.profileId))
+  .innerJoin(users, eq(users.id, profileStaff.userId))
+  .where(and(
+    eq(appointmentRecords.status, 'active'),
+    sql`${appointmentRecords.endDate} = CURRENT_DATE + INTERVAL '90 days'`
+  ))
+
+  const hrm = await db.select({ userId: userRoles.userId })
+    .from(userRoles)
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(inArray(roles.code, ['cv_hrm', 'hrm_director']))
+
+  const hrmUserIds = Array.from(new Set(hrm.map(h => h.userId)))
+
   for (const row of rows) {
-    const payload = buildAppointmentExpiryPayload({ fullName: row.full_name, positionName: row.position_name, endDate: row.end_date, profileId: row.profile_id })
-    await notificationService.enqueueBulk(hrm.map(h => ({ templateCode: 'term_expiry_90d', recipientId: h.user_id, resourceType: 'appointment', resourceId: row.id, payload })))
+    const payload = buildAppointmentExpiryPayload({ 
+        fullName: row.fullName, 
+        positionName: row.positionName ?? '', 
+        endDate: row.endDate ? new Date(row.endDate) : new Date(), 
+        profileId: row.profileId 
+    })
+    await notificationService.enqueueBulk(hrmUserIds.map(uid => ({ 
+        templateCode: 'term_expiry_90d', 
+        recipientId: uid, 
+        resourceType: 'appointment', 
+        resourceId: row.id, 
+        payload 
+    })))
   }
 }

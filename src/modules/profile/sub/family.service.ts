@@ -1,11 +1,11 @@
 import { profileSubRepo } from "../profileSub.repo"
-import { UUID } from "@/types"
+import { ID } from "@/types"
 
 export class FamilyService {
     /**
      * Get quan hệ gia đình
      */
-    async getByProfileId(profileId: UUID) {
+    async getByProfileId(profileId: ID) {
         return await profileSubRepo.getFamily(profileId)
     }
 
@@ -19,7 +19,7 @@ export class FamilyService {
     /**
      * Xóa quan hệ gia đình
      */
-    async delete(id: UUID) {
+    async delete(id: ID) {
         return await profileSubRepo.deleteFamily(id)
     }
 }
