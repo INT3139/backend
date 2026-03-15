@@ -6,6 +6,15 @@ import { logger } from "@/configs/logger";
 import { env } from "@/configs/env";
 import { startJobs } from "@/jobs/scheduler";
 
+/**
+ * Global Patch for BigInt serialization.
+ * Necessary because sys_audit_logs uses BigInt for IDs,
+ * which JSON.stringify does not support by default.
+ */
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString();
+};
+
 async function bootstrap(): Promise<void> {
     await db.execute(sql`SELECT 1`)
     logger.info('PostgreSQL connected')

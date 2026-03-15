@@ -33,8 +33,8 @@ export function expandPattern(pattern: string, catalog: string[]): string[] {
 
   // Escape toàn bộ regex special chars trước, sau đó replace \* → .*
   const escaped = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, "\\$&") // escape tất cả special chars (kể cả '.')
-    .replace("\\*", ".*");                  // unescape '*' thành wildcard
+    .replace(/[.+*?^${}()|[\]\\]/g, "\\$&") // thêm * vào list cần escape
+    .replace(/\\\*/g, ".*");                // dùng regex global để thay thế tất cả \*
 
   const re = new RegExp(`^${escaped}$`);
   return catalog.filter((c) => re.test(c));
@@ -52,7 +52,7 @@ export async function expandAll(patterns: string[]): Promise<string[]> {
 export const matchesPattern = (code: string, pattern: string): boolean => {
   if (!pattern.includes("*")) return code === pattern;
   const escaped = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
-    .replace("\\*", ".*");
+    .replace(/[.+*?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\\\*/g, ".*");
   return new RegExp(`^${escaped}$`).test(code);
 };
