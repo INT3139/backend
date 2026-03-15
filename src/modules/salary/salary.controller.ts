@@ -89,7 +89,7 @@ export const createProposal = asyncHandler(async (
     req: AuthRequest,
     res: Response
 ): Promise<Response> => {
-    const proposal = await salaryService.createProposal(req.body, req.user!.id)
+    const proposal = await salaryService.createProposal(req.body, req.user!)
     
     await logAction(req.userId!, 'create', 'salary_upgrade_proposal', proposal.id.toString(), req.body)
 
@@ -104,7 +104,7 @@ export const approveProposal = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const { id } = req.params
-    const updated = await salaryService.approveProposal(parseInt(id as string, 10), req.user!.id)
+    const updated = await salaryService.approveProposal(parseInt(id as string, 10), req.user!)
     
     await logAction(req.userId!, 'approve', 'salary_upgrade_proposal', id as string)
 

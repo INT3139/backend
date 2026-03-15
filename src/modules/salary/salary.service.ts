@@ -7,6 +7,7 @@ import { db } from "@/configs/db"
 import { users, profileStaff } from "@/db/schema"
 import { eq, and } from "drizzle-orm"
 import { emailService } from "@/services/email.service"
+import { profileRepo } from "../profile/profile.repo"
 
 export interface UpdateSalaryDto {
     occupation_group?: string
@@ -141,7 +142,17 @@ export class SalaryService {
     /**
      * Tạo đề xuất nâng lương
      */
-    async createProposal(data: CreateSalaryProposalDto, userId: ID): Promise<SalaryUpgradeProposalRow> {
+    async createProposal(data: CreateSalaryProposalDto, user: AuthUser): Promise<SalaryUpgradeProposalRow> {
+        // Check scope over target profile
+        const profile = await profileRepo.findById(data.profile_id)
+        if (!profile) throw new NotFoundError('Profile not found')
+
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
+        if (unitIds !== 'all' && (profile.unitId === null || !unitIds.includes(profile.unitId))) {
+            throw new ForbiddenError('You do not have permission to propose salary upgrade for this profile')
+        }
+
         const values = {
             profileId: data.profile_id,
             currentOccupationCode: data.current_occupation_code,
@@ -161,10 +172,20 @@ export class SalaryService {
     /**
      * Duyệt nâng lương
      */
-    async approveProposal(id: ID, approvedBy: ID): Promise<SalaryUpgradeProposalRow> {
+    async approveProposal(id: ID, user: AuthUser): Promise<SalaryUpgradeProposalRow> {
         const proposal = await salaryRepo.findProposalById(id)
         if (!proposal) {
             throw new NotFoundError('Proposal not found')
+        }
+
+        // Check scope over the proposal's profile
+        const profile = await profileRepo.findById(proposal.profileId)
+        if (!profile) throw new NotFoundError('Profile not found')
+
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
+        if (unitIds !== 'all' && (profile.unitId === null || !unitIds.includes(profile.unitId))) {
+            throw new ForbiddenError('You do not have permission to approve salary upgrade for this profile')
         }
 
         // Update salary info table when proposal is approved
@@ -198,14 +219,13 @@ export class SalaryService {
             .where(eq(profileStaff.id, proposal.profileId))
             .limit(1)
             
-        const user = userRows[0]
-        if (user) {
+        const targetUser = userRows[0]
+        if (targetUser) {
             const grade = typeof proposal.proposedGrade === 'string' ? parseInt(proposal.proposedGrade, 10) : (proposal.proposedGrade ?? 0);
-            emailService.sendSalaryApprovalEmail(user.email, user.fullName, grade).catch(err => {
+            emailService.sendSalaryApprovalEmail(targetUser.email, targetUser.fullName, grade).catch(err => {
                 console.error('Failed to send salary approval email', err)
             })
         }
-
         return updated
     }
 }

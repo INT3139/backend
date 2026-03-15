@@ -1,8 +1,84 @@
 import { Request, Response } from "express"
 import { rewardService } from "./reward.service"
+import { storageService } from "@/services/storage.service"
 import { success, created } from "@/utils/response"
 import { logAction } from "@/core/middlewares/auditContext"
 import { asyncHandler } from "@/core/middlewares/errorHandler"
+import { ID } from "@/types"
+/**
+ * ATTACHMENTS FOR COMMENDATIONS
+ */
+export const uploadCommendationAttachment = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw new Error('No file')
+    const id = parseInt(req.params.id as string, 10) as ID
+
+    const att = await storageService.upload({
+        buffer: req.file.buffer,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        resourceType: 'reward_commendation',
+        resourceId: id,
+        uploadedBy: req.userId!
+    })
+
+    return created(res, att)
+})
+
+export const listCommendationAttachments = asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string, 10) as ID
+    const result = await storageService.listAttachments('reward_commendation', id)
+    return success(res, result)
+})
+
+/**
+ * ATTACHMENTS FOR TITLES
+ */
+export const uploadTitleAttachment = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw new Error('No file')
+    const id = parseInt(req.params.id as string, 10) as ID
+
+    const att = await storageService.upload({
+        buffer: req.file.buffer,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        resourceType: 'reward_title',
+        resourceId: id,
+        uploadedBy: req.userId!
+    })
+
+    return created(res, att)
+})
+
+export const listTitleAttachments = asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string, 10) as ID
+    const result = await storageService.listAttachments('reward_title', id)
+    return success(res, result)
+})
+
+/**
+ * ATTACHMENTS FOR DISCIPLINE
+ */
+export const uploadDisciplineAttachment = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw new Error('No file')
+    const id = parseInt(req.params.id as string, 10) as ID
+
+    const att = await storageService.upload({
+        buffer: req.file.buffer,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        resourceType: 'reward_discipline',
+        resourceId: id,
+        uploadedBy: req.userId!
+    })
+
+    return created(res, att)
+})
+
+export const listDisciplineAttachments = asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string, 10) as ID
+    const result = await storageService.listAttachments('reward_discipline', id)
+    return success(res, result)
+})
 
 /**
  * GET /api/v1/reward/me
@@ -47,7 +123,7 @@ export const createCommendation = asyncHandler(async (
     req: Request,
     res: Response
 ): Promise<Response> => {
-    const reward = await rewardService.createCommendation(req.body)
+    const reward = await rewardService.createCommendation(req.body, req.user!)
     await logAction(req.userId!, 'create', 'reward_commendation', reward.id.toString(), req.body)
 
     return created(res, reward)
@@ -61,7 +137,7 @@ export const updateCommendation = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
-    const updated = await rewardService.updateCommendation(id, req.body)
+    const updated = await rewardService.updateCommendation(id, req.body, req.user!)
     await logAction(req.userId!, 'update', 'reward_commendation', id.toString(), req.body)
 
     return success(res, updated)
@@ -75,7 +151,7 @@ export const deleteCommendation = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
-    await rewardService.deleteCommendation(id)
+    await rewardService.deleteCommendation(id, req.user!)
     await logAction(req.userId!, 'delete', 'reward_commendation', id.toString())
 
     return success(res, { message: 'Commendation deleted' })
@@ -111,7 +187,7 @@ export const createTitle = asyncHandler(async (
     req: Request,
     res: Response
 ): Promise<Response> => {
-    const title = await rewardService.createTitle(req.body)
+    const title = await rewardService.createTitle(req.body, req.user!)
     await logAction(req.userId!, 'create', 'reward_title', title.id.toString(), req.body)
 
     return created(res, title)
@@ -125,7 +201,7 @@ export const updateTitle = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
-    const updated = await rewardService.updateTitle(id, req.body)
+    const updated = await rewardService.updateTitle(id, req.body, req.user!)
     await logAction(req.userId!, 'update', 'reward_title', id.toString(), req.body)
 
     return success(res, updated)
@@ -139,7 +215,7 @@ export const deleteTitle = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
-    await rewardService.deleteTitle(id)
+    await rewardService.deleteTitle(id, req.user!)
     await logAction(req.userId!, 'delete', 'reward_title', id.toString())
 
     return success(res, { message: 'Title deleted' })
@@ -174,7 +250,7 @@ export const createDiscipline = asyncHandler(async (
     req: Request,
     res: Response
 ): Promise<Response> => {
-    const discipline = await rewardService.createDiscipline({ ...req.body, issuedBy: req.userId })
+    const discipline = await rewardService.createDiscipline({ ...req.body, issuedBy: req.userId }, req.user!)
     await logAction(req.userId!, 'create', 'reward_discipline', discipline.id.toString(), req.body)
 
     return created(res, discipline)
@@ -188,7 +264,7 @@ export const updateDiscipline = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
-    const updated = await rewardService.updateDiscipline(id, req.body)
+    const updated = await rewardService.updateDiscipline(id, req.body, req.user!)
     await logAction(req.userId!, 'update', 'reward_discipline', id.toString(), req.body)
 
     return success(res, updated)
@@ -202,7 +278,7 @@ export const deleteDiscipline = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
-    await rewardService.deleteDiscipline(id)
+    await rewardService.deleteDiscipline(id, req.user!)
     await logAction(req.userId!, 'delete', 'reward_discipline', id.toString())
 
     return success(res, { message: 'Disciplinary record deleted' })

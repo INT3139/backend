@@ -94,8 +94,7 @@
                     "type": "string"
                   },
                   "unitId": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   }
                 }
               }
@@ -126,8 +125,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -171,8 +169,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -200,8 +197,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -216,8 +212,7 @@
                 ],
                 "properties": {
                   "roleId": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   },
                   "scopeType": {
                     "type": "string",
@@ -229,8 +224,7 @@
                     ]
                   },
                   "scopeUnitId": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   },
                   "expiresAt": {
                     "type": "string",
@@ -241,6 +235,36 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/admin/users/{id}/roles/{roleId}": {
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Revoke role from user",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "roleId",
+            "required": true
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success"
@@ -362,8 +386,7 @@
                     ]
                   },
                   "parent_id": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   }
                 }
               }
@@ -409,6 +432,56 @@
             "description": "Success"
           }
         }
+      }
+    },
+    "/attachments": {
+      "post": {
+        "tags": [
+          "Attachment"
+        ],
+        "summary": "Upload file",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Attachment"
+        ],
+        "summary": "List files for resource",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/attachments/{id}/download": {
+      "get": {
+        "tags": [
+          "Attachment"
+        ],
+        "summary": "Get download URL",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/attachments/{id}": {
+      "delete": {
+        "tags": [
+          "Attachment"
+        ],
+        "summary": "Delete file",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/auth/login": {
@@ -535,6 +608,24 @@
         }
       }
     },
+    "/auth/permissions": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get user permissions and scopes",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/profiles/me": {
       "get": {
         "tags": [
@@ -641,8 +732,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -668,8 +758,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -705,8 +794,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -734,8 +822,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -763,8 +850,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -792,8 +878,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -839,8 +924,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -866,8 +950,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -919,8 +1002,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           },
           {
@@ -928,8 +1010,7 @@
             "name": "subId",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -957,8 +1038,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -984,8 +1064,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1043,8 +1122,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           },
           {
@@ -1052,8 +1130,7 @@
             "name": "subId",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1081,8 +1158,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1108,8 +1184,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1166,8 +1241,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           },
           {
@@ -1175,8 +1249,7 @@
             "name": "subId",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1204,8 +1277,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1231,8 +1303,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1275,8 +1346,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1302,8 +1372,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1369,8 +1438,7 @@
                 ],
                 "properties": {
                   "proposing_unit": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   },
                   "position_name": {
                     "type": "string"
@@ -1407,8 +1475,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1434,8 +1501,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1478,8 +1544,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1507,8 +1572,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1542,8 +1606,7 @@
                 ],
                 "properties": {
                   "proposal_id": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   },
                   "full_name": {
                     "type": "string"
@@ -1577,8 +1640,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1619,8 +1681,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1689,8 +1750,7 @@
                 ],
                 "properties": {
                   "profile_id": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   },
                   "award_level": {
                     "type": "string",
@@ -1734,8 +1794,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1776,8 +1835,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1786,6 +1844,25 @@
             "description": "Success"
           }
         }
+      }
+    },
+    "/reward/commendations/{id}/attachments": {
+      "post": {
+        "tags": [
+          "Reward Commendations"
+        ],
+        "summary": "Upload attachment for commendation",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Reward Commendations"
+        ],
+        "summary": "List attachments for commendation"
       }
     },
     "/reward/titles": {
@@ -1829,8 +1906,7 @@
                 ],
                 "properties": {
                   "profile_id": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   },
                   "title_name": {
                     "type": "string"
@@ -1875,8 +1951,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1917,8 +1992,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -1927,6 +2001,20 @@
             "description": "Success"
           }
         }
+      }
+    },
+    "/reward/titles/{id}/attachments": {
+      "post": {
+        "tags": [
+          "Reward Titles"
+        ],
+        "summary": "Upload attachment for title"
+      },
+      "get": {
+        "tags": [
+          "Reward Titles"
+        ],
+        "summary": "List attachments for title"
       }
     },
     "/reward/discipline": {
@@ -1972,8 +2060,7 @@
                 ],
                 "properties": {
                   "profile_id": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   },
                   "discipline_type": {
                     "type": "string"
@@ -2020,8 +2107,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -2062,8 +2148,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -2072,6 +2157,20 @@
             "description": "Success"
           }
         }
+      }
+    },
+    "/reward/discipline/{id}/attachments": {
+      "post": {
+        "tags": [
+          "Reward Discipline"
+        ],
+        "summary": "Upload attachment for disciplinary record"
+      },
+      "get": {
+        "tags": [
+          "Reward Discipline"
+        ],
+        "summary": "List attachments for disciplinary record"
       }
     },
     "/salary/me": {
@@ -2109,8 +2208,7 @@
             "name": "profileId",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -2136,8 +2234,7 @@
             "name": "profileId",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -2204,8 +2301,7 @@
                 ],
                 "properties": {
                   "profile_id": {
-                    "type": "string",
-                    "format": "uuid"
+                    "type": "integer"
                   },
                   "proposed_grade": {
                     "type": "integer"
@@ -2246,8 +2342,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -2359,8 +2454,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],
@@ -2388,8 +2482,7 @@
             "name": "id",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer"
             }
           }
         ],

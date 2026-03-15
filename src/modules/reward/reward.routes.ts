@@ -5,8 +5,10 @@ import { requirePermission } from "@/core/middlewares/requirePermission"
 import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./reward.schema"
+import multer from "multer"
 
 const router = Router()
+const upload = multer({ storage: multer.memoryStorage() })
 
 // Tất cả routes đều yêu cầu authentication
 router.use(authenticate)
@@ -137,6 +139,37 @@ router.delete("/commendations/:id", requirePermission(PERM.REWARD.WRITE), contro
 
 /**
  * @openapi
+ * /reward/commendations/{id}/attachments:
+ *   post:
+ *     tags:
+ *       - Reward Commendations
+ *     summary: Upload attachment for commendation
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+    "/commendations/:id/attachments",
+    requirePermission(PERM.SYSTEM.ATTACHMENT_UPLOAD),
+    upload.single("file"),
+    controller.uploadCommendationAttachment
+)
+
+/**
+ * @openapi
+ * /reward/commendations/{id}/attachments:
+ *   get:
+ *     tags:
+ *       - Reward Commendations
+ *     summary: List attachments for commendation
+ */
+router.get(
+    "/commendations/:id/attachments",
+    requirePermission(PERM.REWARD.READ),
+    controller.listCommendationAttachments
+)
+
+/**
+ * @openapi
  * /reward/titles:
  *   get:
  *     tags:
@@ -246,6 +279,35 @@ router.put(
  *         description: Success
  */
 router.delete("/titles/:id", requirePermission(PERM.REWARD.WRITE), controller.deleteTitle)
+
+/**
+ * @openapi
+ * /reward/titles/{id}/attachments:
+ *   post:
+ *     tags:
+ *       - Reward Titles
+ *     summary: Upload attachment for title
+ */
+router.post(
+    "/titles/:id/attachments",
+    requirePermission(PERM.SYSTEM.ATTACHMENT_UPLOAD),
+    upload.single("file"),
+    controller.uploadTitleAttachment
+)
+
+/**
+ * @openapi
+ * /reward/titles/{id}/attachments:
+ *   get:
+ *     tags:
+ *       - Reward Titles
+ *     summary: List attachments for title
+ */
+router.get(
+    "/titles/:id/attachments",
+    requirePermission(PERM.REWARD.READ),
+    controller.listTitleAttachments
+)
 
 /**
  * @openapi
@@ -364,5 +426,34 @@ router.put(
  *         description: Success
  */
 router.delete("/discipline/:id", requirePermission(PERM.REWARD.DISCIPLINE), controller.deleteDiscipline)
+
+/**
+ * @openapi
+ * /reward/discipline/{id}/attachments:
+ *   post:
+ *     tags:
+ *       - Reward Discipline
+ *     summary: Upload attachment for disciplinary record
+ */
+router.post(
+    "/discipline/:id/attachments",
+    requirePermission(PERM.SYSTEM.ATTACHMENT_UPLOAD),
+    upload.single("file"),
+    controller.uploadDisciplineAttachment
+)
+
+/**
+ * @openapi
+ * /reward/discipline/{id}/attachments:
+ *   get:
+ *     tags:
+ *       - Reward Discipline
+ *     summary: List attachments for disciplinary record
+ */
+router.get(
+    "/discipline/:id/attachments",
+    requirePermission(PERM.REWARD.DISCIPLINE),
+    controller.listDisciplineAttachments
+)
 
 export const rewardRoutes: Router = router

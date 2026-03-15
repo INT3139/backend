@@ -76,6 +76,9 @@ export const PERM = {
         AUDIT_EXPORT: 'system.audit.export',
         CONFIG_READ: 'system.config.read',
         CONFIG_WRITE: 'system.config.write',
-        SCHEDULER_MANAGE: 'system.scheduler.manage'
+        SCHEDULER_MANAGE: 'system.scheduler.manage',
+        ATTACHMENT_UPLOAD: 'hrm.attachment.upload',
+        ATTACHMENT_DOWNLOAD: 'hrm.attachment.download',
+        ATTACHMENT_DELETE: 'hrm.attachment.delete',
     },
 } as const
