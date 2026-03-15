@@ -27,8 +27,9 @@ export class AuditService {
     if (filter.resourceId) conditions.push(eq(sysAuditLogs.resourceId, filter.resourceId))
     if (filter.actorId) conditions.push(eq(sysAuditLogs.actorId, filter.actorId))
 
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     return db.select().from(sysAuditLogs)
-      .where(and(...conditions))
+      .where(whereClause)
       .orderBy(desc(sysAuditLogs.eventTime))
       .limit(limit)
       .offset(offset)

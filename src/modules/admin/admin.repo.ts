@@ -4,6 +4,7 @@ import { users, roles, organizationalUnits, sysAuditLogs, userRoles } from "@/db
 import { eq, and, sql, count, desc, asc } from "drizzle-orm"
 
 export type UserRow = typeof users.$inferSelect
+export type SafeUserRow = Omit<UserRow, 'passwordHash' | 'deletedAt'>
 export type RoleRow = typeof roles.$inferSelect
 export type UnitRow = typeof organizationalUnits.$inferSelect
 export type AuditLogRow = typeof sysAuditLogs.$inferSelect
@@ -14,7 +15,7 @@ export class AdminRepo {
      */
     async findUsers(
         pagination: PaginationQuery
-    ): Promise<PaginatedResult<UserRow>> {
+    ): Promise<PaginatedResult<SafeUserRow>> {
         const { page, limit, sort, order } = pagination
         const offset = (page - 1) * limit
 
@@ -23,15 +24,28 @@ export class AdminRepo {
             .where(sql`${users.deletedAt} IS NULL`)
         const total = Number(countRes[0].total)
 
-        let orderBy: any = desc(users.createdAt)
-        if (sort) {
-            const column = (users as any)[sort]
-            if (column) {
-                orderBy = order === 'asc' ? asc(column) : desc(column)
-            }
+        const ALLOWED_SORT_COLUMNS: Record<string, any> = {
+            createdAt: users.createdAt,
+            fullName: users.fullName,
+            username: users.username,
+            email: users.email,
         }
 
-        const rows = await db.select()
+        let orderBy = desc(users.createdAt)
+        if (sort && ALLOWED_SORT_COLUMNS[sort]) {
+            orderBy = order === 'asc' ? asc(ALLOWED_SORT_COLUMNS[sort]) : desc(ALLOWED_SORT_COLUMNS[sort])
+        }
+
+        const rows = await db.select({
+            id: users.id,
+            username: users.username,
+            email: users.email,
+            fullName: users.fullName,
+            unitId: users.unitId,
+            isActive: users.isActive,
+            createdAt: users.createdAt,
+            lastLoginAt: users.lastLoginAt,
+        })
             .from(users)
             .where(sql`${users.deletedAt} IS NULL`)
             .limit(limit)

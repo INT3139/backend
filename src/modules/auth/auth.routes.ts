@@ -55,7 +55,7 @@ router.post("/login", validateBody(schema.loginSchema), controller.loginCtrl)
  *       200:
  *         description: Success
  */
-router.post("/refresh", controller.refreshTokenCtrl)
+router.post("/refresh", validateBody(schema.refreshSchema), controller.refreshTokenCtrl)
 
 /**
  * @openapi

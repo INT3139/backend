@@ -1,6 +1,6 @@
 import { adminRepo, UserRow, RoleRow, UnitRow, AuditLogRow } from "./admin.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
-import { hashPassword } from "@/utils/hash"
+import { generateTempPassword, hashPassword } from "@/utils/hash"
 import { permissionService } from "@/core/permissions/permission.service"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { emailService } from "@/services/email.service"
@@ -26,7 +26,7 @@ export class AdminService {
      * Create user mới
      */
     async createUser(data: CreateUserDto) {
-        const password = data.password || '123456@a' // Mật khẩu mặc định
+        const password = data.password || generateTempPassword(16) // 16 characters
         const hashedPassword = await hashPassword(password)
 
         const user = await adminRepo.createUser({

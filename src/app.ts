@@ -38,7 +38,11 @@ export function createApp(): Application {
     ))
 
     // Swagger UI
+    // if (env.NODE_ENV !== 'production') {
+    //     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+    // }
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+
 
     // Register module routes
     app.use(`${API_PREFIX}/auth`, authRoutes)

@@ -3,16 +3,16 @@ import { rGetJson, rSetJson, rDelPattern } from "../../configs/redis";
 
 export function cacheResponse(
     ttl: number,
-    options? : {
+    options?: {
         useUserId?: boolean,
     }
 ) {
     return async (req: Request, res: Response, next: NextFunction) => {
-        const key    = `http:${req.method}:${req.path}${options?.useUserId ? `:${req.userId??'anon'}` : ''}`
+        const key = `http:${req.method}:${req.path}:${JSON.stringify(req.query)}${options?.useUserId ? `:${req.userId ?? 'anon'}` : ''}`
         const cached = await rGetJson<unknown>(key)
         if (cached !== null) { res.json(cached); return }
         const orig = res.json.bind(res)
-        res.json = (body) => { rSetJson(key, body, ttl).catch(() => {}); return orig(body) }
+        res.json = (body) => { rSetJson(key, body, ttl).catch(() => { }); return orig(body) }
         next()
     }
 }

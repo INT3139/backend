@@ -7,13 +7,13 @@ import { ID, WorkflowStatus, WorkflowInitPayload } from "@/types";
 import { NotFoundError, ForbiddenError } from "../middlewares/errorHandler";
 
 export interface WorkflowInstance {
-  id: ID; 
-  definitionId: ID; 
-  resourceType: string; 
+  id: ID;
+  definitionId: ID;
+  resourceType: string;
   resourceId: ID
-  status: WorkflowStatus; 
-  currentStep: number; 
-  startedAt: Date; 
+  status: WorkflowStatus;
+  currentStep: number;
+  startedAt: Date;
   completedAt?: Date | null
 }
 
@@ -52,7 +52,7 @@ export class WorkflowEngine {
     return inst as unknown as WorkflowInstance
   }
 
-  async advance(instanceId: ID, actorId: ID, action: 'approve'|'reject'|'request_revision'|'forward', comment?: string): Promise<WorkflowInstance> {
+  async advance(instanceId: ID, actorId: ID, action: 'approve' | 'reject' | 'request_revision' | 'forward', comment?: string): Promise<WorkflowInstance> {
     return db.transaction(async (tx) => {
       const rows = await tx.select().from(wfInstances).where(eq(wfInstances.id, instanceId)).for('update')
       const inst = rows[0]
@@ -67,7 +67,7 @@ export class WorkflowEngine {
       if (!def) throw new NotFoundError('Workflow definition')
 
       const nextStep = inst.currentStep + 1
-      const isLast   = nextStep > (def.steps as any[]).length
+      const isLast = nextStep > (def.steps as any[]).length
       const newStatus: WorkflowStatus = action === 'reject' ? 'rejected' : (isLast ? 'approved' : 'in_progress')
 
       await tx.update(wfInstances).set({
@@ -99,11 +99,15 @@ export class WorkflowEngine {
     })
   }
 
-  async getHistory(id: ID)  {
+  async getHistory(id: ID) {
     return db.select().from(wfStepLogs).where(eq(wfStepLogs.instanceId, id)).orderBy(asc(wfStepLogs.actedAt))
   }
 
   async cancel(id: ID, actorId: ID, reason: string) {
+    const rows = await db.select().from(wfInstances).where(eq(wfInstances.id, id))
+    const inst = rows[0]
+    if (!inst) throw new NotFoundError('Workflow instance')
+    if (inst.status !== 'in_progress') throw new ForbiddenError('Only in-progress workflows can be cancelled')
     await db.update(wfInstances).set({ status: 'cancelled', completedAt: new Date() }).where(eq(wfInstances.id, id))
     await db.insert(wfStepLogs).values({
       instanceId: id,

@@ -47,7 +47,7 @@ router.get("/me", controller.getMyProfile)
  *       200:
  *         description: Success
  */
-router.get("/search", controller.searchProfiles)
+router.get("/search", requirePermission(PERM.PROFILE.READ), controller.searchProfiles)
 
 /**
  * @openapi

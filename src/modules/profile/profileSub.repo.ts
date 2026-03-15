@@ -76,7 +76,7 @@ export class ProfileSubRepo {
     async createWorkHistory(data: any) {
         const res = await db.insert(profileWorkHistories)
             .values({
-                profileId: data.profile_id,
+                profileId: data.profileId, // camelCase từ controller
                 historyType: data.history_type,
                 fromDate: data.from_date,
                 toDate: data.to_date,

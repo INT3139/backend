@@ -47,7 +47,7 @@ export async function refreshToken(token: string) {
   const payload = verifyToken(token)
   if (payload.type !== 'refresh') throw new UnauthorizedError('Invalid refresh token')
   if ((await redis.get(KEY(payload.sub))) !== token) throw new UnauthorizedError('Token revoked')
-  
+
   const [row] = await db.select({
     id: users.id,
     username: users.username,
@@ -61,7 +61,13 @@ export async function refreshToken(token: string) {
 
   if (!row) throw new UnauthorizedError()
   const user: AuthUser = { id: row.id, username: row.username, email: row.email, fullName: row.fullName, unitId: row.unitId }
-  return { accessToken: issueTokenPair(user).accessToken }
+  const newTokens = issueTokenPair(user)
+  await redis.setex(KEY(user.id), 7 * 24 * 3600, newTokens.refreshToken)
+  return {
+    accessToken: newTokens.accessToken,
+    refreshToken: newTokens.refreshToken
+  }
+
 }
 
 export async function logout(userId: ID): Promise<void> {
@@ -75,11 +81,11 @@ export async function changePassword(userId: ID, oldPass: string, newPass: strin
     .limit(1);
 
   if (!row || !(await comparePassword(oldPass, row.passwordHash))) throw new UnauthorizedError('Current password incorrect')
-  
+
   await db.update(users)
     .set({ passwordHash: await hashPassword(newPass) })
     .where(eq(users.id, userId));
-    
+
   await logout(userId)
   await permissionService.invalidate(userId)
 }

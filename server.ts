@@ -29,10 +29,10 @@ bootstrap().catch(err => {
     process.exit(1)
 })
 
-const gracefulShutdown = () => {
+const gracefulShutdown = async () => {
     logger.info('Shutting down gracefully...')
-    pool.end()
-    redis.quit()
+    await pool.end()
+    await redis.quit()
     process.exit(0)
 }
 
