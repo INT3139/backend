@@ -48,7 +48,7 @@ export function createApp(): Application {
     // Register module routes
     app.use(`${API_PREFIX}/auth`, authRoutes)
     app.use(`${API_PREFIX}/admin`, adminRoutes)
-    app.use(`${API_PREFIX}/profile`, profileRoutes)
+    app.use(`${API_PREFIX}/profiles`, profileRoutes)
     app.use(`${API_PREFIX}/recruitment`, recruitmentRoutes)
     app.use(`${API_PREFIX}/salary`, salaryRoutes)
     app.use(`${API_PREFIX}/reward`, rewardRoutes)
