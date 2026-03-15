@@ -334,4 +334,34 @@ router.post(
  */
 router.get("/audit-logs", requirePermission(PERM.SYSTEM.AUDIT_READ), controller.getAuditLogs)
 
+/**
+ * @openapi
+ * /admin/workflows/{id}/metadata:
+ *   put:
+ *     tags:
+ *       - Admin
+ *     summary: Update pending workflow metadata (Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               metadata:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.put("/workflows/:id/metadata", requirePermission(PERM.SYSTEM.USER_MANAGE), controller.updateWorkflowMetadata)
+
 export const adminRoutes: Router = router

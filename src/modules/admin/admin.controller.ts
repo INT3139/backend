@@ -4,6 +4,7 @@ import { permissionService } from "@/core/permissions/permission.service"
 import { success, created } from "@/utils/response"
 import { logAction } from "@/core/middlewares/auditContext"
 import { asyncHandler } from "@/core/middlewares/errorHandler"
+import { workflowEngine } from "@/core/workflow/engine"
 
 /**
  * GET /api/v1/admin/users
@@ -48,7 +49,7 @@ export const updateUser = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     const updated = await adminService.updateUser(id, req.body)
-    
+
     // Invalidate permission cache if status or unit changed
     if (req.body.isActive !== undefined || req.body.unitId !== undefined) {
         await permissionService.invalidate(id)
@@ -174,3 +175,18 @@ export const getAuditLogs = asyncHandler(async (
     return success(res, result)
 })
 
+/**
+ * PUT /api/v1/admin/workflows/:id/metadata
+ * Admin sửa dữ liệu đang chờ duyệt
+ */
+export const updateWorkflowMetadata = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    const { id } = req.params;
+    const { metadata } = req.body;
+
+    await workflowEngine.updateMetadata(parseInt(id as string, 10), metadata);
+
+    return success(res, { message: 'Workflow metadata updated successfully' });
+})

@@ -6,6 +6,8 @@ import { permissionService } from "@/core/permissions/permission.service"
 import { CacheKey, CacheTTL } from "@/core/cache/cacheKey"
 import { rSetJson, rGetJson, rDel } from "@/configs/redis"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
+import { workflowEngine } from "@/core/workflow/engine"
+import { WF } from "@/constants/workflowCodes"
 
 export interface FullProfileRow extends ProfileRow {
     education?: any[]
@@ -135,13 +137,13 @@ export class ProfileService {
     }
 
     /**
-     * Update profile
+     * Update profile: Khởi tạo quy trình phê duyệt (Workflow)
      */
     async updateProfile(
         id: ID,
         data: UpdateProfileDto,
         user: AuthUser
-    ): Promise<ProfileRow> {
+    ): Promise<any> {
         const existing = await profileRepo.findById(id)
         if (!existing) {
             throw new NotFoundError('Profile not found')
@@ -161,14 +163,27 @@ export class ProfileService {
             throw new ForbiddenError('You do not have permission to update this profile')
         }
 
-        const updated = await profileRepo.update(id, {
-            ...data,
-            lastUpdatedBy: user.id
+        // NGĂN CHỈNH SỬA KHI ĐANG CHỜ DUYỆT
+        if (existing.profileStatus === 'pending') {
+            throw new ForbiddenError('Hồ sơ đang trong quá trình chờ duyệt, không thể chỉnh sửa thêm.')
+        }
+
+        // Tạo workflow, lưu data thay đổi vào metadata
+        const workflow = await workflowEngine.initiate({
+            definitionCode: WF.PROFILE_UPDATE,
+            resourceType: 'profile',
+            resourceId: id,
+            initiatedBy: user.id,
+            metadata: data 
         })
 
-        await rDel(CacheKey.profileFull(id))
+        // Chuyển trạng thái hồ sơ về 'pending'
+        await profileRepo.update(id, { profileStatus: 'pending' })
 
-        return updated
+        return {
+            message: 'Yêu cầu cập nhật hồ sơ đã được gửi và đang chờ phê duyệt.',
+            workflowId: workflow.id
+        }
     }
 
     /**
@@ -201,6 +216,28 @@ export class ProfileService {
      */
     async searchProfiles(keyword: string, limit = 10): Promise<ProfileRow[]> {
         return await profileRepo.search(keyword, limit)
+    }
+
+    /**
+     * Áp dụng thay đổi từ Workflow sau khi được duyệt
+     */
+    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID): Promise<ProfileRow> {
+        const inst = await workflowEngine.getStatus(workflowId)
+        if (inst.status !== 'approved') {
+            throw new ForbiddenError('Workflow must be approved first')
+        }
+
+        const profileId = inst.resourceId
+        const dataToUpdate = (inst as any).metadata
+
+        const updated = await profileRepo.update(profileId, {
+            ...dataToUpdate,
+            profileStatus: 'approved',
+            lastUpdatedBy: approvedBy
+        })
+
+        await rDel(CacheKey.profileFull(profileId))
+        return updated
     }
 
     /**

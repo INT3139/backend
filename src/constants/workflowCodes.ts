@@ -4,4 +4,5 @@ export const WF = {
   REWARD_BALLOT:        'reward_ballot',
   SALARY_UPGRADE:       'salary_upgrade',
   CONTRACT_RENEWAL:     'contract_renewal',
+  PROFILE_UPDATE:       'profile_update',
 } as const

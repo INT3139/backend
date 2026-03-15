@@ -132,6 +132,8 @@ export class SalaryService {
         const scopes = await permissionService.getScopes(user.id)
         const unitIds = await abacService.getUnitIds(scopes)
 
+        console.log('[DEBUG] getProposals:', { userId: user.id, unitIds, scopes });
+
         if (unitIds !== 'all') {
             filter.unitIds = unitIds
         }

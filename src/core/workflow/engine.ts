@@ -119,6 +119,18 @@ export class WorkflowEngine {
     })
     await cacheService.invalidateWorkflowInstance(id)
   }
+
+  /**
+   * Cập nhật dữ liệu tạm thời (metadata) trong quy trình.
+   * Dùng khi Admin muốn sửa lại thông tin user đã gửi trước khi bấm Duyệt.
+   */
+  async updateMetadata(instanceId: ID, metadata: any): Promise<void> {
+    await db.update(wfInstances)
+      .set({ metadata })
+      .where(eq(wfInstances.id, instanceId));
+    
+    await cacheService.invalidateWorkflowInstance(instanceId);
+  }
 }
 
 export const workflowEngine = new WorkflowEngine()

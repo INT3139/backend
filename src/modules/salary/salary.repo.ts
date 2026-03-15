@@ -75,37 +75,53 @@ export class SalaryRepo {
         const offset = (page - 1) * limit
 
         const conditions = []
+        
         if (filter.unitId) {
-            const profileIds = db.select({ id: profileStaff.id })
-                .from(profileStaff)
-                .where(eq(profileStaff.unitId, filter.unitId))
-            conditions.push(inArray(salaryUpgradeProposals.profileId, profileIds))
+            conditions.push(eq(profileStaff.unitId, filter.unitId))
         } else if (filter.unitIds && filter.unitIds.length > 0) {
-            const profileIds = db.select({ id: profileStaff.id })
-                .from(profileStaff)
-                .where(inArray(profileStaff.unitId, filter.unitIds))
-            conditions.push(inArray(salaryUpgradeProposals.profileId, profileIds))
+            conditions.push(inArray(profileStaff.unitId, filter.unitIds))
         }
+        
         if (filter.status) {
             conditions.push(eq(salaryUpgradeProposals.status, filter.status as any))
         }
 
-        const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+        const whereClause = conditions.length > 0 ? and(...conditions) : sql`TRUE`
 
+        // Count total
         const countRes = await db.select({ total: count() })
             .from(salaryUpgradeProposals)
+            .innerJoin(profileStaff, eq(salaryUpgradeProposals.profileId, profileStaff.id))
             .where(whereClause)
         const total = Number(countRes[0].total)
 
-        const rows = await db.select()
+        // Get data
+        const rows = await db.select({
+            id: salaryUpgradeProposals.id,
+            profileId: salaryUpgradeProposals.profileId,
+            currentOccupationCode: salaryUpgradeProposals.currentOccupationCode,
+            currentGrade: salaryUpgradeProposals.currentGrade,
+            currentCoefficient: salaryUpgradeProposals.currentCoefficient,
+            currentEffectiveDate: salaryUpgradeProposals.currentEffectiveDate,
+            currentTitle: salaryUpgradeProposals.currentTitle,
+            attachmentId: salaryUpgradeProposals.attachmentId,
+            status: salaryUpgradeProposals.status,
+            proposedGrade: salaryUpgradeProposals.proposedGrade,
+            proposedCoefficient: salaryUpgradeProposals.proposedCoefficient,
+            proposedNextDate: salaryUpgradeProposals.proposedNextDate,
+            upgradeType: salaryUpgradeProposals.upgradeType,
+            workflowId: salaryUpgradeProposals.workflowId,
+            createdAt: salaryUpgradeProposals.createdAt
+        })
             .from(salaryUpgradeProposals)
+            .innerJoin(profileStaff, eq(salaryUpgradeProposals.profileId, profileStaff.id))
             .where(whereClause)
             .orderBy(desc(salaryUpgradeProposals.createdAt))
             .limit(limit)
             .offset(offset)
 
         return {
-            data: rows,
+            data: rows as SalaryUpgradeProposalRow[],
             total,
             page,
             limit,
