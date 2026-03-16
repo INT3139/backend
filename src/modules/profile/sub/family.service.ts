@@ -17,6 +17,13 @@ export class FamilyService {
     }
 
     /**
+     * Cập nhật quan hệ gia đình
+     */
+    async update(id: ID, data: any) {
+        return await profileSubRepo.updateFamily(id, data)
+    }
+
+    /**
      * Xóa quan hệ gia đình
      */
     async delete(id: ID) {

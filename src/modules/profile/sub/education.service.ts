@@ -17,6 +17,13 @@ export class EducationService {
     }
 
     /**
+     * Cập nhật quá trình đào tạo
+     */
+    async update(id: ID, data: any) {
+        return await profileSubRepo.updateEducation(id, data)
+    }
+
+    /**
      * Xóa quá trình đào tạo
      */
     async delete(id: ID) {

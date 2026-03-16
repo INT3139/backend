@@ -1,6 +1,6 @@
 import { db } from "@/configs/db"
 import { ID, EducationHistoryInput, FamilyRelationInput, HealthRecordInput } from "@/types"
-import { profileEducationHistories, profileFamilyRelations, profileWorkHistories, profileExtraInfo, profileHealthRecords } from "@/db/schema"
+import { profileEducationHistories, profileFamilyRelations, profileWorkHistories, profileExtraInfo, profileHealthRecords, profilePositions, profileResearchWorks } from "@/db/schema"
 import { eq, desc } from "drizzle-orm"
 
 export class ProfileSubRepo {
@@ -33,6 +33,17 @@ export class ProfileSubRepo {
         return res[0]
     }
 
+    async updateEducation(id: ID, data: Partial<EducationHistoryInput>) {
+        const { profileId, ...updateData } = data
+        const res = await db.update(profileEducationHistories)
+            .set({
+                ...updateData as any,
+            })
+            .where(eq(profileEducationHistories.id, id))
+            .returning()
+        return res[0]
+    }
+
     async deleteEducation(id: ID) {
         await db.delete(profileEducationHistories)
             .where(eq(profileEducationHistories.id, id))
@@ -60,6 +71,17 @@ export class ProfileSubRepo {
         return res[0]
     }
 
+    async updateFamily(id: ID, data: Partial<FamilyRelationInput>) {
+        const { profileId, ...updateData } = data
+        const res = await db.update(profileFamilyRelations)
+            .set({
+                ...updateData as any,
+            })
+            .where(eq(profileFamilyRelations.id, id))
+            .returning()
+        return res[0]
+    }
+
     async deleteFamily(id: ID) {
         await db.delete(profileFamilyRelations)
             .where(eq(profileFamilyRelations.id, id))
@@ -76,15 +98,26 @@ export class ProfileSubRepo {
     async createWorkHistory(data: any) {
         const res = await db.insert(profileWorkHistories)
             .values({
-                profileId: data.profileId, // camelCase từ controller
-                historyType: data.history_type,
-                fromDate: data.from_date,
-                toDate: data.to_date,
-                unitName: data.unit_name,
-                positionName: data.position_name,
-                activityType: data.activity_type,
+                profileId: data.profileId,
+                historyType: data.historyType,
+                fromDate: data.fromDate,
+                toDate: data.toDate,
+                unitName: data.unitName,
+                positionName: data.positionName,
+                activityType: data.activityType,
                 status: data.status || 'pending'
             })
+            .returning()
+        return res[0]
+    }
+
+    async updateWorkHistory(id: ID, data: any) {
+        const { profileId, ...updateData } = data
+        const res = await db.update(profileWorkHistories)
+            .set({
+                ...updateData,
+            })
+            .where(eq(profileWorkHistories.id, id))
             .returning()
         return res[0]
     }
@@ -106,19 +139,19 @@ export class ProfileSubRepo {
     async upsertExtraInfo(profileId: ID, data: any) {
         const values = {
             profileId: profileId,
-            arrestHistory: data.arrest_history,
-            oldRegimeWork: data.old_regime_work,
-            foreignOrgRelations: data.foreign_org_relations,
-            foreignRelatives: data.foreign_relatives,
-            incomeSalary: data.income_salary,
-            incomeOtherSources: data.income_other_sources,
-            houseTypeGranted: data.house_type_granted,
-            houseAreaGranted: data.house_area_granted,
-            houseTypeOwned: data.house_type_owned,
-            houseAreaOwned: data.house_area_owned,
-            landGrantedM2: data.land_granted_m2,
-            landPurchasedM2: data.land_purchased_m2,
-            landBusinessM2: data.land_business_m2,
+            arrestHistory: data.arrestHistory,
+            oldRegimeWork: data.oldRegimeWork,
+            foreignOrgRelations: data.foreignOrgRelations,
+            foreignRelatives: data.foreignRelatives,
+            incomeSalary: data.incomeSalary,
+            incomeOtherSources: data.incomeOtherSources,
+            houseTypeGranted: data.houseTypeGranted,
+            houseAreaGranted: data.houseAreaGranted,
+            houseTypeOwned: data.houseTypeOwned,
+            houseAreaOwned: data.houseAreaOwned,
+            landGrantedM2: data.landGrantedM2,
+            landPurchasedM2: data.landPurchasedM2,
+            landBusinessM2: data.landBusinessM2,
             updatedAt: new Date()
         }
 
@@ -160,6 +193,83 @@ export class ProfileSubRepo {
             })
             .returning()
         return res[0]
+    }
+
+    // --- POSITIONS ---
+    async getPositions(profileId: ID) {
+        return await db.select()
+            .from(profilePositions)
+            .where(eq(profilePositions.profileId, profileId))
+            .orderBy(desc(profilePositions.startDate))
+    }
+
+    async createPosition(data: any) {
+        const res = await db.insert(profilePositions)
+            .values({
+                profileId: data.profileId,
+                unitId: data.unitId,
+                positionName: data.positionName,
+                positionType: data.positionType,
+                startDate: data.startDate,
+                endDate: data.endDate,
+                decisionRef: data.decisionRef,
+                isPrimary: data.isPrimary ?? false
+            })
+            .returning()
+        return res[0]
+    }
+
+    async updatePosition(id: ID, data: any) {
+        const { profileId, ...updateData } = data
+        const res = await db.update(profilePositions)
+            .set(updateData)
+            .where(eq(profilePositions.id, id))
+            .returning()
+        return res[0]
+    }
+
+    async deletePosition(id: ID) {
+        await db.delete(profilePositions)
+            .where(eq(profilePositions.id, id))
+    }
+
+    // --- RESEARCH WORKS ---
+    async getResearchWorks(profileId: ID) {
+        return await db.select()
+            .from(profileResearchWorks)
+            .where(eq(profileResearchWorks.profileId, profileId))
+            .orderBy(desc(profileResearchWorks.publishYear))
+    }
+
+    async createResearchWork(data: any) {
+        const res = await db.insert(profileResearchWorks)
+            .values({
+                profileId: data.profileId,
+                workType: data.workType,
+                title: data.title,
+                journalName: data.journalName,
+                indexing: data.indexing,
+                publishYear: data.publishYear,
+                doi: data.doi,
+                academicYear: data.academicYear,
+                status: data.status || 'pending'
+            })
+            .returning()
+        return res[0]
+    }
+
+    async updateResearchWork(id: ID, data: any) {
+        const { profileId, ...updateData } = data
+        const res = await db.update(profileResearchWorks)
+            .set(updateData)
+            .where(eq(profileResearchWorks.id, id))
+            .returning()
+        return res[0]
+    }
+
+    async deleteResearchWork(id: ID) {
+        await db.delete(profileResearchWorks)
+            .where(eq(profileResearchWorks.id, id))
     }
 }
 

@@ -17,6 +17,13 @@ export class WorkHistoryService {
     }
 
     /**
+     * Cập nhật lịch sử công tác
+     */
+    async update(id: ID, data: any) {
+        return await profileSubRepo.updateWorkHistory(id, data)
+    }
+
+    /**
      * Xóa lịch sử công tác
      */
     async delete(id: ID) {

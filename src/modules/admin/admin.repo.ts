@@ -1,7 +1,7 @@
 import { db } from "@/configs/db"
 import { ID, PaginationQuery, PaginatedResult } from "@/types"
 import { users, roles, organizationalUnits, sysAuditLogs, userRoles } from "@/db/schema"
-import { eq, and, sql, count, desc, asc } from "drizzle-orm"
+import { eq, and, sql, count, desc, asc, isNull } from "drizzle-orm"
 
 export type UserRow = typeof users.$inferSelect
 export type SafeUserRow = Omit<UserRow, 'passwordHash' | 'deletedAt'>
@@ -145,6 +145,17 @@ export class AdminRepo {
             .set({ deletedAt: new Date() })
             .where(eq(users.id, id))
         return true
+    }
+
+    /**
+     * Get user roles
+     */
+    async getRolesForUser(userId: ID): Promise<string[]> {
+        const rows = await db.select({ code: roles.code })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(and(eq(userRoles.userId, userId), isNull(userRoles.expiresAt)))
+        return rows.map(r => r.code)
     }
 
     /**

@@ -157,6 +157,23 @@ export const changeStatus = asyncHandler(async (
     return success(res, updated)
 })
 
+export const getMyTasks = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await workflowEngine.getMyTasks(req.userId!)
+    return success(res, result)
+})
+
+export const processTask = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { instanceId } = req.params
+    const { action, comment } = req.body
+    const result = await profileService.completeWorkflowTask(
+        parseInt(instanceId as string, 10),
+        req.userId!,
+        action,
+        comment
+    )
+    return success(res, result)
+})
+
 // --- SUB SECTIONS ---
 
 export const getEducation = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -165,8 +182,25 @@ export const getEducation = asyncHandler(async (req: AuthRequest, res: Response)
 })
 
 export const createEducation = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await profileSubRepo.createEducation({ ...req.body, profileId: parseInt(req.params.id as string, 10) })
-    return created(res, result)
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'education',
+        undefined,
+        req.body,
+        req.user!
+    )
+    return success(res, result)
+})
+
+export const updateEducation = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'education',
+        parseInt(req.params.subId as string, 10),
+        req.body,
+        req.user!
+    )
+    return success(res, result)
 })
 
 export const deleteEducation = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -180,8 +214,25 @@ export const getFamily = asyncHandler(async (req: AuthRequest, res: Response) =>
 })
 
 export const createFamily = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await profileSubRepo.createFamily({ ...req.body, profileId: parseInt(req.params.id as string, 10) })
-    return created(res, result)
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'family',
+        undefined,
+        req.body,
+        req.user!
+    )
+    return success(res, result)
+})
+
+export const updateFamily = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'family',
+        parseInt(req.params.subId as string, 10),
+        req.body,
+        req.user!
+    )
+    return success(res, result)
 })
 
 export const deleteFamily = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -195,8 +246,25 @@ export const getWorkHistory = asyncHandler(async (req: AuthRequest, res: Respons
 })
 
 export const createWorkHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await profileSubRepo.createWorkHistory({ ...req.body, profileId: parseInt(req.params.id as string, 10) })
-    return created(res, result)
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'workHistory',
+        undefined,
+        req.body,
+        req.user!
+    )
+    return success(res, result)
+})
+
+export const updateWorkHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'workHistory',
+        parseInt(req.params.subId as string, 10),
+        req.body,
+        req.user!
+    )
+    return success(res, result)
 })
 
 export const deleteWorkHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -210,7 +278,13 @@ export const getExtraInfo = asyncHandler(async (req: AuthRequest, res: Response)
 })
 
 export const updateExtraInfo = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await profileSubRepo.upsertExtraInfo(parseInt(req.params.id as string, 10), req.body)
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'extraInfo',
+        undefined,
+        req.body,
+        req.user!
+    )
     return success(res, result)
 })
 
@@ -220,6 +294,78 @@ export const getHealthRecords = asyncHandler(async (req: AuthRequest, res: Respo
 })
 
 export const updateHealthRecords = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await profileSubRepo.upsertHealthRecords(parseInt(req.params.id as string, 10), req.body)
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'healthRecords',
+        undefined,
+        req.body,
+        req.user!
+    )
     return success(res, result)
+})
+
+// --- POSITIONS ---
+export const getPositions = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileSubRepo.getPositions(parseInt(req.params.id as string, 10))
+    return success(res, result)
+})
+
+export const createPosition = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'position',
+        undefined,
+        req.body,
+        req.user!
+    )
+    return success(res, result)
+})
+
+export const updatePosition = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'position',
+        parseInt(req.params.subId as string, 10),
+        req.body,
+        req.user!
+    )
+    return success(res, result)
+})
+
+export const deletePosition = asyncHandler(async (req: AuthRequest, res: Response) => {
+    await profileSubRepo.deletePosition(parseInt(req.params.subId as string, 10))
+    return success(res, { message: 'Deleted' })
+})
+
+// --- RESEARCH WORKS ---
+export const getResearchWorks = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileSubRepo.getResearchWorks(parseInt(req.params.id as string, 10))
+    return success(res, result)
+})
+
+export const createResearchWork = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'researchWork',
+        undefined,
+        req.body,
+        req.user!
+    )
+    return success(res, result)
+})
+
+export const updateResearchWork = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'researchWork',
+        parseInt(req.params.subId as string, 10),
+        req.body,
+        req.user!
+    )
+    return success(res, result)
+})
+
+export const deleteResearchWork = asyncHandler(async (req: AuthRequest, res: Response) => {
+    await profileSubRepo.deleteResearchWork(parseInt(req.params.subId as string, 10))
+    return success(res, { message: 'Deleted' })
 })

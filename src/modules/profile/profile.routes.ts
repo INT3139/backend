@@ -8,9 +8,274 @@ import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./profile.schema"
 
-const router = Router()
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     CreateProfile:
+ *       type: object
+ *       required:
+ *         - userId
+ *         - unitId
+ *       properties:
+ *         userId:
+ *           type: integer
+ *         unitId:
+ *           type: integer
+ *         emailVnu:
+ *           type: string
+ *           format: email
+ *         emailPersonal:
+ *           type: string
+ *           format: email
+ *         phoneWork:
+ *           type: string
+ *         phoneHome:
+ *           type: string
+ *         dateOfBirth:
+ *           type: string
+ *           format: date
+ *         gender:
+ *           type: string
+ *           enum: [Nam, Nữ, Khác]
+ *         idNumber:
+ *           type: string
+ *         idIssuedDate:
+ *           type: string
+ *           format: date
+ *         idIssuedBy:
+ *           type: string
+ *         nationality:
+ *           type: string
+ *           default: Việt Nam
+ *         ethnicity:
+ *           type: string
+ *         religion:
+ *           type: string
+ *         maritalStatus:
+ *           type: string
+ *           enum: [single, married, divorced, widowed]
+ *         policyObject:
+ *           type: string
+ *         nickName:
+ *           type: string
+ *         passportNumber:
+ *           type: string
+ *         passportIssuedAt:
+ *           type: string
+ *           format: date
+ *         passportIssuedBy:
+ *           type: string
+ *         insuranceNumber:
+ *           type: string
+ *         insuranceJoinedAt:
+ *           type: string
+ *           format: date
+ *         addrHometown:
+ *           type: object
+ *         addrBirthplace:
+ *           type: object
+ *         addrPermanent:
+ *           type: object
+ *         addrCurrent:
+ *           type: object
+ *         academicDegree:
+ *           type: string
+ *           enum: [bachelor, master, phd]
+ *         academicTitle:
+ *           type: string
+ *           enum: [gs, pgs]
+ *         eduLevelGeneral:
+ *           type: string
+ *         stateManagement:
+ *           type: string
+ *         politicalTheory:
+ *           type: string
+ *           enum: [sơ cấp, trung cấp, cao cấp, cử nhân]
+ *         foreignLangLevel:
+ *           type: string
+ *         itLevel:
+ *           type: string
+ *         staffType:
+ *           type: string
+ *         employmentStatus:
+ *           type: string
+ *           enum: [active, retired, resigned, transferred]
+ *         joinDate:
+ *           type: string
+ *           format: date
+ *         retireDate:
+ *           type: string
+ *           format: date
+ *         profileStatus:
+ *           type: string
+ *           default: draft
+ *     UpdateProfile:
+ *       $ref: '#/components/schemas/CreateProfile'
+ *     Education:
+ *       type: object
+ *       required:
+ *         - eduType
+ *       properties:
+ *         eduType:
+ *           type: string
+ *           enum: [degree, certificate, foreign_lang, it]
+ *         fromDate:
+ *           type: string
+ *           format: date
+ *         toDate:
+ *           type: string
+ *           format: date
+ *         degreeLevel:
+ *           type: string
+ *         institution:
+ *           type: string
+ *         major:
+ *           type: string
+ *         trainingForm:
+ *           type: string
+ *         field:
+ *           type: string
+ *         isStudying:
+ *           type: boolean
+ *         certName:
+ *           type: string
+ *         langName:
+ *           type: string
+ *         langLevel:
+ *           type: string
+ *           enum: [A1, A2, B1, B2, C1, C2]
+ *     Family:
+ *       type: object
+ *       required:
+ *         - side
+ *         - relationship
+ *         - fullName
+ *       properties:
+ *         side:
+ *           type: string
+ *           enum: [self, spouse]
+ *         relationship:
+ *           type: string
+ *         fullName:
+ *           type: string
+ *         birthYear:
+ *           type: integer
+ *         description:
+ *           type: string
+ *         status:
+ *           type: string
+ *     WorkHistory:
+ *       type: object
+ *       required:
+ *         - historyType
+ *         - unitName
+ *       properties:
+ *         historyType:
+ *           type: string
+ *           enum: [chinh_quyen, dang, cong_doan, doan, quan_ngu_chinh_tri]
+ *         fromDate:
+ *           type: string
+ *           format: date
+ *         toDate:
+ *           type: string
+ *           format: date
+ *         unitName:
+ *           type: string
+ *         positionName:
+ *           type: string
+ *         activityType:
+ *           type: string
+ *         status:
+ *           type: string
+ *     ExtraInfo:
+ *       type: object
+ *       properties:
+ *         arrestHistory:
+ *           type: string
+ *         oldRegimeWork:
+ *           type: string
+ *         foreignOrgRelations:
+ *           type: string
+ *         foreignRelatives:
+ *           type: string
+ *         incomeSalary:
+ *           type: number
+ *         incomeOtherSources:
+ *           type: number
+ *         houseTypeGranted:
+ *           type: string
+ *         houseAreaGranted:
+ *           type: number
+ *         houseTypeOwned:
+ *           type: string
+ *         houseAreaOwned:
+ *           type: number
+ *         landGrantedM2:
+ *           type: number
+ *         landPurchasedM2:
+ *           type: number
+ *         landBusinessM2:
+ *           type: number
+ *     HealthRecord:
+ *       type: object
+ *       properties:
+ *         healthStatus:
+ *           type: string
+ *         weightKg:
+ *           type: number
+ *         heightCm:
+ *           type: number
+ *         bloodType:
+ *           type: string
+ *         notes:
+ *           type: string
+ *     Position:
+ *       type: object
+ *       required:
+ *         - positionName
+ *       properties:
+ *         unitId:
+ *           type: integer
+ *         positionName:
+ *           type: string
+ *         positionType:
+ *           type: string
+ *         startDate:
+ *           type: string
+ *           format: date
+ *         endDate:
+ *           type: string
+ *           format: date
+ *         decisionRef:
+ *           type: string
+ *         isPrimary:
+ *           type: boolean
+ *     ResearchWork:
+ *       type: object
+ *       required:
+ *         - workType
+ *         - title
+ *       properties:
+ *         workType:
+ *           type: string
+ *         title:
+ *           type: string
+ *         journalName:
+ *           type: string
+ *         indexing:
+ *           type: string
+ *         publishYear:
+ *           type: integer
+ *         doi:
+ *           type: string
+ *         academicYear:
+ *           type: string
+ *         status:
+ *           type: string
+ */
 
-router.use(authenticate)
+const router = Router()
 
 const getOwner = async (req: any) => (await profileService.getProfileById(+req.params.id))?.userId ?? 0
 
@@ -261,6 +526,56 @@ router.patch(
     controller.changeStatus
 )
 
+/**
+ * @openapi
+ * /profiles/tasks:
+ *   get:
+ *     tags:
+ *       - Profile Workflow
+ *     summary: Get pending profile tasks for current user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.get("/tasks", controller.getMyTasks)
+
+/**
+ * @openapi
+ * /profiles/tasks/{instanceId}:
+ *   post:
+ *     tags:
+ *       - Profile Workflow
+ *     summary: Process a workflow task (approve/reject)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: instanceId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, reject, request_revision, forward]
+ *               comment:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.post("/tasks/:instanceId", controller.processTask)
+
 // --- SUB-MODULES ---
 
 /**
@@ -308,13 +623,7 @@ router.get(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - edu_type
- *             properties:
- *               edu_type:
- *                 type: string
- *                 enum: [degree, certificate, foreign_lang, it]
+ *             $ref: '#/components/schemas/Education'
  *     responses:
  *       201:
  *         description: Created
@@ -324,6 +633,43 @@ router.post(
     requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
     validateBody(subSchema.educationSchema),
     controller.createEducation
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/education/{subId}:
+ *   put:
+ *     tags:
+ *       - Profile Education
+ *     summary: Update education record
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: subId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Education'
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.put(
+    "/:id/education/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.educationSchema.partial()),
+    controller.updateEducation
 )
 
 /**
@@ -402,19 +748,7 @@ router.get(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - side
- *               - relationship
- *               - full_name
- *             properties:
- *               side:
- *                 type: string
- *                 enum: [self, spouse]
- *               relationship:
- *                 type: string
- *               full_name:
- *                 type: string
+ *             $ref: '#/components/schemas/Family'
  *     responses:
  *       201:
  *         description: Created
@@ -424,6 +758,43 @@ router.post(
     requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
     validateBody(subSchema.familySchema),
     controller.createFamily
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/family/{subId}:
+ *   put:
+ *     tags:
+ *       - Profile Family
+ *     summary: Update family record
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: subId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Family'
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.put(
+    "/:id/family/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.familySchema.partial()),
+    controller.updateFamily
 )
 
 /**
@@ -502,16 +873,7 @@ router.get(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - history_type
- *               - unit_name
- *             properties:
- *               history_type:
- *                 type: string
- *                 enum: [chinh_quyen, dang, cong_doan, doan, quan_ngu_chinh_tri]
- *               unit_name:
- *                 type: string
+ *             $ref: '#/components/schemas/WorkHistory'
  *     responses:
  *       201:
  *         description: Created
@@ -521,6 +883,43 @@ router.post(
     requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
     validateBody(subSchema.workHistorySchema),
     controller.createWorkHistory
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/work-history/{subId}:
+ *   put:
+ *     tags:
+ *       - Profile Work History
+ *     summary: Update work history record
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: subId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/WorkHistory'
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.put(
+    "/:id/work-history/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.workHistorySchema.partial()),
+    controller.updateWorkHistory
 )
 
 /**
@@ -599,10 +998,7 @@ router.get(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               income_salary:
- *                 type: number
+ *             $ref: '#/components/schemas/ExtraInfo'
  *     responses:
  *       200:
  *         description: Success
@@ -660,10 +1056,7 @@ router.get(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               health_status:
- *                 type: string
+ *             $ref: '#/components/schemas/HealthRecord'
  *     responses:
  *       200:
  *         description: Success
@@ -673,6 +1066,256 @@ router.put(
     requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
     validateBody(subSchema.healthSchema),
     controller.updateHealthRecords
+)
+
+// Positions
+/**
+ * @openapi
+ * /profiles/{id}/positions:
+ *   get:
+ *     tags:
+ *       - Profile Positions
+ *     summary: Get position history
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.get(
+    "/:id/positions",
+    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    controller.getPositions
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/positions:
+ *   post:
+ *     tags:
+ *       - Profile Positions
+ *     summary: Add position record
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Position'
+ *     responses:
+ *       201:
+ *         description: Created
+ */
+router.post(
+    "/:id/positions",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.positionSchema),
+    controller.createPosition
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/positions/{subId}:
+ *   put:
+ *     tags:
+ *       - Profile Positions
+ *     summary: Update position record
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: subId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Position'
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.put(
+    "/:id/positions/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.positionSchema.partial()),
+    controller.updatePosition
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/positions/{subId}:
+ *   delete:
+ *     tags:
+ *       - Profile Positions
+ *     summary: Delete position record
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: subId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.delete(
+    "/:id/positions/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    controller.deletePosition
+)
+
+// Research Works
+/**
+ * @openapi
+ * /profiles/{id}/research-works:
+ *   get:
+ *     tags:
+ *       - Profile Research Works
+ *     summary: Get research works
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.get(
+    "/:id/research-works",
+    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    controller.getResearchWorks
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/research-works:
+ *   post:
+ *     tags:
+ *       - Profile Research Works
+ *     summary: Add research work
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ResearchWork'
+ *     responses:
+ *       201:
+ *         description: Created
+ */
+router.post(
+    "/:id/research-works",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.researchWorkSchema),
+    controller.createResearchWork
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/research-works/{subId}:
+ *   put:
+ *     tags:
+ *       - Profile Research Works
+ *     summary: Update research work
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: subId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ResearchWork'
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.put(
+    "/:id/research-works/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(subSchema.researchWorkSchema.partial()),
+    controller.updateResearchWork
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/research-works/{subId}:
+ *   delete:
+ *     tags:
+ *       - Profile Research Works
+ *     summary: Delete research work
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: subId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.delete(
+    "/:id/research-works/:subId",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    controller.deleteResearchWork
 )
 
 export const profileRoutes: Router = router

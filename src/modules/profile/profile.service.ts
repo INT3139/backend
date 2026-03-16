@@ -15,6 +15,8 @@ export interface FullProfileRow extends ProfileRow {
     workHistory?: any[]
     extraInfo?: any
     healthRecords?: any
+    positions?: any[]
+    researchWorks?: any[]
 }
 
 export interface CreateProfileDto {
@@ -56,6 +58,7 @@ export interface CreateProfileDto {
     joinDate?: Date | string
     retireDate?: Date | string
     profileStatus?: string
+    lastUpdatedBy?: ID
 }
 
 export interface UpdateProfileDto extends Partial<CreateProfileDto> {
@@ -92,12 +95,14 @@ export class ProfileService {
 
         const profile = await profileRepo.findById(id) as FullProfileRow
         if (profile) {
-            const [education, family, workHistory, extraInfo, healthRecords] = await Promise.all([
+            const [education, family, workHistory, extraInfo, healthRecords, positions, researchWorks] = await Promise.all([
                 profileSubRepo.getEducation(id),
                 profileSubRepo.getFamily(id),
                 profileSubRepo.getWorkHistory(id),
                 profileSubRepo.getExtraInfo(id),
-                profileSubRepo.getHealthRecords(id)
+                profileSubRepo.getHealthRecords(id),
+                profileSubRepo.getPositions(id),
+                profileSubRepo.getResearchWorks(id)
             ])
 
             profile.education = education
@@ -105,6 +110,8 @@ export class ProfileService {
             profile.workHistory = workHistory
             profile.extraInfo = extraInfo
             profile.healthRecords = healthRecords
+            profile.positions = positions
+            profile.researchWorks = researchWorks
 
             await rSetJson(cacheKey, profile, CacheTTL.PROFILE_FULL)
         }
@@ -168,13 +175,16 @@ export class ProfileService {
             throw new ForbiddenError('Hồ sơ đang trong quá trình chờ duyệt, không thể chỉnh sửa thêm.')
         }
 
-        // Tạo workflow, lưu data thay đổi vào metadata
+        // Tạo workflow, lưu data thay đổi vào metadata kèm theo type
         const workflow = await workflowEngine.initiate({
             definitionCode: WF.PROFILE_UPDATE,
             resourceType: 'profile',
             resourceId: id,
             initiatedBy: user.id,
-            metadata: data 
+            metadata: {
+                type: 'main',
+                data: data
+            } 
         })
 
         // Chuyển trạng thái hồ sơ về 'pending'
@@ -184,6 +194,83 @@ export class ProfileService {
             message: 'Yêu cầu cập nhật hồ sơ đã được gửi và đang chờ phê duyệt.',
             workflowId: workflow.id
         }
+    }
+
+    /**
+     * Khởi tạo workflow cập nhật cho các phần con (education, family, ...)
+     */
+    async initiateSubUpdateWorkflow(
+        profileId: ID,
+        type: 'education' | 'family' | 'workHistory' | 'extraInfo' | 'healthRecords' | 'position' | 'researchWork',
+        subId: ID | undefined,
+        data: any,
+        user: AuthUser
+    ) {
+        const existing = await profileRepo.findById(profileId)
+        if (!existing) throw new NotFoundError('Profile not found')
+
+        // Ngăn chỉnh sửa khi đang chờ duyệt (nếu cần thiết cho cả sub-info)
+        if (existing.profileStatus === 'pending') {
+            throw new ForbiddenError('Hồ sơ đang trong quá trình chờ duyệt, không thể chỉnh sửa thêm.')
+        }
+
+        const workflow = await workflowEngine.initiate({
+            definitionCode: WF.PROFILE_UPDATE,
+            resourceType: 'profile',
+            resourceId: profileId,
+            initiatedBy: user.id,
+            metadata: {
+                type,
+                subId,
+                data
+            }
+        })
+
+        // Chuyển trạng thái hồ sơ về 'pending' khi có bất kỳ thay đổi nào cần duyệt
+        await profileRepo.update(profileId, { profileStatus: 'pending' })
+
+        return {
+            message: `Yêu cầu cập nhật ${type} đã được gửi và đang chờ phê duyệt.`,
+            workflowId: workflow.id
+        }
+    }
+
+    /**
+     * Xử lý khi Workflow bị từ chối
+     */
+    async handleRejectionFromWorkflow(workflowId: ID, rejectedBy: ID): Promise<void> {
+        const inst = await workflowEngine.getStatus(workflowId)
+        const profileId = inst.resourceId
+        
+        // Nếu bị từ chối, ta chuyển profile về 'approved' (coi như vẫn dùng dữ liệu cũ)
+        // hoặc 'draft' tùy theo quy trình của bạn. Ở đây ta chuyển về 'approved' để profile vẫn active.
+        await profileRepo.update(profileId, {
+            profileStatus: 'approved',
+            lastUpdatedBy: rejectedBy
+        })
+
+        await rDel(CacheKey.profileFull(profileId))
+    }
+
+    /**
+     * Hàm tổng hợp để xử lý một bước trong workflow và tự động apply thay đổi nếu là bước cuối
+     */
+    async completeWorkflowTask(instanceId: ID, actorId: ID, action: 'approve' | 'reject' | 'request_revision' | 'forward', comment?: string): Promise<any> {
+        // 1. Tiến hành bước tiếp theo trong workflow engine
+        const inst = await workflowEngine.advance(instanceId, actorId, action, comment)
+
+        // 2. Nếu workflow đã hoàn thành (approved), apply data từ metadata vào DB
+        if (inst.status === 'approved') {
+            return await this.applyChangesFromWorkflow(instanceId, actorId)
+        }
+
+        // 3. Nếu workflow bị từ chối (rejected), xử lý revert trạng thái
+        if (inst.status === 'rejected') {
+            await this.handleRejectionFromWorkflow(instanceId, actorId)
+            return { message: 'Yêu cầu đã bị từ chối và hồ sơ đã được trả về trạng thái cũ.' }
+        }
+
+        return { message: 'Bước quy trình đã được thực hiện thành công.', status: inst.status }
     }
 
     /**
@@ -221,23 +308,71 @@ export class ProfileService {
     /**
      * Áp dụng thay đổi từ Workflow sau khi được duyệt
      */
-    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID): Promise<ProfileRow> {
+    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID): Promise<any> {
         const inst = await workflowEngine.getStatus(workflowId)
         if (inst.status !== 'approved') {
             throw new ForbiddenError('Workflow must be approved first')
         }
 
         const profileId = inst.resourceId
-        const dataToUpdate = (inst as any).metadata
+        const { type, subId, data } = inst.metadata as any
 
-        const updated = await profileRepo.update(profileId, {
-            ...dataToUpdate,
-            profileStatus: 'approved',
-            lastUpdatedBy: approvedBy
-        })
+        let result: any
+
+        switch (type) {
+            case 'main':
+                result = await profileRepo.update(profileId, {
+                    ...data,
+                    profileStatus: 'approved',
+                    lastUpdatedBy: approvedBy
+                })
+                break
+            case 'education':
+                result = subId 
+                    ? await profileSubRepo.updateEducation(subId, data)
+                    : await profileSubRepo.createEducation({ ...data, profileId })
+                break
+            case 'family':
+                result = subId
+                    ? await profileSubRepo.updateFamily(subId, data)
+                    : await profileSubRepo.createFamily({ ...data, profileId })
+                break
+            case 'workHistory':
+                result = subId
+                    ? await profileSubRepo.updateWorkHistory(subId, data)
+                    : await profileSubRepo.createWorkHistory({ ...data, profileId })
+                break
+            case 'extraInfo':
+                result = await profileSubRepo.upsertExtraInfo(profileId, data)
+                break
+            case 'healthRecords':
+                result = await profileSubRepo.upsertHealthRecords(profileId, data)
+                break
+            case 'position':
+                result = subId
+                    ? await profileSubRepo.updatePosition(subId, data)
+                    : await profileSubRepo.createPosition({ ...data, profileId })
+                break
+            case 'researchWork':
+                result = subId
+                    ? await profileSubRepo.updateResearchWork(subId, data)
+                    : await profileSubRepo.createResearchWork({ ...data, profileId })
+                break
+            default:
+                // Fallback cho metadata cũ (chỉ có data)
+                result = await profileRepo.update(profileId, {
+                    ...inst.metadata,
+                    profileStatus: 'approved',
+                    lastUpdatedBy: approvedBy
+                })
+        }
+
+        // Sau khi apply xong, nếu là update main thì profile đã về 'approved'
+        // Nếu là sub-info, ta cũng nên đảm bảo profile chính ở trạng thái 'approved'
+        await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() })
 
         await rDel(CacheKey.profileFull(profileId))
-        return updated
+        return result
     }
 
     /**
