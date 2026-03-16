@@ -13,10 +13,13 @@ const ALLOWED = ['application/pdf','image/jpeg','image/png','application/vnd.ope
 export type Attachment = InferSelectModel<typeof sysAttachments>
 
 export class StorageService {
-  async upload(input: { buffer: Buffer; originalName: string; mimeType: string; resourceType: string; resourceId: ID; uploadedBy: ID; category?: string }): Promise<Attachment> {
+  async upload(input: { buffer: Buffer; originalName: string; mimeType: string; resourceType: string; resourceId: ID; uploadedBy: ID; category?: string; customPath?: string }): Promise<Attachment> {
     validateFileSize(input.buffer.length, 20)
     validateMimeType(input.mimeType, ALLOWED)
-    const { storageKey, bucket } = await uploadFile(input.buffer, input.originalName, input.mimeType, input.resourceType)
+    
+    // Nếu có customPath, ta dùng nó, nếu không dùng mặc định của config
+    const { storageKey, bucket } = await uploadFile(input.buffer, input.originalName, input.mimeType, input.customPath || input.resourceType)
+    
     const [row] = await db.insert(sysAttachments).values({
       resourceType: input.resourceType,
       resourceId: input.resourceId,

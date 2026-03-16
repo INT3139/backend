@@ -414,6 +414,38 @@ router.put(
 
 /**
  * @openapi
+ * /profiles/{id}/export:
+ *   get:
+ *     tags:
+ *       - Profile
+ *     summary: Export profile to 2C/TCTW curriculum vitae (Word format)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Success with download URL
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 downloadUrl:
+ *                   type: string
+ */
+router.get(
+    "/:id/export",
+    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    controller.exportProfile
+)
+
+/**
+ * @openapi
  * /profiles/{id}:
  *   delete:
  *     tags:

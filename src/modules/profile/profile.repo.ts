@@ -1,6 +1,6 @@
 import { db } from "@/configs/db"
 import { ID, PaginationQuery, PaginatedResult } from "@/types"
-import { profileStaff } from "@/db/schema"
+import { profileStaff, users } from "@/db/schema"
 import { eq, ilike, or, and, sql, count, desc, asc, isNull, inArray } from "drizzle-orm"
 
 export interface ProfileFilter {
@@ -82,12 +82,26 @@ export class ProfileRepository {
     /**
      * Get profile by ID
      */
-    async findById(id: ID): Promise<ProfileRow | null> {
-        const result = await db.select()
+    async findById(id: ID): Promise<any | null> {
+        const result = await db.select({
+            profile: profileStaff,
+            user: {
+                fullName: users.fullName,
+                username: users.username,
+                email: users.email
+            }
+        })
             .from(profileStaff)
+            .innerJoin(users, eq(profileStaff.userId, users.id))
             .where(and(eq(profileStaff.id, id), isNull(profileStaff.deletedAt)))
             .limit(1)
-        return result[0] ?? null
+        
+        if (!result[0]) return null
+        
+        return {
+            ...result[0].profile,
+            user: result[0].user
+        }
     }
 
     /**

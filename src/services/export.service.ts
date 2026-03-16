@@ -3,6 +3,10 @@ import { db } from '@/configs/db'
 import { profileStaff, users, organizationalUnits, workloadAnnualSummaries, rewardTitles, salaryLogs } from '@/db/schema'
 import { eq, and, desc, sql, or } from 'drizzle-orm'
 import { ID } from '@/types'
+import fs from 'fs'
+import path from 'path'
+import PizZip from 'pizzip'
+import Docxtemplater from 'docxtemplater'
 
 export class ExportService {
   private async wb(sheet: string, headers: string[], rows: any[], cols: string[]): Promise<Buffer> {
@@ -88,6 +92,103 @@ export class ExportService {
     .orderBy(desc(salaryLogs.effectiveDate))
 
     return this.wb('Nhật ký lương', ['Mã CDNN','Bậc','Hệ số','Ngày hưởng','Số QĐ'], rows, ['occupation_code','salary_grade','salary_coefficient','effective_date','decision_number'])
+  }
+
+  /**
+   * Export sơ yếu lý lịch mẫu 2C/TCTW
+   */
+  async exportCurriculumVitae(p: any): Promise<Buffer> {
+    const templatePath = path.resolve(process.cwd(), 'src/public/2C.docx')
+    if (!fs.existsSync(templatePath)) {
+        throw new Error('Template 2C.docx not found in src/public folder. Please convert 2C.doc to 2C.docx first.')
+    }
+
+    const content = fs.readFileSync(templatePath, 'binary')
+    const zip = new PizZip(content)
+    const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+    })
+
+    const formatDate = (d: any) => d ? new Date(d).toLocaleDateString('vi-VN') : ''
+    const formatAddress = (addr: any) => {
+        if (!addr) return ''
+        const parts = []
+        if (addr.detail) parts.push(addr.detail)
+        if (addr.ward) parts.push(addr.ward)
+        if (addr.district) parts.push(addr.district)
+        if (addr.province) parts.push(addr.province)
+        return parts.join(', ')
+    }
+
+    // Map data to template fields matching 2C/TCTW standard tags
+    doc.render({
+        fullName: p.user?.fullName?.toUpperCase() ?? '',
+        gender: p.gender ?? '',
+        dateOfBirth: formatDate(p.dateOfBirth),
+        idNumber: p.idNumber ?? '',
+        idIssuedDate: formatDate(p.idIssuedDate),
+        idIssuedBy: p.idIssuedBy ?? '',
+        nationality: p.nationality ?? '',
+        ethnicity: p.ethnicity ?? '',
+        religion: p.religion ?? '',
+        maritalStatus: p.maritalStatus ?? '',
+        
+        addrHometown: formatAddress(p.addrHometown),
+        addrBirthplace: formatAddress(p.addrBirthplace),
+        addrPermanent: formatAddress(p.addrPermanent),
+        addrCurrent: formatAddress(p.addrCurrent),
+
+        emailVnu: p.emailVnu ?? '',
+        emailPersonal: p.emailPersonal ?? '',
+        phoneWork: p.phoneWork ?? '',
+        phoneHome: p.phoneHome ?? '',
+
+        academicDegree: p.academicDegree ?? '',
+        academicTitle: p.academicTitle ?? '',
+        eduLevelGeneral: p.eduLevelGeneral ?? '',
+        politicalTheory: p.politicalTheory ?? '',
+        foreignLangLevel: p.foreignLangLevel ?? '',
+        itLevel: p.itLevel ?? '',
+
+        staffType: p.staffType ?? '',
+        employmentStatus: p.employmentStatus ?? '',
+        joinDate: formatDate(p.joinDate),
+        retireDate: formatDate(p.retireDate),
+
+        // Lists
+        education: (p.education ?? []).map((e: any) => ({
+            ...e,
+            fromDate: formatDate(e.fromDate),
+            toDate: formatDate(e.toDate) || (e.isStudying ? 'Nay' : '')
+        })),
+        family: p.family ?? [],
+        workHistory: (p.workHistory ?? []).map((w: any) => ({
+            ...w,
+            fromDate: formatDate(w.fromDate),
+            toDate: formatDate(w.toDate) || 'Nay'
+        })),
+        positions: (p.positions ?? []).map((pos: any) => ({
+            ...pos,
+            startDate: formatDate(pos.startDate),
+            endDate: formatDate(pos.endDate)
+        })),
+        researchWorks: p.researchWorks ?? [],
+        
+        // Extra Info
+        ...(p.extraInfo || {}),
+        incomeSalary: p.extraInfo?.incomeSalary ? Number(p.extraInfo.incomeSalary).toLocaleString('vi-VN') : '',
+        
+        // Health
+        ...(p.healthRecords || {})
+    })
+
+    const buf = doc.getZip().generate({
+        type: 'nodebuffer',
+        compression: 'DEFLATE',
+    })
+
+    return buf
   }
 }
 

@@ -5,6 +5,9 @@ import { success, created } from "@/utils/response"
 import { AuthUser, ID } from "@/types"
 import { logAction } from "@/core/middlewares/auditContext"
 import { asyncHandler } from "@/core/middlewares/errorHandler"
+import { exportService } from "@/services/export.service"
+import { storageService } from "@/services/storage.service"
+import { workflowEngine } from "@/core/workflow/engine"
 
 interface AuthRequest extends Request {
     user?: AuthUser
@@ -101,6 +104,45 @@ export const updateProfile = asyncHandler(async (
     await logAction(req.userId!, 'update', 'profile', id as string, req.body)
 
     return success(res, updated)
+})
+
+/**
+ * GET /api/v1/profile/:id/export
+ */
+export const exportProfile = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<Response> => {
+    const { id } = req.params
+    const profileId = parseInt(id as string, 10)
+    const profile = await profileService.getProfileById(profileId, req.user!)
+
+    if (!profile) {
+        return res.status(404).json({ message: 'Profile not found' })
+    }
+
+    // 1. Generate CV buffer từ template
+    const cvBuffer = await exportService.exportCurriculumVitae(profile)
+
+    // 2. Upload lên S3 theo cấu trúc [userId]/[profileId]/2C.docx
+    const customPath = `${profile.userId}/${profileId}`
+    const attachment = await storageService.upload({
+        buffer: cvBuffer,
+        originalName: '2C.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        resourceType: 'profile',
+        resourceId: profileId,
+        uploadedBy: req.userId!,
+        category: 'cv',
+        customPath: customPath
+    })
+
+    // 3. Lấy presigned URL để tải xuống
+    const downloadUrl = await storageService.getDownloadUrl(attachment.id, req.userId!)
+
+    await logAction(req.userId!, 'export', 'profile', id as string)
+
+    return success(res, { downloadUrl })
 })
 
 /**
