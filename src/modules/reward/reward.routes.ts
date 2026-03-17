@@ -566,6 +566,31 @@ router.get(
     controller.listDisciplineAttachments
 )
 
+/**
+ * @openapi
+ * /reward/export:
+ *   get:
+ *     tags:
+ *       - Reward
+ *     summary: Export rewards and disciplinary records
+ *     description: Generate and download an export file of reward and disciplinary records. Requires REWARD.EXPORT permission.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully generated rewards export
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         downloadUrl:
+ *                           type: string
+ */
 router.get("/export", requirePermission(PERM.REWARD.EXPORT), controller.exportRewards)
 
 export const rewardRoutes: Router = router

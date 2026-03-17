@@ -1,4 +1,7 @@
 import { Request, Response } from "express"
+import path from "path"
+import fs from "fs"
+import { export2CForm, ProfileData } from "@/services/2c.service"
 import { profileService } from "./profile.service"
 import { profileSubRepo } from "./profileSub.repo"
 import { success, created } from "@/utils/response"
@@ -14,7 +17,7 @@ import { recruitmentService } from "../recruitment/recruitment.service"
 import { permissionService } from "@/core/permissions/permission.service"
 import { PERM } from "@/constants/permission"
 
-interface AuthRequest extends Request {
+interface AuthRequest extends Request {     
     user?: AuthUser
     userId?: ID
 }
@@ -28,9 +31,9 @@ export const getMyProfile = asyncHandler(async (
 ): Promise<Response> => {
     const userId = req.userId!
     const profile = await profileService.getProfileByUserId(userId)
-    
+
     if (profile) {
-        const [hasRewardPerm, hasSalaryPerm, hasRecruitmentPerm] = await Promise.all([
+        const [hasRewardPerm, hasSalaryPerm, hasRecruitmentPerm] = await Promise.all([  
             permissionService.hasPermission(userId, PERM.REWARD.SELF_READ),
             permissionService.hasPermission(userId, PERM.SALARY.SELF_READ),
             permissionService.hasPermission(userId, PERM.RECRUITMENT.SELF_READ)
@@ -45,7 +48,7 @@ export const getMyProfile = asyncHandler(async (
         Object.assign(profile, {
             rewards: extraData[0],
             salary: extraData[1],
-            recruitment: extraData[2]
+            recruitment: extraData[2]       
         })
     }
 
@@ -70,11 +73,11 @@ export const getProfiles = asyncHandler(async (
         profileStatus: profileStatus as string | undefined
     }
     const pagination = {
-        page: parseInt(page as string, 10),
+        page: parseInt(page as string, 10), 
         limit: parseInt(limit as string, 10)
     }
 
-    const result = await profileService.getProfiles(filter, pagination, req.user!)
+    const result = await profileService.getProfiles(filter, pagination, req.user!)      
     await logAction(req.userId!, 'read', 'profile_list', undefined, { filter, pagination })
 
     return success(res, result)
@@ -87,7 +90,7 @@ export const searchProfiles = asyncHandler(async (
     req: AuthRequest,
     res: Response
 ): Promise<Response> => {
-    const { q, limit = 10 } = req.query
+    const { q, limit = 10 } = req.query     
     const result = await profileService.searchProfiles(q as string, parseInt(limit as string, 10))
     return success(res, result)
 })
@@ -114,7 +117,7 @@ export const createProfile = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const profile = await profileService.createProfile({ ...req.body, createdBy: req.userId! })
-    await logAction(req.userId!, 'create', 'profile', profile.id.toString(), req.body)
+    await logAction(req.userId!, 'create', 'profile', profile.id.toString(), req.body)  
 
     return created(res, profile)
 })
@@ -134,42 +137,146 @@ export const updateProfile = asyncHandler(async (
 })
 
 /**
+ * Helper function to handle the 2C export logic
+ * Syncs data fetching with getMyProfile logic
+ */
+const handle2CExport = async (profile: any, req: AuthRequest, res: Response) => {
+    const userId = profile.userId
+    const profileId = profile.id
+
+    // Lấy dữ liệu extra giống hệt getMyProfile
+    const [salary, rewards] = await Promise.all([
+        salaryService.getSalaryByUserId(userId),
+        rewardService.getRewardsByUserId(userId)
+    ])
+
+    // Serialize để convert Date -> String ISO (rất quan trọng cho 2c.service)
+    const p = JSON.parse(JSON.stringify(profile))
+    const s = salary ? JSON.parse(JSON.stringify(salary)) : null
+    const r = rewards ? JSON.parse(JSON.stringify(rewards)) : null
+
+    // Map dữ liệu sang ProfileData cho service
+    const profileData: ProfileData = {
+        user: p.user || { fullName: '', username: '', email: '' },
+        gender: p.gender || '',
+        dateOfBirth: p.dateOfBirth || '',
+        nickName: p.nickName || '',
+        ethnicity: p.ethnicity || '',
+        religion: p.religion || '',
+        idNumber: p.idNumber || '',
+        idIssuedDate: p.idIssuedDate || '',
+        idIssuedBy: p.idIssuedBy || '',
+        maritalStatus: p.maritalStatus || '',
+        addrHometown: p.addrHometown || {},
+        addrBirthplace: p.addrBirthplace || {},
+        addrPermanent: p.addrPermanent || {},
+        addrCurrent: p.addrCurrent || {},
+        phoneWork: p.phoneWork || '',
+        phoneHome: p.phoneHome || '',
+        eduLevelGeneral: p.eduLevelGeneral || '',
+        politicalTheory: p.politicalTheory || '',
+        foreignLangLevel: p.foreignLangLevel || '',
+        itLevel: p.itLevel || '',
+        academicDegree: p.academicDegree || '',
+        joinDate: p.joinDate || '',
+        staffType: p.staffType || '',
+        education: p.education || [],
+        workHistory: p.workHistory || [],
+        family: p.family || [],
+        salary: s ? {
+            occupationTitle: s.occupationTitle || '',
+            occupationCode: s.occupationCode || '',
+            salaryGrade: s.salaryGrade || 0,
+            salaryCoefficient: s.salaryCoefficient || '',
+            effectiveDate: s.effectiveDate || ''
+        } : null,
+        healthRecords: p.healthRecords ? {
+            healthStatus: p.healthRecords.healthStatus || '',
+            weightKg: p.healthRecords.weightKg?.toString() || '',
+            heightCm: p.healthRecords.heightCm?.toString() || '',
+            bloodType: p.healthRecords.bloodType || ''
+        } : null,
+        rewards: r ? {
+            commendations: (r.commendations || []).map((c: any) => ({
+                awardName: c.awardName,
+                decisionDate: c.decisionDate,
+                decisionNumber: c.decisionNumber,
+                awardLevel: c.awardLevel,
+                isHighestAward: c.isHighestAward
+            })),
+            titles: (r.titles || []).map((t: any) => ({
+                titleName: t.titleName,
+                awardedYear: t.awardedYear,
+                decisionNumber: t.decisionNumber,
+                titleLevel: t.titleLevel,
+                isHighest: t.isHighest
+            })),
+            discipline: r.discipline || []
+        } : { commendations: [], titles: [], discipline: [] }
+    }
+
+    const templatePath = path.join(process.cwd(), "src/public/2C.docx")
+    const defaultPhotoPath = path.join(process.cwd(), "src/public/4_6.png")
+    
+    try {
+        let photo: any = undefined
+        if (fs.existsSync(defaultPhotoPath)) {
+            photo = {
+                data: fs.readFileSync(defaultPhotoPath),
+                mimeType: 'image/png'
+            }
+        }
+
+        const docxBuf = await export2CForm({
+            templatePath,
+            profile: profileData,
+            photo
+        })
+
+        res.setHeader('Content-Disposition', `attachment; filename="LyLich_2C_${profile.id}.docx"`)
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        res.send(docxBuf)
+
+        await logAction(req.userId!, 'export', 'profile', profile.id.toString())
+    } catch (error: any) {
+        console.error('Export error:', error)
+        res.status(500).json({ success: false, error: { message: 'Failed to generate export document' } })
+    }
+}
+
+/**
+ * GET /api/v1/profile/me/export-2c
+ */
+export const exportMyProfile = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    // Luôn lấy data mới nhất, không dùng cache để đảm bảo xuất file chính xác
+    const profile = await profileService.getProfileByUserId(req.userId!)
+    if (!profile) {
+        res.status(404).json({ success: false, error: { message: 'Profile not found' } })
+        return
+    }
+    await handle2CExport(profile, req, res)
+})
+
+/**
  * GET /api/v1/profile/:id/export
  */
 export const exportProfile = asyncHandler(async (
     req: AuthRequest,
     res: Response
-): Promise<Response> => {
+): Promise<void> => {
     const { id } = req.params
     const profileId = parseInt(id as string, 10)
     const profile = await profileService.getProfileById(profileId, req.user!)
 
     if (!profile) {
-        return res.status(404).json({ message: 'Profile not found' })
+        res.status(404).json({ success: false, error: { message: 'Profile not found' } })
+        return
     }
 
-    // 1. Generate CV buffer từ template
-    const cvBuffer = await exportService.exportCurriculumVitae(profile)
-
-    // 2. Upload lên S3 theo cấu trúc [userId]/[profileId]/2C.docx
-    const customPath = `${profile.userId}/${profileId}`
-    const attachment = await storageService.upload({
-        buffer: cvBuffer,
-        originalName: '2C.docx',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        resourceType: 'profile',
-        resourceId: profileId,
-        uploadedBy: req.userId!,
-        category: 'cv',
-        customPath: customPath
-    })
-
-    // 3. Lấy presigned URL để tải xuống
-    const downloadUrl = await storageService.getDownloadUrl(attachment.id, req.userId!)
-
-    await logAction(req.userId!, 'export', 'profile', id as string)
-
-    return success(res, { downloadUrl })
+    await handle2CExport(profile, req, res)
 })
 
 /**
@@ -222,20 +329,20 @@ export const changeStatus = asyncHandler(async (
     const { id } = req.params
     const { status } = req.body
     const updated = await profileService.changeStatus(parseInt(id as string, 10), status, req.user!)
-    await logAction(req.userId!, 'update_status', 'profile', id as string, { status })
+    await logAction(req.userId!, 'update_status', 'profile', id as string, { status })  
     return success(res, updated)
 })
 
-export const getMyTasks = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const getMyTasks = asyncHandler(async (req: AuthRequest, res: Response) => {     
     const result = await workflowEngine.getMyTasks(req.userId!)
     return success(res, result)
 })
 
-export const processTask = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { instanceId } = req.params
-    const { action, comment } = req.body
+export const processTask = asyncHandler(async (req: AuthRequest, res: Response) => {    
+    const { instanceId } = req.params       
+    const { action, comment } = req.body    
     const result = await profileService.completeWorkflowTask(
-        parseInt(instanceId as string, 10),
+        parseInt(instanceId as string, 10), 
         req.userId!,
         action,
         comment
@@ -245,7 +352,7 @@ export const processTask = asyncHandler(async (req: AuthRequest, res: Response) 
 
 // --- SUB SECTIONS ---
 
-export const getEducation = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const getEducation = asyncHandler(async (req: AuthRequest, res: Response) => {   
     const result = await profileSubRepo.getEducation(parseInt(req.params.id as string, 10))
     return success(res, result)
 })
@@ -273,16 +380,16 @@ export const updateEducation = asyncHandler(async (req: AuthRequest, res: Respon
 })
 
 export const deleteEducation = asyncHandler(async (req: AuthRequest, res: Response) => {
-    await profileSubRepo.deleteEducation(parseInt(req.params.subId as string, 10))
+    await profileSubRepo.deleteEducation(parseInt(req.params.subId as string, 10))      
     return success(res, { message: 'Deleted' })
 })
 
-export const getFamily = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const getFamily = asyncHandler(async (req: AuthRequest, res: Response) => {      
     const result = await profileSubRepo.getFamily(parseInt(req.params.id as string, 10))
     return success(res, result)
 })
 
-export const createFamily = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const createFamily = asyncHandler(async (req: AuthRequest, res: Response) => {   
     const result = await profileService.initiateSubUpdateWorkflow(
         parseInt(req.params.id as string, 10),
         'family',
@@ -293,7 +400,7 @@ export const createFamily = asyncHandler(async (req: AuthRequest, res: Response)
     return success(res, result)
 })
 
-export const updateFamily = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const updateFamily = asyncHandler(async (req: AuthRequest, res: Response) => {   
     const result = await profileService.initiateSubUpdateWorkflow(
         parseInt(req.params.id as string, 10),
         'family',
@@ -304,12 +411,12 @@ export const updateFamily = asyncHandler(async (req: AuthRequest, res: Response)
     return success(res, result)
 })
 
-export const deleteFamily = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const deleteFamily = asyncHandler(async (req: AuthRequest, res: Response) => {   
     await profileSubRepo.deleteFamily(parseInt(req.params.subId as string, 10))
     return success(res, { message: 'Deleted' })
 })
 
-export const getWorkHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const getWorkHistory = asyncHandler(async (req: AuthRequest, res: Response) => { 
     const result = await profileSubRepo.getWorkHistory(parseInt(req.params.id as string, 10))
     return success(res, result)
 })
@@ -337,11 +444,11 @@ export const updateWorkHistory = asyncHandler(async (req: AuthRequest, res: Resp
 })
 
 export const deleteWorkHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
-    await profileSubRepo.deleteWorkHistory(parseInt(req.params.subId as string, 10))
+    await profileSubRepo.deleteWorkHistory(parseInt(req.params.subId as string, 10))    
     return success(res, { message: 'Deleted' })
 })
 
-export const getExtraInfo = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const getExtraInfo = asyncHandler(async (req: AuthRequest, res: Response) => {   
     const result = await profileSubRepo.getExtraInfo(parseInt(req.params.id as string, 10))
     return success(res, result)
 })
@@ -374,12 +481,12 @@ export const updateHealthRecords = asyncHandler(async (req: AuthRequest, res: Re
 })
 
 // --- POSITIONS ---
-export const getPositions = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const getPositions = asyncHandler(async (req: AuthRequest, res: Response) => {   
     const result = await profileSubRepo.getPositions(parseInt(req.params.id as string, 10))
     return success(res, result)
 })
 
-export const createPosition = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const createPosition = asyncHandler(async (req: AuthRequest, res: Response) => { 
     const result = await profileService.initiateSubUpdateWorkflow(
         parseInt(req.params.id as string, 10),
         'position',
@@ -390,7 +497,7 @@ export const createPosition = asyncHandler(async (req: AuthRequest, res: Respons
     return success(res, result)
 })
 
-export const updatePosition = asyncHandler(async (req: AuthRequest, res: Response) => {
+export const updatePosition = asyncHandler(async (req: AuthRequest, res: Response) => { 
     const result = await profileService.initiateSubUpdateWorkflow(
         parseInt(req.params.id as string, 10),
         'position',
@@ -401,8 +508,8 @@ export const updatePosition = asyncHandler(async (req: AuthRequest, res: Respons
     return success(res, result)
 })
 
-export const deletePosition = asyncHandler(async (req: AuthRequest, res: Response) => {
-    await profileSubRepo.deletePosition(parseInt(req.params.subId as string, 10))
+export const deletePosition = asyncHandler(async (req: AuthRequest, res: Response) => { 
+    await profileSubRepo.deletePosition(parseInt(req.params.subId as string, 10))       
     return success(res, { message: 'Deleted' })
 })
 
@@ -435,6 +542,6 @@ export const updateResearchWork = asyncHandler(async (req: AuthRequest, res: Res
 })
 
 export const deleteResearchWork = asyncHandler(async (req: AuthRequest, res: Response) => {
-    await profileSubRepo.deleteResearchWork(parseInt(req.params.subId as string, 10))
+    await profileSubRepo.deleteResearchWork(parseInt(req.params.subId as string, 10))   
     return success(res, { message: 'Deleted' })
 })

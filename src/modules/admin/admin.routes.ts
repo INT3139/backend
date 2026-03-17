@@ -555,6 +555,30 @@ router.get("/audit-logs", requirePermission(PERM.SYSTEM.AUDIT_READ), controller.
 router.put("/workflows/:id/metadata", requirePermission(PERM.SYSTEM.CONFIG_WRITE), controller.updateWorkflowMetadata)
 
 // ─── Password Reset ────────────────────────────────────────────────────────────
+/**
+ * @openapi
+ * /admin/users/{id}/reset-password:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Reset user password
+ *     description: Reset a user's password to a default system password. Requires PASSWORD_RESET permission.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
 router.post(
     "/users/:id/reset-password",
     requirePermission(PERM.SYSTEM.PASSWORD_RESET),
@@ -562,6 +586,31 @@ router.post(
 )
 
 // ─── Audit Export ──────────────────────────────────────────────────────────────
+/**
+ * @openapi
+ * /admin/audit-logs/export:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Export audit logs
+ *     description: Generate and download an export file of system audit logs. Requires AUDIT_EXPORT permission.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully generated audit log export
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         downloadUrl:
+ *                           type: string
+ */
 router.get(
     "/audit-logs/export",
     requirePermission(PERM.SYSTEM.AUDIT_EXPORT),
@@ -569,15 +618,131 @@ router.get(
 )
 
 // ─── Permissions management ────────────────────────────────────────────────────
+/**
+ * @openapi
+ * /admin/permissions:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get all permissions
+ *     description: Retrieve a list of all defined permissions in the system.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           code:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ */
 router.get("/permissions", requirePermission(PERM.SYSTEM.PERM_MANAGE), controller.getPermissions)
+
+/**
+ * @openapi
+ * /admin/permissions:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Create new permission
+ *     description: Define a new permission in the system.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - code
+ *               - name
+ *             properties:
+ *               code:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Permission created successfully
+ */
 router.post("/permissions", requirePermission(PERM.SYSTEM.PERM_MANAGE), controller.createPermission)
 
 // ─── Scheduler management ──────────────────────────────────────────────────────
+/**
+ * @openapi
+ * /admin/scheduler/jobs:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get all scheduler jobs
+ *     description: Retrieve a list of all background jobs and their current status.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved scheduler jobs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           name:
+ *                             type: string
+ *                           nextRun:
+ *                             type: string
+ *                             format: date-time
+ *                           lastRun:
+ *                             type: string
+ *                             format: date-time
+ */
 router.get(
     "/scheduler/jobs",
     requirePermission(PERM.SYSTEM.SCHEDULER_MANAGE),
     controller.getSchedulerJobs
 )
+
+/**
+ * @openapi
+ * /admin/scheduler/jobs/{name}/trigger:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Trigger a scheduler job
+ *     description: Manually trigger a background job to run immediately.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: name
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Job triggered successfully
+ */
 router.post(
     "/scheduler/jobs/:name/trigger",
     requirePermission(PERM.SYSTEM.SCHEDULER_MANAGE),

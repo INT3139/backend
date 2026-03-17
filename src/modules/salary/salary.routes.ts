@@ -269,6 +269,37 @@ router.post(
  */
 router.post("/proposals/:id/approve", requirePermission(PERM.SALARY.APPROVE), controller.approveProposal)
 
+/**
+ * @openapi
+ * /salary/export/{profileId}:
+ *   get:
+ *     tags:
+ *       - Salary
+ *     summary: Export salary history
+ *     description: Generate and download an export file of salary history for a specific staff profile. Requires SALARY.EXPORT permission.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: profileId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Successfully generated salary history export
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         downloadUrl:
+ *                           type: string
+ */
 router.get("/export/:profileId", requirePermission(PERM.SALARY.EXPORT), controller.exportSalaryHistory)
 
 export const salaryRoutes: Router = router

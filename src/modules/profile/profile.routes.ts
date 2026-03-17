@@ -358,18 +358,40 @@ const getOwner = async (req: any) => (await profileService.getProfileById(+req.p
  *                               nullable: true
  *       401:
  *         description: Unauthorized - Token missing or invalid
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiError'
  *       500:
  *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiError'
  */
 router.get("/me", requirePermission(PERM.PROFILE.READ), controller.getMyProfile)
+
+/**
+ * @openapi
+ * /profiles/me/export:
+ *   get:
+ *     tags:
+ *       - Profile
+ *     summary: Export current user profile to 2C/TCTW curriculum vitae (Word format)
+ *     description: |
+ *       Generates and downloads a Word document (.docx) for the authenticated user's profile.
+ *       The document follows the official 2C/TCTW curriculum vitae template used in Vietnam public sectors.
+ *       Includes personal info, addresses, education history, work history, family relations, salary info, and rewards.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully generated 2C curriculum vitae document.
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: Unauthorized - Token missing or invalid.
+ *       404:
+ *         description: Profile not found for the current user.
+ *       500:
+ *         description: Internal server error during document generation.
+ */
+router.get("/me/export", requirePermission(PERM.PROFILE.READ), controller.exportMyProfile)
 
 /**
  * @openapi
@@ -620,8 +642,11 @@ router.put(
  *   get:
  *     tags:
  *       - Profile
- *     summary: Export profile to 2C/TCTW curriculum vitae (Word format)
- *     description: Generates a Word document for the specified profile following the official 2C/TCTW template.
+ *     summary: Export any profile to 2C curriculum vitae (Admin/HR only)
+ *     description: |
+ *       Generates and downloads a Word document (.docx) for a specific profile by ID.
+ *       The document follows the official 2C/TCTW curriculum vitae template.
+ *       Requires `PROFILE.EXPORT` permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -630,30 +655,23 @@ router.put(
  *         required: true
  *         schema:
  *           type: integer
- *         description: Profile ID
+ *         description: Internal database ID of the profile to export.
  *     responses:
  *       200:
- *         description: Successfully generated export document
+ *         description: Successfully generated 2C document.
  *         content:
- *           application/json:
+ *           application/vnd.openxmlformats-officedocument.wordprocessingml.document:
  *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - properties:
- *                     data:
- *                       type: object
- *                       properties:
- *                         downloadUrl:
- *                           type: string
- *                           description: URL to download the generated file
+ *               type: string
+ *               format: binary
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized.
  *       403:
- *         description: Forbidden
+ *         description: Forbidden - Missing required permission (hrm.profile.export).
  *       404:
- *         description: Profile not found
+ *         description: Profile not found.
  *       500:
- *         description: Internal server error
+ *         description: Internal server error.
  */
 router.get(
     "/:id/export",

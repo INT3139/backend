@@ -46,8 +46,15 @@ class SchedulerService {
 export const schedulerService = new SchedulerService()
 
 export const startJobs = () => {
-    startNotificationWorker()
-    startSalaryGradeDueJob()
+
+    schedulerService.register('notification-worker', '* * * * *', async () => {
+        await startNotificationWorker()
+    })
+
+    schedulerService.register('salary-grade-due', '* * * * *', async () => {
+        await startSalaryGradeDueJob()
+    })
+
     schedulerService.register('expiry-jobs', '0 1 * * *', async () => {
         await appointmentExpiryJob()
         await contractExpiryJob()

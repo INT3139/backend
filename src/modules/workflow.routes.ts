@@ -11,8 +11,28 @@ const router = Router()
 router.use(authenticate)
 
 /**
- * GET /workflow/tasks
- * Lấy danh sách task đang chờ xử lý của user hiện tại.
+ * @openapi
+ * /workflow/tasks:
+ *   get:
+ *     tags:
+ *       - Workflow
+ *     summary: Get pending tasks for current user
+ *     description: Retrieve all pending workflow tasks assigned to the currently authenticated user.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved pending tasks
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
  */
 router.get(
     '/tasks',
@@ -26,8 +46,32 @@ router.get(
 )
 
 /**
- * GET /workflow/:id
- * Xem trạng thái một workflow instance.
+ * @openapi
+ * /workflow/{id}:
+ *   get:
+ *     tags:
+ *       - Workflow
+ *     summary: Get workflow status
+ *     description: Retrieve the current status and history of a specific workflow instance.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved workflow instance
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: object
  */
 router.get(
     '/:id',
@@ -41,10 +85,46 @@ router.get(
 )
 
 /**
- * POST /workflow/:id/advance
- * Xử lý bước tiếp theo: approve / reject / request_revision / forward.
- *
- * Body: { action, comment? }
+ * @openapi
+ * /workflow/{id}/advance:
+ *   post:
+ *     tags:
+ *       - Workflow
+ *     summary: Advance workflow
+ *     description: Submit a decision to advance a workflow instance to its next state.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, reject, request_revision, forward]
+ *               comment:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Workflow advanced successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: object
  */
 router.post(
     '/:id/advance',
@@ -71,10 +151,35 @@ router.post(
 )
 
 /**
- * POST /workflow/:id/cancel
- * Huỷ workflow instance.
- *
- * Body: { reason }
+ * @openapi
+ * /workflow/{id}/cancel:
+ *   post:
+ *     tags:
+ *       - Workflow
+ *     summary: Cancel workflow
+ *     description: Cancel an active workflow instance.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Workflow cancelled successfully
  */
 router.post(
     '/:id/cancel',
@@ -91,11 +196,35 @@ router.post(
 )
 
 /**
- * PATCH /workflow/:id/metadata
- * Cập nhật metadata tạm thời trong workflow (dùng khi admin sửa trước khi duyệt).
- * Chỉ hrm_director / headmaster có quyền.
- *
- * Body: { metadata }
+ * @openapi
+ * /workflow/{id}/metadata:
+ *   patch:
+ *     tags:
+ *       - Workflow
+ *     summary: Update workflow metadata
+ *     description: Update the metadata of a workflow instance before it is finalized.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - metadata
+ *             properties:
+ *               metadata:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Metadata updated successfully
  */
 router.patch(
     '/:id/metadata',
