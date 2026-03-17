@@ -1,3 +1,4 @@
+import { exportService } from '@/services/export.service'
 import { Request, Response } from "express"
 import { salaryService } from "./salary.service"
 import { success, created } from "@/utils/response"
@@ -109,4 +110,18 @@ export const approveProposal = asyncHandler(async (
     await logAction(req.userId!, 'approve', 'salary_upgrade_proposal', id as string)
 
     return success(res, updated)
+})
+
+/**
+ * GET /api/v1/salary/export/:profileId
+ */
+export const exportSalaryHistory = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<void> => {
+    const profileId = parseInt(req.params.profileId as string, 10) as ID
+    const buffer = await exportService.exportSalaryHistory(profileId)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename="salary-history-${profileId}.xlsx"`)
+    res.send(buffer)
 })

@@ -269,5 +269,7 @@ router.post(
  */
 router.post("/proposals/:id/approve", requirePermission(PERM.SALARY.APPROVE), controller.approveProposal)
 
+router.get("/export/:profileId", requirePermission(PERM.SALARY.EXPORT), controller.exportSalaryHistory)
+
 export const salaryRoutes: Router = router
 

@@ -48,7 +48,7 @@ router.get(
  */
 router.post(
     '/:id/advance',
-    requirePermission(PERM.WORKFLOW.WRITE),
+    requirePermission(PERM.WORKFLOW.ADVANCE),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { action, comment } = req.body
@@ -78,7 +78,7 @@ router.post(
  */
 router.post(
     '/:id/cancel',
-    requirePermission(PERM.WORKFLOW.WRITE),
+    requirePermission(PERM.WORKFLOW.ADVANCE),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { reason } = req.body
@@ -99,7 +99,7 @@ router.post(
  */
 router.patch(
     '/:id/metadata',
-    requirePermission(PERM.WORKFLOW.WRITE),
+    requirePermission(PERM.WORKFLOW.ADVANCE),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { metadata } = req.body
@@ -112,3 +112,5 @@ router.patch(
         } catch (e) { next(e) }
     },
 )
+
+export const workflowRoutes: Router = router

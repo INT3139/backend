@@ -190,3 +190,79 @@ export const updateWorkflowMetadata = asyncHandler(async (
 
     return success(res, { message: 'Workflow metadata updated successfully' });
 })
+
+/**
+ * POST /api/v1/admin/users/:id/reset-password
+ */
+export const resetPassword = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    const id = parseInt(req.params.id as string, 10)
+    const result = await adminService.resetPassword(id, req.userId!)
+    await logAction(req.userId!, 'password_reset', 'user', String(id))
+    return success(res, result)
+})
+
+/**
+ * GET /api/v1/admin/audit-logs/export
+ */
+export const exportAuditLogs = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<void> => {
+    const { from, to } = req.query
+    const buffer = await adminService.exportAuditLogs(
+        from as string | undefined,
+        to as string | undefined
+    )
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', 'attachment; filename="audit-logs.xlsx"')
+    res.send(buffer)
+})
+
+/**
+ * GET /api/v1/admin/permissions
+ */
+export const getPermissions = asyncHandler(async (
+    _req: Request,
+    res: Response
+): Promise<Response> => {
+    const result = await adminService.getPermissions()
+    return success(res, result)
+})
+
+/**
+ * POST /api/v1/admin/permissions
+ */
+export const createPermission = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    const result = await adminService.createPermission(req.body)
+    return success(res, result)
+})
+
+/**
+ * GET /api/v1/admin/scheduler/jobs
+ */
+export const getSchedulerJobs = asyncHandler(async (
+    _req: Request,
+    res: Response
+): Promise<Response> => {
+    const result = await adminService.getSchedulerJobs()
+    return success(res, result)
+})
+
+/**
+ * POST /api/v1/admin/scheduler/jobs/:name/trigger
+ */
+export const triggerJob = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    const name = req.params.name as string
+    await adminService.triggerJob(name, req.userId!)
+    await logAction(req.userId!, 'trigger', 'scheduler_job', name)
+    return success(res, { message: `Job '${name}' triggered` })
+})

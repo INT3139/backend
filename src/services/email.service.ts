@@ -94,6 +94,23 @@ export class EmailService {
     }
 
     /**
+     * Send temp password to user after admin reset
+     */
+    async sendTempPasswordEmail(email: string, fullName: string, tempPassword: string): Promise<void> {
+        const html = `
+            <h1>Mật khẩu của bạn đã được đặt lại</h1>
+            <p>Chào ${fullName},</p>
+            <p>Quản trị viên đã đặt lại mật khẩu của bạn. Mật khẩu tạm thời của bạn là: <strong>${tempPassword}</strong></p>
+            <p>Vui lòng đăng nhập và đổi mật khẩu ngay lập tức.</p>
+        `;
+        await this.send({
+            to: email,
+            subject: 'Mật khẩu tạm thời - HRM VNU-UET',
+            html,
+        });
+    }
+
+    /**
      * Send email when salary proposal is approved
      */
     async sendSalaryApprovalEmail(email: string, fullName: string, grade: number): Promise<void> {

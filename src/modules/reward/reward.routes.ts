@@ -318,7 +318,7 @@ router.delete("/commendations/:id", requirePermission(PERM.REWARD.WRITE), contro
  */
 router.post(
     "/commendations/:id/attachments",
-    requirePermission(PERM.SYSTEM.ATTACHMENT_UPLOAD),
+    requirePermission(PERM.ATTACHMENT.UPLOAD),
     upload.single("file"),
     controller.uploadCommendationAttachment
 )
@@ -547,7 +547,7 @@ router.delete("/discipline/:id", requirePermission(PERM.REWARD.DISCIPLINE), cont
  */
 router.post(
     "/discipline/:id/attachments",
-    requirePermission(PERM.SYSTEM.ATTACHMENT_UPLOAD),
+    requirePermission(PERM.ATTACHMENT.UPLOAD),
     upload.single("file"),
     controller.uploadDisciplineAttachment
 )
@@ -565,5 +565,7 @@ router.get(
     requirePermission(PERM.REWARD.DISCIPLINE),
     controller.listDisciplineAttachments
 )
+
+router.get("/export", requirePermission(PERM.REWARD.EXPORT), controller.exportRewards)
 
 export const rewardRoutes: Router = router

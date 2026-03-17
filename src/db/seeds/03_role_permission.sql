@@ -133,7 +133,64 @@ SELECT r.id, w.perm FROM (VALUES
   ('lecturer', 'hrm.notification.read'),
   ('lecturer', 'hrm.attachment.upload'),
   ('lecturer', 'hrm.attachment.download'),
-  ('lecturer', 'hrm.workflow.read')
+  ('lecturer', 'hrm.workflow.read'),
+  -- hrm.contract.self_read cho giảng viên tự xem HĐ
+  ('lecturer', 'hrm.contract.self_read'),
+  ('lecturer', 'hrm.recruitment.self_read'),
+
+  -- ── Explicit assignments cho các quyền nghiệp vụ quan trọng ──────────────
+  -- (Các role có wildcard hrm.* sẽ cover qua wildcardExpand,
+  --  nhưng explicit giúp audit trail rõ ràng hơn)
+
+  -- cv_hrm thêm quyền contract + appointment
+  ('cv_hrm', 'hrm.contract.read'),
+  ('cv_hrm', 'hrm.contract.write'),
+  ('cv_hrm', 'hrm.contract.approve'),
+  ('cv_hrm', 'hrm.contract.extend'),
+  ('cv_hrm', 'hrm.contract.export'),
+  ('cv_hrm', 'hrm.appointment.read'),
+  ('cv_hrm', 'hrm.appointment.write'),
+  ('cv_hrm', 'hrm.appointment.approve'),
+  ('cv_hrm', 'hrm.appointment.dismiss'),
+  ('cv_hrm', 'hrm.appointment.extend'),
+  ('cv_hrm', 'hrm.appointment.export'),
+  ('cv_hrm', 'hrm.appointment.alert_read'),
+  ('cv_hrm', 'hrm.profile.delete'),
+  ('cv_hrm', 'hrm.profile.status'),
+
+  -- cv_salary explicit
+  ('cv_salary', 'hrm.salary.write'),
+  ('cv_salary', 'hrm.salary.approve'),
+  ('cv_salary', 'hrm.salary.propose'),
+  ('cv_salary', 'hrm.salary.export'),
+
+  -- cv_workload explicit
+  ('cv_workload', 'hrm.workload.admin'),
+  ('cv_workload', 'hrm.workload.finalize'),
+  ('cv_workload', 'hrm.workload.export'),
+
+  -- cv_reward explicit
+  ('cv_reward', 'hrm.reward.approve'),
+  ('cv_reward', 'hrm.reward.finalize'),
+  ('cv_reward', 'hrm.reward.export'),
+
+  -- faculty_leader thêm contract write/terminate
+  ('faculty_leader', 'hrm.contract.write'),
+  ('faculty_leader', 'hrm.contract.terminate'),
+  ('faculty_leader', 'hrm.profile.export'),
+  ('faculty_leader', 'hrm.stats.school.read'),
+  ('faculty_leader', 'hrm.recruitment.approve'),
+  ('faculty_leader', 'hrm.appointment.write'),
+  ('faculty_leader', 'hrm.appointment.approve'),
+  ('faculty_leader', 'hrm.appointment.dismiss'),
+  ('faculty_leader', 'hrm.appointment.extend'),
+  ('faculty_leader', 'hrm.appointment.alert_read'),
+  ('faculty_leader', 'hrm.reward.approve'),
+  ('faculty_leader', 'hrm.reward.finalize'),
+
+  -- dept_head thêm self_read
+  ('dept_head', 'hrm.contract.self_read'),
+  ('dept_head', 'hrm.appointment.alert_read')
 
 ) AS w(role_code, perm)
 JOIN roles r ON r.code = w.role_code

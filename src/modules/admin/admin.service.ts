@@ -116,6 +116,59 @@ export class AdminService {
     async getAuditLogs(pagination: PaginationQuery) {
         return await adminRepo.findAuditLogs(pagination)
     }
+
+    /**
+     * Export audit logs as Excel
+     */
+    async exportAuditLogs(from?: string, to?: string): Promise<Buffer> {
+        return await adminRepo.exportAuditLogs(from, to)
+    }
+
+    /**
+     * Reset user password — generates temp password and sends email
+     */
+    async resetPassword(userId: ID, resetBy: ID) {
+        const { generateTempPassword, hashPassword } = await import('@/utils/hash')
+        const tempPassword = generateTempPassword(16)
+        const hash = await hashPassword(tempPassword)
+        const user = await adminRepo.updateUser(userId, { passwordHash: hash } as any)
+        if (!user) throw new (await import('@/core/middlewares/errorHandler')).NotFoundError('User not found')
+        emailService.sendTempPasswordEmail(user.email, user.fullName, tempPassword).catch(err => {
+            logger.error('Failed to send password reset email', { error: err, userId })
+        })
+        return { message: 'Password reset. Temporary password sent to user email.' }
+    }
+
+    /**
+     * Get all permissions
+     */
+    async getPermissions() {
+        return await adminRepo.findAllPermissions()
+    }
+
+    /**
+     * Create permission
+     */
+    async createPermission(data: { code: string; description: string }) {
+        return await adminRepo.createPermission(data)
+    }
+
+    /**
+     * List all scheduled jobs and their last/next run
+     */
+    async getSchedulerJobs() {
+        const { schedulerService } = await import('@/jobs/scheduler')
+        return schedulerService.getJobs()
+    }
+
+    /**
+     * Manually trigger a named job
+     */
+    async triggerJob(name: string, triggeredBy: ID) {
+        const { schedulerService } = await import('@/jobs/scheduler')
+        await schedulerService.trigger(name)
+        logger.info(`Job '${name}' manually triggered by user ${triggeredBy}`)
+    }
 }
 
 export const adminService = new AdminService()

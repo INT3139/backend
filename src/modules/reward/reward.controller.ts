@@ -1,6 +1,7 @@
 import { Request, Response } from "express"
 import { rewardService } from "./reward.service"
 import { storageService } from "@/services/storage.service"
+import { exportService } from "@/services/export.service"
 import { success, created } from "@/utils/response"
 import { logAction } from "@/core/middlewares/auditContext"
 import { asyncHandler } from "@/core/middlewares/errorHandler"
@@ -284,3 +285,20 @@ export const deleteDiscipline = asyncHandler(async (
     return success(res, { message: 'Disciplinary record deleted' })
 })
 
+
+/**
+ * GET /api/v1/reward/export
+ */
+export const exportRewards = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<void> => {
+    const { year, unitId } = req.query
+    const buffer = await exportService.exportRewardReport(
+        year as string,
+        unitId ? parseInt(unitId as string, 10) as ID : undefined
+    )
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename="rewards-${year ?? 'all'}.xlsx"`)
+    res.send(buffer)
+})

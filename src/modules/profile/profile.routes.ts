@@ -369,7 +369,7 @@ const getOwner = async (req: any) => (await profileService.getProfileById(+req.p
  *             schema:
  *               $ref: '#/components/schemas/ApiError'
  */
-router.get("/me", controller.getMyProfile)
+router.get("/me", requirePermission(PERM.PROFILE.READ), controller.getMyProfile)
 
 /**
  * @openapi
@@ -657,7 +657,7 @@ router.put(
  */
 router.get(
     "/:id/export",
-    requireSelfOrPermission(PERM.PROFILE.READ, 'profile', r => +r.params.id, getOwner),
+    requirePermission(PERM.PROFILE.EXPORT),
     controller.exportProfile
 )
 
@@ -872,7 +872,7 @@ router.patch(
  *       500:
  *         description: Internal server error
  */
-router.get("/tasks", controller.getMyTasks)
+router.get("/tasks", requirePermission(PERM.WORKFLOW.READ), controller.getMyTasks)
 
 /**
  * @openapi
@@ -925,7 +925,7 @@ router.get("/tasks", controller.getMyTasks)
  *       500:
  *         description: Internal server error
  */
-router.post("/tasks/:instanceId", controller.processTask)
+router.post("/tasks/:instanceId", requirePermission(PERM.WORKFLOW.ADVANCE), controller.processTask)
 
 // --- SUB-MODULES ---
 

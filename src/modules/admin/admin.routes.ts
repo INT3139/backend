@@ -550,6 +550,38 @@ router.get("/audit-logs", requirePermission(PERM.SYSTEM.AUDIT_READ), controller.
  *       200:
  *         description: Success
  */
-router.put("/workflows/:id/metadata", requirePermission(PERM.SYSTEM.USER_MANAGE), controller.updateWorkflowMetadata)
+// Duplicate route moved to /api/v1/workflow/:id/metadata (workflow.routes.ts)
+// Kept here for backward compat với hrm_director access, nhưng dùng đúng permission
+router.put("/workflows/:id/metadata", requirePermission(PERM.SYSTEM.CONFIG_WRITE), controller.updateWorkflowMetadata)
+
+// ─── Password Reset ────────────────────────────────────────────────────────────
+router.post(
+    "/users/:id/reset-password",
+    requirePermission(PERM.SYSTEM.PASSWORD_RESET),
+    controller.resetPassword
+)
+
+// ─── Audit Export ──────────────────────────────────────────────────────────────
+router.get(
+    "/audit-logs/export",
+    requirePermission(PERM.SYSTEM.AUDIT_EXPORT),
+    controller.exportAuditLogs
+)
+
+// ─── Permissions management ────────────────────────────────────────────────────
+router.get("/permissions", requirePermission(PERM.SYSTEM.PERM_MANAGE), controller.getPermissions)
+router.post("/permissions", requirePermission(PERM.SYSTEM.PERM_MANAGE), controller.createPermission)
+
+// ─── Scheduler management ──────────────────────────────────────────────────────
+router.get(
+    "/scheduler/jobs",
+    requirePermission(PERM.SYSTEM.SCHEDULER_MANAGE),
+    controller.getSchedulerJobs
+)
+router.post(
+    "/scheduler/jobs/:name/trigger",
+    requirePermission(PERM.SYSTEM.SCHEDULER_MANAGE),
+    controller.triggerJob
+)
 
 export const adminRoutes: Router = router

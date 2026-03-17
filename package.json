@@ -13,7 +13,6 @@
     "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only server.ts",
     "build": "tsc && tsc-alias",
     "start": "node dist/server.js",
-    "migrate": "drizzle-kit push",
     "seed": "psql $DATABASE_URL -f src/db/seeds/01_roles.sql -f src/db/seeds/02_permissions.sql",
     "test": "jest --runInBand",
     "test:cov": "jest --coverage",

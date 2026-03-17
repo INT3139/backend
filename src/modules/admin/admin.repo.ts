@@ -1,7 +1,8 @@
 import { db } from "@/configs/db"
 import { ID, PaginationQuery, PaginatedResult } from "@/types"
-import { users, roles, organizationalUnits, sysAuditLogs, userRoles } from "@/db/schema"
-import { eq, and, sql, count, desc, asc, isNull } from "drizzle-orm"
+import { users, roles, organizationalUnits, sysAuditLogs, userRoles, permissions } from "@/db/schema"
+import { eq, and, sql, count, desc, asc, isNull, gte, lte } from "drizzle-orm"
+import ExcelJS from "exceljs"
 
 export type UserRow = typeof users.$inferSelect
 export type SafeUserRow = Omit<UserRow, 'passwordHash' | 'deletedAt'>
@@ -202,7 +203,51 @@ export class AdminRepo {
             .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleId)))
         return true
     }
+
+    /**
+     * Get all permissions
+     */
+    async findAllPermissions() {
+        return await db.select().from(permissions).orderBy(permissions.code)
+    }
+
+    /**
+     * Create permission
+     */
+    async createPermission(data: { code: string; description: string }) {
+        const res = await db.insert(permissions).values(data).returning()
+        return res[0]
+    }
+
+    /**
+     * Export audit logs as Excel buffer
+     */
+    async exportAuditLogs(from?: string, to?: string): Promise<Buffer> {
+        const conditions: any[] = []
+        if (from) conditions.push(gte(sysAuditLogs.eventTime, new Date(from)))
+        if (to) conditions.push(lte(sysAuditLogs.eventTime, new Date(to)))
+
+        const rows = await db.select()
+            .from(sysAuditLogs)
+            .where(conditions.length ? and(...conditions) : undefined)
+            .orderBy(desc(sysAuditLogs.eventTime))
+            .limit(10000)
+
+        const wb = new ExcelJS.Workbook()
+        const ws = wb.addWorksheet('Audit Logs')
+        ws.addRow(['ID', 'Event Time', 'Actor ID', 'Action', 'Resource Type', 'Resource ID', 'Actor IP'])
+        ws.getRow(1).font = { bold: true }
+        rows.forEach(r => ws.addRow([
+            r.id?.toString(),
+            r.eventTime?.toISOString(),
+            r.actorId,
+            r.action,
+            r.resourceType,
+            r.resourceId,
+            r.actorIp,
+        ]))
+        return Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer)
+    }
 }
 
 export const adminRepo = new AdminRepo()
-

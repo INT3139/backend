@@ -84,7 +84,7 @@ router.use(authenticate)
  */
 router.post(
     "/",
-    requirePermission(PERM.SYSTEM.ATTACHMENT_UPLOAD),
+    requirePermission(PERM.ATTACHMENT.UPLOAD),
     upload.single("file"),
     controller.uploadAttachment
 )
@@ -122,7 +122,7 @@ router.post(
  */
 router.get(
     "/:id/download",
-    requirePermission(PERM.SYSTEM.ATTACHMENT_DOWNLOAD),
+    requirePermission(PERM.ATTACHMENT.DOWNLOAD),
     controller.downloadAttachment
 )
 
@@ -152,7 +152,7 @@ router.get(
  */
 router.delete(
     "/:id",
-    requirePermission(PERM.SYSTEM.ATTACHMENT_DELETE),
+    requirePermission(PERM.ATTACHMENT.DELETE),
     controller.deleteAttachment
 )
 
@@ -191,7 +191,7 @@ router.delete(
  */
 router.get(
     "/",
-    requirePermission(PERM.SYSTEM.ATTACHMENT_DOWNLOAD),
+    requirePermission(PERM.ATTACHMENT.DOWNLOAD),
     controller.listAttachments
 )
 

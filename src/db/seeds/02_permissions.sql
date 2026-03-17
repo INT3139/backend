@@ -78,7 +78,11 @@ INSERT INTO permissions (code, description, is_active) VALUES
   ('system.audit.export',           'Xuất nhật ký audit',                      TRUE),
   ('system.config.read',            'Xem cấu hình hệ thống',                   TRUE),
   ('system.config.write',           'Sửa cấu hình hệ thống',                   TRUE),
-  ('system.scheduler.manage',       'Quản lý cron jobs',                        TRUE)
+  ('system.scheduler.manage',       'Quản lý cron jobs',                        TRUE),
+  -- Permissions defined in constants but missing from seed
+  ('hrm.contract.self_read',        'Tự xem hợp đồng bản thân',                TRUE),
+  ('hrm.recruitment.self_read',     'Tự xem thông tin tuyển dụng bản thân',    TRUE),
+  ('hrm.appointment.alert_read',    'Cảnh báo bổ nhiệm sắp hết hạn',           TRUE)
 ON CONFLICT (code) DO UPDATE SET
   description = EXCLUDED.description,
   is_active   = EXCLUDED.is_active;
