@@ -1,190 +1,298 @@
-import { db } from "@/configs/db";
-import { wfInstances, wfStepLogs, wfDefinitions } from "@/db/schema/workflow";
-import { eq, and, asc, inArray, or, sql } from "drizzle-orm";
-import { cacheService } from "../cache/cache.service";
-import { CacheKey, CacheTTL } from "../cache/cacheKey";
-import { ID, WorkflowStatus, WorkflowInitPayload } from "@/types";
-import { NotFoundError, ForbiddenError } from "../middlewares/errorHandler";
-import { adminRepo } from "@/modules/admin/admin.repo";
-import { permissionService } from "../permissions/permission.service";
+import { db } from '@/configs/db'
+import { wfInstances, wfStepLogs, wfDefinitions } from '@/db/schema/workflow'
+import { userRoles as userRolesTable } from '@/db/schema/auth'
+import { eq, and, asc, sql } from 'drizzle-orm'
+import { cacheService } from '../cache/cache.service'
+import { CacheKey, CacheTTL } from '../cache/cacheKey'
+import { ID, WorkflowStatus, WorkflowInitPayload } from '@/types'
+import { NotFoundError, ForbiddenError } from '../middlewares/errorHandler'
+import { permissionService } from '../permissions/permission.service'
 
 export interface WorkflowInstance {
-  id: ID;
-  definitionId: ID;
-  resourceType: string;
+  id: ID
+  definitionId: ID
+  resourceType: string
   resourceId: ID
-  status: WorkflowStatus;
-  currentStep: number;
-  metadata: any;
-  startedAt: Date;
+  status: WorkflowStatus
+  currentStep: number
+  metadata: any
+  startedAt: Date
   completedAt?: Date | null
 }
 
+interface StepDef {
+  step: number
+  name: string
+  role_id: number
+  action_type: 'approve' | 'ballot_submit' | 'forward'
+  required: boolean
+}
+
 export class WorkflowEngine {
+  // ----------------------------------------------------------------
+  // Definition
+  // ----------------------------------------------------------------
+
   async getDefinition(code: string) {
-    return cacheService.getOrSet(CacheKey.workflowDefinition(code), CacheTTL.WORKFLOW_DEF, async () => {
-      const rows = await db.select()
-        .from(wfDefinitions)
-        .where(and(eq(wfDefinitions.code, code), eq(wfDefinitions.isActive, true)))
-      const row = rows[0]
-      if (!row) throw new NotFoundError(`Workflow definition: ${code}`)
-      return row
-    })
+    return cacheService.getOrSet(
+      CacheKey.workflowDefinition(code),
+      CacheTTL.WORKFLOW_DEF,
+      async () => {
+        const [row] = await db
+          .select()
+          .from(wfDefinitions)
+          .where(and(eq(wfDefinitions.code, code), eq(wfDefinitions.isActive, true)))
+        if (!row) throw new NotFoundError(`Workflow definition: ${code}`)
+        return row
+      },
+    )
   }
+
+  // ----------------------------------------------------------------
+  // Initiate
+  // ----------------------------------------------------------------
 
   async initiate(p: WorkflowInitPayload): Promise<WorkflowInstance> {
     const def = await this.getDefinition(p.definitionCode)
-    const rows = await db.insert(wfInstances).values({
-      definitionId: def.id,
-      resourceType: p.resourceType,
-      resourceId: p.resourceId,
-      initiatedBy: p.initiatedBy,
-      status: 'pending', // Mặc định là pending cho đến khi có bước đầu tiên được thực hiện
-      currentStep: 1,
-      metadata: p.metadata ?? {},
-      dueAt: p.dueAt ?? null
-    }).returning()
-    const inst = rows[0]
-    
-    // Bước 1 thường là bước khởi tạo, ta coi như đã hoàn thành bởi người initiate
-    await db.update(wfInstances).set({ status: 'in_progress' }).where(eq(wfInstances.id, inst.id))
+    const steps = def.steps as StepDef[]
 
+    const [inst] = await db
+      .insert(wfInstances)
+      .values({
+        definitionId: def.id,
+        resourceType: p.resourceType,
+        resourceId: p.resourceId,
+        initiatedBy: p.initiatedBy,
+        status: 'in_progress',
+        currentStep: 1,
+        metadata: p.metadata ?? {},
+        dueAt: p.dueAt ?? null,
+      })
+      .returning()
+
+    // Bước 1 luôn do người initiate thực hiện (forward)
     await db.insert(wfStepLogs).values({
       instanceId: inst.id,
       stepNumber: 1,
-      stepName: (def.steps as any)?.[0]?.name ?? 'Khởi tạo',
+      stepName: steps[0]?.name ?? 'Khởi tạo',
       actorId: p.initiatedBy,
-      action: 'forward'
+      action: 'forward',
+      comment: null,
     })
-    return inst as unknown as WorkflowInstance
+
+    // Advance ngay sang step 2 vì step 1 đã complete
+    const newStep = steps.length >= 2 ? 2 : 1
+    const newStatus: WorkflowStatus = steps.length === 1 ? 'approved' : 'in_progress'
+
+    await db
+      .update(wfInstances)
+      .set({ currentStep: newStep, status: newStatus })
+      .where(eq(wfInstances.id, inst.id))
+
+    return { ...inst, currentStep: newStep, status: newStatus } as unknown as WorkflowInstance
   }
 
-  async advance(instanceId: ID, actorId: ID, action: 'approve' | 'reject' | 'request_revision' | 'forward', comment?: string): Promise<WorkflowInstance> {
-    return db.transaction(async (tx) => {
-      const rows = await tx.select().from(wfInstances).where(eq(wfInstances.id, instanceId)).for('update')
-      const inst = rows[0]
-      if (!inst) throw new NotFoundError('Workflow instance')
-      if (inst.status !== 'in_progress') throw new ForbiddenError('Workflow not in progress')
+  // ----------------------------------------------------------------
+  // Advance
+  // ----------------------------------------------------------------
 
-      const defRows = await tx.select().from(wfDefinitions).where(eq(wfDefinitions.id, inst.definitionId))
-      const def = defRows[0]
+  async advance(
+    instanceId: ID,
+    actorId: ID,
+    action: 'approve' | 'reject' | 'request_revision' | 'forward',
+    comment?: string,
+  ): Promise<WorkflowInstance> {
+    return db.transaction(async (tx) => {
+      // Lock row để tránh concurrent advance
+      const [inst] = await tx
+        .select()
+        .from(wfInstances)
+        .where(eq(wfInstances.id, instanceId))
+        .for('update')
+
+      if (!inst) throw new NotFoundError('Workflow instance')
+      if (inst.status !== 'in_progress') {
+        throw new ForbiddenError(`Workflow đang ở trạng thái: ${inst.status}`)
+      }
+
+      const [def] = await tx
+        .select()
+        .from(wfDefinitions)
+        .where(eq(wfDefinitions.id, inst.definitionId))
       if (!def) throw new NotFoundError('Workflow definition')
 
-      // VALIDATE ROLE/PERMISSION FOR CURRENT STEP
-      const steps = def.steps as any[]
-      const currentStepDef = steps.find(s => s.stepNumber === inst.currentStep)
-      if (currentStepDef) {
-        let hasAccess = false
-        if (currentStepDef.requiredRole) {
-          const userRoles = await adminRepo.getRolesForUser(actorId)
-          if (userRoles.includes(currentStepDef.requiredRole)) hasAccess = true
-        }
-        if (currentStepDef.requiredPermission) {
-          if (await permissionService.hasPermission(actorId, currentStepDef.requiredPermission)) hasAccess = true
-        }
-        // Nếu không quy định role/perm thì ai cũng advance được (tạm thời)
-        if (!currentStepDef.requiredRole && !currentStepDef.requiredPermission) hasAccess = true
+      const steps = def.steps as StepDef[]
 
+      // Fix: seed dùng "step" không phải "stepNumber"
+      const currentStepDef = steps.find((s) => s.step === inst.currentStep)
+
+      // Validate role cho bước hiện tại
+      if (currentStepDef) {
+        const hasAccess = await this.canActOnStep(actorId, currentStepDef)
         if (!hasAccess) {
-          throw new ForbiddenError('Bạn không có quyền thực hiện bước này của quy trình')
+          throw new ForbiddenError('Bạn không có quyền thực hiện bước này')
         }
       }
 
-      const nextStep = inst.currentStep + 1
-      const isLast = nextStep > steps.length
-      const newStatus: WorkflowStatus = action === 'reject' ? 'rejected' : (isLast ? 'approved' : 'in_progress')
-
-      await tx.update(wfInstances).set({
-        currentStep: isLast || action === 'reject' ? inst.currentStep : nextStep,
-        status: newStatus,
-        completedAt: newStatus !== 'in_progress' ? new Date() : null
-      }).where(eq(wfInstances.id, inst.id))
-
+      // Ghi log bước hiện tại
       await tx.insert(wfStepLogs).values({
-        instanceId: inst.id,
+        instanceId,
         stepNumber: inst.currentStep,
         stepName: currentStepDef?.name ?? `Step ${inst.currentStep}`,
         actorId,
         action,
-        comment: comment ?? null
+        comment: comment ?? null,
       })
 
+      // Tính trạng thái mới
+      const isReject = action === 'reject'
+      const nextStep = inst.currentStep + 1
+      const isLast = nextStep > steps.length
+
+      const newStatus: WorkflowStatus = isReject
+        ? 'rejected'
+        : isLast
+          ? 'approved'
+          : 'in_progress'
+
+      const newCurrentStep = isReject || isLast ? inst.currentStep : nextStep
+
+      await tx
+        .update(wfInstances)
+        .set({
+          currentStep: newCurrentStep,
+          status: newStatus,
+          completedAt: newStatus !== 'in_progress' ? new Date() : null,
+        })
+        .where(eq(wfInstances.id, inst.id))
+
       await cacheService.invalidateWorkflowInstance(inst.id)
-      return { ...inst, status: newStatus, currentStep: isLast || action === 'reject' ? inst.currentStep : nextStep } as unknown as WorkflowInstance
+
+      return {
+        ...inst,
+        status: newStatus,
+        currentStep: newCurrentStep,
+      } as unknown as WorkflowInstance
     })
   }
 
   /**
-   * Lấy danh sách task (workflow instances) đang chờ xử lý của user hiện tại
+   * Check xem actorId có quyền xử lý stepDef không.
+   * Dựa vào role_id trong step definition.
    */
+  private async canActOnStep(actorId: ID, stepDef: StepDef): Promise<boolean> {
+    if (!stepDef.role_id) return true  // không quy định role → ai cũng được
+
+    // Lấy role IDs của user (query trực tiếp thay vì qua adminRepo để tránh circular)
+    const rows = await db
+      .select({ roleId: userRolesTable.roleId })
+      .from(userRolesTable)
+      .where(eq(userRolesTable.userId, actorId))
+
+    const roleIds = rows.map((r) => r.roleId)
+    return roleIds.includes(stepDef.role_id)
+  }
+
+  // ----------------------------------------------------------------
+  // My Tasks — việc cần xử lý của user hiện tại
+  // ----------------------------------------------------------------
+
   async getMyTasks(userId: ID) {
-    const userRoles = await adminRepo.getRolesForUser(userId)
-    
-    // Tìm các workflow instance mà bước hiện tại yêu cầu role của user
-    // Vì steps là JSONB, ta dùng sql để filter (PostgreSQL)
-    // Giả sử cấu hình step là: { stepNumber: 1, requiredRole: 'hrm_director' }
-    
-    const results = await db.select({
-      instance: wfInstances,
-      definition: wfDefinitions
-    })
-    .from(wfInstances)
-    .innerJoin(wfDefinitions, eq(wfInstances.definitionId, wfDefinitions.id))
-    .where(and(
-      eq(wfInstances.status, 'in_progress'),
-      sql`EXISTS (
-        SELECT 1 FROM jsonb_array_elements(${wfDefinitions.steps}) AS s
-        WHERE (s->>'stepNumber')::int = ${wfInstances.currentStep}
-        AND (
-          s->>'requiredRole' IN ${userRoles.length > 0 ? sql`(${sql.join(userRoles.map(r => sql.raw(`'${r}'`)), sql`, `)})` : sql`('')`}
-          OR s->>'requiredRole' IS NULL
-        )
-      )`
-    ))
-    
+    // Lấy role IDs của user
+    const roleRows = await db
+      .select({ roleId: userRolesTable.roleId })
+      .from(userRolesTable)
+      .where(eq(userRolesTable.userId, userId))
+
+    const roleIds = roleRows.map((r) => r.roleId)
+    if (roleIds.length === 0) return []
+
+    // Fix: dùng parameterized query thay vì sql.raw để tránh SQL injection
+    // Tìm instance đang in_progress mà bước hiện tại có role_id thuộc roleIds của user
+    // Seed dùng "step" không phải "stepNumber" trong JSONB
+    const placeholders = roleIds.map((_, i) => `$${i + 3}`).join(', ')
+
+    const results = await db
+      .select({
+        instance: wfInstances,
+        definition: wfDefinitions,
+      })
+      .from(wfInstances)
+      .innerJoin(wfDefinitions, eq(wfInstances.definitionId, wfDefinitions.id))
+      .where(
+        and(
+          eq(wfInstances.status, 'in_progress'),
+          // Fix: dùng "step" bukan "stepNumber", và parameterized role IDs
+          sql`EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(${wfDefinitions.steps}) AS s
+            WHERE (s->>'step')::int = ${wfInstances.currentStep}
+            AND   (s->>'role_id')::int = ANY(ARRAY[${sql.join(
+            roleIds.map((id) => sql`${id}`),
+            sql`, `,
+          )}])
+          )`,
+        ),
+      )
+
     return results
   }
 
+  // ----------------------------------------------------------------
+  // Utilities
+  // ----------------------------------------------------------------
+
   async getStatus(id: ID): Promise<WorkflowInstance> {
-    return cacheService.getOrSet(CacheKey.workflowInstance(id), CacheTTL.WORKFLOW_INSTANCE, async () => {
-      const rows = await db.select().from(wfInstances).where(eq(wfInstances.id, id))
-      const row = rows[0]
-      if (!row) throw new NotFoundError('Workflow instance')
-      return row as unknown as WorkflowInstance
-    })
+    return cacheService.getOrSet(
+      CacheKey.workflowInstance(id),
+      CacheTTL.WORKFLOW_INSTANCE,
+      async () => {
+        const [row] = await db.select().from(wfInstances).where(eq(wfInstances.id, id))
+        if (!row) throw new NotFoundError('Workflow instance')
+        return row as unknown as WorkflowInstance
+      },
+    )
   }
 
   async getHistory(id: ID) {
-    return db.select().from(wfStepLogs).where(eq(wfStepLogs.instanceId, id)).orderBy(asc(wfStepLogs.actedAt))
+    return db
+      .select()
+      .from(wfStepLogs)
+      .where(eq(wfStepLogs.instanceId, id))
+      .orderBy(asc(wfStepLogs.actedAt))
   }
 
-  async cancel(id: ID, actorId: ID, reason: string) {
-    const rows = await db.select().from(wfInstances).where(eq(wfInstances.id, id))
-    const inst = rows[0]
+  async cancel(id: ID, actorId: ID, reason: string): Promise<void> {
+    const [inst] = await db.select().from(wfInstances).where(eq(wfInstances.id, id))
     if (!inst) throw new NotFoundError('Workflow instance')
-    if (inst.status !== 'in_progress') throw new ForbiddenError('Only in-progress workflows can be cancelled')
-    await db.update(wfInstances).set({ status: 'cancelled', completedAt: new Date() }).where(eq(wfInstances.id, id))
+    if (inst.status !== 'in_progress') {
+      throw new ForbiddenError('Chỉ có thể huỷ workflow đang in_progress')
+    }
+
+    await db
+      .update(wfInstances)
+      .set({ status: 'cancelled', completedAt: new Date() })
+      .where(eq(wfInstances.id, id))
+
+    // Fix: dùng inst.currentStep thay vì hardcode 0
     await db.insert(wfStepLogs).values({
       instanceId: id,
-      stepNumber: 0,
+      stepNumber: inst.currentStep,
       stepName: 'Cancelled',
       actorId,
       action: 'reject',
-      comment: reason
+      comment: reason,
     })
+
     await cacheService.invalidateWorkflowInstance(id)
   }
 
-  /**
-   * Cập nhật dữ liệu tạm thời (metadata) trong quy trình.
-   * Dùng khi Admin muốn sửa lại thông tin user đã gửi trước khi bấm Duyệt.
-   */
   async updateMetadata(instanceId: ID, metadata: any): Promise<void> {
-    await db.update(wfInstances)
+    await db
+      .update(wfInstances)
       .set({ metadata })
-      .where(eq(wfInstances.id, instanceId));
-    
-    await cacheService.invalidateWorkflowInstance(instanceId);
+      .where(eq(wfInstances.id, instanceId))
+    await cacheService.invalidateWorkflowInstance(instanceId)
   }
 }
 

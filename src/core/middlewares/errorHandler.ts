@@ -28,6 +28,10 @@ export function errorHandler(err: Error, req: Request, res: Response, _: NextFun
     res.status(err.statusCode).json({ success: false, error: { message: err.message, code: err.code, ...(err instanceof ValidationError && err.fields ? { fields: err.fields } : {}) } })
     return
   }
+  if (err instanceof SyntaxError && 'status' in err && (err as any).status === 400) {
+    res.status(HTTP.BAD_REQUEST).json({ success: false, error: { message: 'Invalid JSON in request body' } })
+    return
+  }
   res.status(HTTP.INTERNAL_SERVER_ERROR).json({ success: false, error: { message: 'Internal server error' } })
 }
 

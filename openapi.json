@@ -20,7 +20,14 @@
       }
     },
     "schemas": {
-      "Error": {
+      "ApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "type": "object" }
+        }
+      },
+      "ApiError": {
         "type": "object",
         "properties": {
           "success": { "type": "boolean", "example": false },
@@ -32,212 +39,409 @@
             }
           }
         }
+      },
+      "PaginatedResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "type": "array", "items": { "type": "object" } },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": { "type": "integer" },
+              "limit": { "type": "integer" },
+              "total": { "type": "integer" },
+              "totalPages": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": { "type": "string" },
+          "refreshToken": { "type": "string" },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer" },
+              "username": { "type": "string" },
+              "fullName": { "type": "string" }
+            }
+          }
+        }
+      },
+      "RefreshTokenRequest": {
+        "type": "object",
+        "required": ["token"],
+        "properties": {
+          "token": { "type": "string" }
+        }
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "required": ["oldPassword", "newPassword"],
+        "properties": {
+          "oldPassword": { "type": "string" },
+          "newPassword": { "type": "string" }
+        }
+      },
+      "PermissionInfo": {
+        "type": "object",
+        "properties": {
+          "permissions": { "type": "array", "items": { "type": "string" } },
+          "scopes": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "username": { "type": "string" },
+          "email": { "type": "string" },
+          "fullName": { "type": "string" },
+          "unitId": { "type": "integer" },
+          "isActive": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "lastLoginAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Role": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "code": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "Unit": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "code": { "type": "string" },
+          "name": { "type": "string" },
+          "unit_type": { "type": "string", "enum": ["school", "faculty", "department", "lab"] },
+          "parent_id": { "type": "integer" }
+        }
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "userId": { "type": "integer" },
+          "eventType": { "type": "string" },
+          "resourceType": { "type": "string" },
+          "resourceId": { "type": "string" },
+          "eventTime": { "type": "string", "format": "date-time" },
+          "clientIp": { "type": "string" },
+          "details": { "type": "object" }
+        }
+      },
+      "Attachment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "fileName": { "type": "string" },
+          "fileSize": { "type": "integer" },
+          "mimeType": { "type": "string" },
+          "resourceType": { "type": "string" },
+          "resourceId": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateProfile": {
+        "type": "object",
+        "required": ["userId", "unitId"],
+        "properties": {
+          "userId": { "type": "integer" },
+          "unitId": { "type": "integer" },
+          "emailVnu": { "type": "string", "format": "email" },
+          "phoneWork": { "type": "string" },
+          "dateOfBirth": { "type": "string", "format": "date" },
+          "gender": { "type": "string", "enum": ["Nam", "Nữ", "Khác"] },
+          "profileStatus": { "type": "string", "default": "draft" }
+        }
+      },
+      "RecruitmentProposal": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "proposingUnit": { "type": "integer" },
+          "positionName": { "type": "string" },
+          "academicYear": { "type": "string" },
+          "status": { "type": "string", "enum": ["draft", "pending", "approved", "rejected"] }
+        }
+      },
+      "RecruitmentCandidate": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "fullName": { "type": "string" },
+          "status": { "type": "string", "enum": ["applied", "interviewing", "offered", "hired", "rejected"] }
+        }
+      },
+      "Commendation": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "profileId": { "type": "integer" },
+          "awardLevel": { "type": "string", "enum": ["co_so", "dhqg", "bo", "chinh_phu", "nha_nuoc"] },
+          "awardName": { "type": "string" }
+        }
+      },
+      "SalaryInfo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "profileId": { "type": "integer" },
+          "salaryGrade": { "type": "integer" },
+          "salaryCoefficient": { "type": "number" }
+        }
+      },
+      "WorkloadEvidence": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "profileId": { "type": "integer" },
+          "evidenceType": { "type": "string", "enum": ["teaching", "research_paper", "research_project", "other_task"] },
+          "title": { "type": "string" },
+          "status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+        }
+      },
+      "WorkloadSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "profileId": { "type": "integer" },
+          "academicYear": { "type": "string" },
+          "totalHours": { "type": "number" }
+        }
       }
     }
   },
   "paths": {
     "/auth/login": {
       "post": {
-        "tags": ["Xác thực"],
-        "summary": "Đăng nhập hệ thống",
+        "tags": ["Auth"],
+        "summary": "Login user",
+        "description": "Authenticate user with username and password to receive JWT tokens.",
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["username", "password"],
-                "properties": {
-                  "username": { "type": "string" },
-                  "password": { "type": "string" }
-                }
-              }
-            }
+            "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } }
           }
         },
         "responses": {
-          "200": { "description": "Đăng nhập thành công" }
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    { "properties": { "data": { "$ref": "#/components/schemas/LoginResponse" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RefreshTokenRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "Token refreshed" }
         }
       }
     },
     "/auth/permissions": {
       "get": {
-        "tags": ["Xác thực"],
-        "summary": "Lấy danh sách quyền hạn và phạm vi (scopes) của người dùng hiện tại",
+        "tags": ["Auth"],
+        "summary": "Get user permissions and scopes",
         "security": [{ "bearerAuth": [] }],
         "responses": {
-          "200": { "description": "Thành công" }
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    { "properties": { "data": { "$ref": "#/components/schemas/PermissionInfo" } } }
+                  ]
+                }
+              }
+            }
+          }
         }
       }
     },
     "/admin/users": {
       "get": {
-        "tags": ["Quản trị hệ thống"],
-        "summary": "Danh sách người dùng",
+        "tags": ["Admin"],
+        "summary": "Get list of users",
         "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
         "responses": {
-          "200": { "description": "Thành công" }
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/PaginatedResponse" },
+                    { "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/User" } } } }
+                  ]
+                }
+              }
+            }
+          }
         }
       },
       "post": {
-        "tags": ["Quản trị hệ thống"],
-        "summary": "Tạo người dùng mới",
+        "tags": ["Admin"],
+        "summary": "Create new user",
         "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "201": { "description": "Đã tạo" }
-        }
-      }
-    },
-    "/admin/audit-logs": {
-      "get": {
-        "tags": ["Quản trị hệ thống"],
-        "summary": "Xem nhật ký hệ thống (Audit Logs)",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "page", "in": "query", "schema": { "type": "integer" } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
-        ],
-        "responses": {
-          "200": { "description": "Thành công" }
-        }
-      }
-    },
-    "/admin/workflows/{id}/metadata": {
-      "put": {
-        "tags": ["Quản trị hệ thống"],
-        "summary": "Admin chỉnh sửa dữ liệu đang chờ duyệt trong quy trình",
-        "description": "Cho phép Admin sửa lại thông tin (metadata) của một yêu cầu trước khi bấm nút Duyệt cuối cùng.",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
-        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["username", "email", "fullName", "password"],
                 "properties": {
-                  "metadata": { "type": "object" }
+                  "username": { "type": "string" },
+                  "email": { "type": "string" },
+                  "fullName": { "type": "string" },
+                  "password": { "type": "string" },
+                  "unitId": { "type": "integer" }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Cập nhật thành công" }
+          "201": { "description": "User created" }
+        }
+      }
+    },
+    "/admin/audit-logs": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get audit logs",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/PaginatedResponse" },
+                    { "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/AuditLog" } } } }
+                  ]
+                }
+              }
+            }
+          }
         }
       }
     },
     "/profiles/me": {
       "get": {
-        "tags": ["Hồ sơ cán bộ"],
-        "summary": "Lấy thông tin hồ sơ của chính mình",
+        "tags": ["Profile"],
+        "summary": "Get current user profile",
         "security": [{ "bearerAuth": [] }],
         "responses": {
-          "200": { "description": "Thành công" }
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    { "properties": { "data": { "$ref": "#/components/schemas/CreateProfile" } } }
+                  ]
+                }
+              }
+            }
+          }
         }
       }
     },
     "/profiles": {
       "get": {
-        "tags": ["Hồ sơ cán bộ"],
-        "summary": "Danh sách hồ sơ cán bộ (có phân quyền theo đơn vị)",
+        "tags": ["Profile"],
+        "summary": "Get all profiles",
         "security": [{ "bearerAuth": [] }],
         "responses": {
-          "200": { "description": "Thành công" }
-        }
-      },
-      "post": {
-        "tags": ["Hồ sơ cán bộ"],
-        "summary": "Tạo hồ sơ mới",
-        "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "201": { "description": "Đã tạo" }
+          "200": { "description": "Success" }
+        },
+        "post": {
+          "tags": ["Profile"],
+          "summary": "Create new profile",
+          "security": [{ "bearerAuth": [] }],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/CreateProfile" } }
+            }
+          },
+          "responses": {
+            "201": { "description": "Profile created" }
+          }
         }
       }
     },
     "/profiles/{id}": {
       "get": {
-        "tags": ["Hồ sơ cán bộ"],
-        "summary": "Chi tiết hồ sơ theo ID",
+        "tags": ["Profile"],
+        "summary": "Get profile by ID",
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
-        "responses": { "200": { "description": "Thành công" } }
+        "responses": { "200": { "description": "Success" } }
       },
       "put": {
-        "tags": ["Hồ sơ cán bộ"],
-        "summary": "Cập nhật hồ sơ (Khởi tạo quy trình phê duyệt)",
-        "description": "Khi gọi API này, hồ sơ sẽ chuyển sang trạng thái 'pending' và tạo một Workflow để chờ Admin duyệt. Dữ liệu thật sẽ không thay đổi cho đến khi được duyệt.",
+        "tags": ["Profile"],
+        "summary": "Update profile",
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
-        "responses": { "200": { "description": "Yêu cầu đã được gửi" } }
-      }
-    },
-    "/profiles/{id}/education": {
-      "get": {
-        "tags": ["Hồ sơ - Tiểu mục"],
-        "summary": "Lấy quá trình đào tạo",
+        "responses": { "200": { "description": "Success" } }
+      },
+      "delete": {
+        "tags": ["Profile"],
+        "summary": "Delete profile",
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
-        "responses": { "200": { "description": "Thành công" } }
-      },
-      "post": {
-        "tags": ["Hồ sơ - Tiểu mục"],
-        "summary": "Thêm bản ghi đào tạo",
-        "security": [{ "bearerAuth": [] }],
-        "responses": { "201": { "description": "Đã tạo" } }
+        "responses": { "200": { "description": "Success" } }
       }
     },
-    "/salary/proposals": {
-      "get": {
-        "tags": ["Quản lý Lương"],
-        "summary": "Danh sách đề xuất nâng lương",
-        "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "Thành công" } }
-      },
+    "/attachments": {
       "post": {
-        "tags": ["Quản lý Lương"],
-        "summary": "Tạo đề xuất nâng lương mới",
-        "security": [{ "bearerAuth": [] }],
-        "responses": { "201": { "description": "Đã tạo" } }
-      }
-    },
-    "/workload/me": {
-      "get": {
-        "tags": ["Khối lượng giảng dạy"],
-        "summary": "Xem định mức và minh chứng của bản thân",
-        "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "Thành công" } }
-      }
-    },
-    "/workload/evidences": {
-      "get": {
-        "tags": ["Khối lượng giảng dạy"],
-        "summary": "Danh sách minh chứng chờ duyệt (dành cho quản lý)",
-        "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "Thành công" } }
-      },
-      "post": {
-        "tags": ["Khối lượng giảng dạy"],
-        "summary": "Khai báo minh chứng công việc mới",
-        "security": [{ "bearerAuth": [] }],
-        "responses": { "201": { "description": "Đã tạo" } }
-      }
-    },
-    "/workload/evidences/{id}/approve": {
-      "post": {
-        "tags": ["Khối lượng giảng dạy"],
-        "summary": "Duyệt minh chứng",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
-        "responses": { "200": { "description": "Đã duyệt" } }
-      }
-    },
-    "/attachments/upload": {
-      "post": {
-        "tags": ["Tài liệu đính kèm"],
-        "summary": "Tải lên file (Minh chứng, Quyết định...)",
+        "tags": ["Attachment"],
+        "summary": "Upload file",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "content": {
@@ -246,14 +450,72 @@
                 "type": "object",
                 "properties": {
                   "file": { "type": "string", "format": "binary" },
-                  "resource_type": { "type": "string" },
-                  "resource_id": { "type": "integer" }
+                  "resourceType": { "type": "string" },
+                  "resourceId": { "type": "integer" }
                 }
               }
             }
           }
         },
-        "responses": { "201": { "description": "Tải lên thành công" } }
+        "responses": { "201": { "description": "Uploaded" } }
+      },
+      "get": {
+        "tags": ["Attachment"],
+        "summary": "List files for resource",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/recruitment/proposals": {
+      "get": {
+        "tags": ["Recruitment"],
+        "summary": "Get recruitment proposals",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Success" } }
+      },
+      "post": {
+        "tags": ["Recruitment"],
+        "summary": "Create recruitment proposal",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/reward/me": {
+      "get": {
+        "tags": ["Reward"],
+        "summary": "Get current user's rewards",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/salary/me": {
+      "get": {
+        "tags": ["Salary"],
+        "summary": "Get current user's salary info",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/workload/me": {
+      "get": {
+        "tags": ["Workload"],
+        "summary": "Get current user's workload info",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/workload/evidences": {
+      "get": {
+        "tags": ["Workload Evidence"],
+        "summary": "Get workload evidences for review",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Success" } }
+      },
+      "post": {
+        "tags": ["Workload Evidence"],
+        "summary": "Create workload evidence",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Created" } }
       }
     }
   }
