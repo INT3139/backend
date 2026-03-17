@@ -8,6 +8,57 @@ import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./recruitment.schema"
 
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     RecruitmentProposal:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         proposingUnit:
+ *           type: integer
+ *         positionName:
+ *           type: string
+ *         academicYear:
+ *           type: string
+ *         quantity:
+ *           type: integer
+ *         status:
+ *           type: string
+ *           enum: [draft, pending, approved, rejected]
+ *         reason:
+ *           type: string
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *     RecruitmentCandidate:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         proposalId:
+ *           type: integer
+ *         fullName:
+ *           type: string
+ *         email:
+ *           type: string
+ *         phone:
+ *           type: string
+ *         gender:
+ *           type: string
+ *         dateOfBirth:
+ *           type: string
+ *           format: date
+ *         status:
+ *           type: string
+ *           enum: [applied, interviewing, offered, hired, rejected]
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ */
+
 const router = Router()
 
 // Tất cả routes đều yêu cầu authentication
@@ -22,11 +73,41 @@ const getOwner = async (req: any) => (await recruitmentService.getProposalById(+
  *     tags:
  *       - Recruitment
  *     summary: Get recruitment proposals
+ *     description: Retrieve a paginated list of recruitment proposals, optionally filtered by unit or status.
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: unitId
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved proposals
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/RecruitmentProposal'
  */
 router.get("/proposals", requirePermission(PERM.RECRUITMENT.READ), controller.getProposals)
 
@@ -37,6 +118,7 @@ router.get("/proposals", requirePermission(PERM.RECRUITMENT.READ), controller.ge
  *     tags:
  *       - Recruitment
  *     summary: Get proposal by ID
+ *     description: Retrieve detailed information about a specific recruitment proposal.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -47,7 +129,15 @@ router.get("/proposals", requirePermission(PERM.RECRUITMENT.READ), controller.ge
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved proposal
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/RecruitmentProposal'
  */
 router.get(
     "/proposals/:id",
@@ -62,6 +152,7 @@ router.get(
  *     tags:
  *       - Recruitment
  *     summary: Create recruitment proposal
+ *     description: Submit a new recruitment proposal for approval.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -71,19 +162,31 @@ router.get(
  *           schema:
  *             type: object
  *             required:
- *               - proposing_unit
- *               - position_name
- *               - academic_year
+ *               - proposingUnit
+ *               - positionName
+ *               - academicYear
  *             properties:
- *               proposing_unit:
+ *               proposingUnit:
  *                 type: integer
- *               position_name:
+ *               positionName:
  *                 type: string
- *               academic_year:
+ *               academicYear:
+ *                 type: string
+ *               quantity:
+ *                 type: integer
+ *               reason:
  *                 type: string
  *     responses:
  *       201:
- *         description: Created
+ *         description: Proposal created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/RecruitmentProposal'
  */
 router.post(
     "/proposals",
@@ -99,6 +202,7 @@ router.post(
  *     tags:
  *       - Recruitment
  *     summary: Update recruitment proposal
+ *     description: Modify an existing recruitment proposal. Only allowed for creators or managers.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -114,11 +218,23 @@ router.post(
  *           schema:
  *             type: object
  *             properties:
- *               position_name:
+ *               positionName:
+ *                 type: string
+ *               quantity:
+ *                 type: integer
+ *               reason:
  *                 type: string
  *     responses:
  *       200:
- *         description: Success
+ *         description: Proposal updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/RecruitmentProposal'
  */
 router.put(
     "/proposals/:id",
@@ -134,6 +250,7 @@ router.put(
  *     tags:
  *       - Recruitment
  *     summary: Approve recruitment proposal
+ *     description: Approve a pending recruitment proposal. Requires APPROVE permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -144,7 +261,11 @@ router.put(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Proposal approved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
  */
 router.post(
     "/proposals/:id/approve",
@@ -161,6 +282,7 @@ router.post(
  *     tags:
  *       - Recruitment Candidates
  *     summary: Get candidates for proposal
+ *     description: Retrieve all candidates associated with a specific recruitment proposal.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -171,7 +293,17 @@ router.post(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved candidates
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/RecruitmentCandidate'
  */
 router.get(
     "/proposals/:id/candidates",
@@ -186,6 +318,7 @@ router.get(
  *     tags:
  *       - Recruitment Candidates
  *     summary: Create recruitment candidate
+ *     description: Add a new candidate to a recruitment proposal.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -195,16 +328,28 @@ router.get(
  *           schema:
  *             type: object
  *             required:
- *               - proposal_id
- *               - full_name
+ *               - proposalId
+ *               - fullName
  *             properties:
- *               proposal_id:
+ *               proposalId:
  *                 type: integer
- *               full_name:
+ *               fullName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               phone:
  *                 type: string
  *     responses:
  *       201:
- *         description: Created
+ *         description: Candidate added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/RecruitmentCandidate'
  */
 router.post(
     "/candidates",
@@ -220,6 +365,7 @@ router.post(
  *     tags:
  *       - Recruitment Candidates
  *     summary: Update recruitment candidate
+ *     description: Update candidate information or recruitment status.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -235,11 +381,22 @@ router.post(
  *           schema:
  *             type: object
  *             properties:
- *               full_name:
+ *               fullName:
  *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [applied, interviewing, offered, hired, rejected]
  *     responses:
  *       200:
- *         description: Success
+ *         description: Candidate updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/RecruitmentCandidate'
  */
 router.put(
     "/candidates/:id",
@@ -255,6 +412,7 @@ router.put(
  *     tags:
  *       - Recruitment Candidates
  *     summary: Delete recruitment candidate
+ *     description: Remove a candidate from the system.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -265,7 +423,11 @@ router.put(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Candidate deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
  */
 router.delete("/candidates/:id", requirePermission(PERM.RECRUITMENT.WRITE), controller.deleteCandidate)
 

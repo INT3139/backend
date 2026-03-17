@@ -8,6 +8,56 @@ import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./salary.schema"
 
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     SalaryInfo:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         profileId:
+ *           type: integer
+ *         salaryGrade:
+ *           type: integer
+ *         salaryCoefficient:
+ *           type: number
+ *         effectiveDate:
+ *           type: string
+ *           format: date
+ *         nextDate:
+ *           type: string
+ *           format: date
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *     SalaryUpgradeProposal:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         profileId:
+ *           type: integer
+ *         currentGrade:
+ *           type: integer
+ *         currentCoefficient:
+ *           type: number
+ *         proposedGrade:
+ *           type: integer
+ *         proposedCoefficient:
+ *           type: number
+ *         proposedNextDate:
+ *           type: string
+ *           format: date
+ *         status:
+ *           type: string
+ *           enum: [pending, approved, rejected]
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ */
+
 const router = Router()
 
 // Tất cả routes đều yêu cầu authentication
@@ -22,11 +72,20 @@ const getOwner = async (req: any) => (await profileService.getProfileById(+req.p
  *     tags:
  *       - Salary
  *     summary: Get current user's salary info
+ *     description: Retrieve detailed salary information for the currently authenticated user.
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved salary info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/SalaryInfo'
  */
 router.get("/me", requirePermission(PERM.SALARY.SELF_READ), controller.getMySalary)
 
@@ -37,6 +96,7 @@ router.get("/me", requirePermission(PERM.SALARY.SELF_READ), controller.getMySala
  *     tags:
  *       - Salary
  *     summary: Get salary info by profile ID
+ *     description: Retrieve salary information for a specific staff profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -47,7 +107,15 @@ router.get("/me", requirePermission(PERM.SALARY.SELF_READ), controller.getMySala
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved salary info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/SalaryInfo'
  */
 router.get(
     "/info/:profileId",
@@ -62,6 +130,7 @@ router.get(
  *     tags:
  *       - Salary
  *     summary: Update salary info
+ *     description: Directly update the salary information for a staff member. Requires SALARY.WRITE permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -77,11 +146,16 @@ router.get(
  *           schema:
  *             type: object
  *             properties:
- *               salary_grade:
+ *               salaryGrade:
  *                 type: integer
+ *               salaryCoefficient:
+ *                 type: number
+ *               effectiveDate:
+ *                 type: string
+ *                 format: date
  *     responses:
  *       200:
- *         description: Success
+ *         description: Salary info updated successfully
  */
 router.put(
     "/info/:profileId",
@@ -97,11 +171,37 @@ router.put(
  *     tags:
  *       - Salary Proposals
  *     summary: Get salary upgrade proposals
+ *     description: Retrieve a paginated list of all salary upgrade proposals.
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved proposals
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/SalaryUpgradeProposal'
  */
 router.get("/proposals", requirePermission(PERM.SALARY.READ), controller.getProposals)
 
@@ -112,6 +212,7 @@ router.get("/proposals", requirePermission(PERM.SALARY.READ), controller.getProp
  *     tags:
  *       - Salary Proposals
  *     summary: Create salary upgrade proposal
+ *     description: Submit a new proposal to upgrade a staff member's salary grade or coefficient.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -121,23 +222,23 @@ router.get("/proposals", requirePermission(PERM.SALARY.READ), controller.getProp
  *           schema:
  *             type: object
  *             required:
- *               - profile_id
- *               - proposed_grade
- *               - proposed_coefficient
- *               - proposed_next_date
+ *               - profileId
+ *               - proposedGrade
+ *               - proposedCoefficient
+ *               - proposedNextDate
  *             properties:
- *               profile_id:
+ *               profileId:
  *                 type: integer
- *               proposed_grade:
+ *               proposedGrade:
  *                 type: integer
- *               proposed_coefficient:
+ *               proposedCoefficient:
  *                 type: number
- *               proposed_next_date:
+ *               proposedNextDate:
  *                 type: string
  *                 format: date
  *     responses:
  *       201:
- *         description: Created
+ *         description: Proposal created successfully
  */
 router.post(
     "/proposals",
@@ -153,6 +254,7 @@ router.post(
  *     tags:
  *       - Salary Proposals
  *     summary: Approve salary upgrade proposal
+ *     description: Approve a pending salary upgrade proposal.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -163,7 +265,7 @@ router.post(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Proposal approved successfully
  */
 router.post("/proposals/:id/approve", requirePermission(PERM.SALARY.APPROVE), controller.approveProposal)
 

@@ -12,6 +12,48 @@ import * as schema from "./profile.schema"
  * @openapi
  * components:
  *   schemas:
+ *     ApiResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         data:
+ *           type: object
+ *     ApiError:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: false
+ *         error:
+ *           type: object
+ *           properties:
+ *             message:
+ *               type: string
+ *             code:
+ *               type: string
+ *     PaginatedResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         data:
+ *           type: array
+ *           items:
+ *             type: object
+ *         meta:
+ *           type: object
+ *           properties:
+ *             page:
+ *               type: integer
+ *             limit:
+ *               type: integer
+ *             total:
+ *               type: integer
+ *             totalPages:
+ *               type: integer
  *     CreateProfile:
  *       type: object
  *       required:
@@ -286,11 +328,32 @@ const getOwner = async (req: any) => (await profileService.getProfileById(+req.p
  *     tags:
  *       - Profile
  *     summary: Get current user profile
+ *     description: Retrieve the detailed profile information for the currently authenticated user.
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved current user profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/CreateProfile'
+ *       401:
+ *         description: Unauthorized - Token missing or invalid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiError'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiError'
  */
 router.get("/me", controller.getMyProfile)
 
@@ -301,6 +364,7 @@ router.get("/me", controller.getMyProfile)
  *     tags:
  *       - Profile
  *     summary: Search profiles
+ *     description: Search for staff profiles based on a query string. Requires PROFILE.READ permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -308,9 +372,50 @@ router.get("/me", controller.getMyProfile)
  *         name: q
  *         schema:
  *           type: string
+ *         description: Search query (name, email, or staff ID)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of records per page
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved search results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/CreateProfile'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiError'
+ *       403:
+ *         description: Forbidden - Missing required permission
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiError'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiError'
  */
 router.get("/search", requirePermission(PERM.PROFILE.READ), controller.searchProfiles)
 
@@ -321,11 +426,39 @@ router.get("/search", requirePermission(PERM.PROFILE.READ), controller.searchPro
  *     tags:
  *       - Profile
  *     summary: Get all profiles
+ *     description: Retrieve a paginated list of all staff profiles. Requires PROFILE.READ permission.
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved all profiles
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/CreateProfile'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal server error
  */
 router.get("/", requirePermission(PERM.PROFILE.READ), controller.getProfiles)
 
@@ -336,6 +469,7 @@ router.get("/", requirePermission(PERM.PROFILE.READ), controller.getProfiles)
  *     tags:
  *       - Profile
  *     summary: Get profile by ID
+ *     description: Retrieve detailed information of a specific profile by its ID. Users can access their own profile or others if they have PROFILE.READ permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -344,9 +478,26 @@ router.get("/", requirePermission(PERM.PROFILE.READ), controller.getProfiles)
  *         required: true
  *         schema:
  *           type: integer
+ *         description: The internal database ID of the profile
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/CreateProfile'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
     "/:id",
@@ -361,6 +512,7 @@ router.get(
  *     tags:
  *       - Profile
  *     summary: Create new profile
+ *     description: Create a new staff profile. Requires PROFILE.WRITE permission.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -371,7 +523,23 @@ router.get(
  *             $ref: '#/components/schemas/CreateProfile'
  *     responses:
  *       201:
- *         description: Created
+ *         description: Successfully created new profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/CreateProfile'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal server error
  */
 router.post(
     "/",
@@ -387,6 +555,7 @@ router.post(
  *     tags:
  *       - Profile
  *     summary: Update profile
+ *     description: Update an existing staff profile. Users can update their own profile or others if they have PROFILE.WRITE permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -395,6 +564,7 @@ router.post(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     requestBody:
  *       required: true
  *       content:
@@ -403,7 +573,25 @@ router.post(
  *             $ref: '#/components/schemas/UpdateProfile'
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully updated profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/CreateProfile'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.put(
     "/:id",
@@ -419,6 +607,7 @@ router.put(
  *     tags:
  *       - Profile
  *     summary: Export profile to 2C/TCTW curriculum vitae (Word format)
+ *     description: Generates a Word document for the specified profile following the official 2C/TCTW template.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -427,16 +616,30 @@ router.put(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     responses:
  *       200:
- *         description: Success with download URL
+ *         description: Successfully generated export document
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 downloadUrl:
- *                   type: string
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         downloadUrl:
+ *                           type: string
+ *                           description: URL to download the generated file
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
     "/:id/export",
@@ -451,6 +654,7 @@ router.get(
  *     tags:
  *       - Profile
  *     summary: Delete profile
+ *     description: Remove a profile from the system. Requires PROFILE.DELETE permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -459,9 +663,22 @@ router.get(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully deleted profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.delete(
     "/:id",
@@ -476,6 +693,7 @@ router.delete(
  *     tags:
  *       - Profile
  *     summary: Approve profile
+ *     description: Approve a pending profile or changes. Requires PROFILE.APPROVE permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -486,7 +704,19 @@ router.delete(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully approved profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.post(
     "/:id/approve",
@@ -501,6 +731,7 @@ router.post(
  *     tags:
  *       - Profile
  *     summary: Reject profile
+ *     description: Reject a pending profile or changes. Requires PROFILE.REJECT permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -511,7 +742,19 @@ router.post(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully rejected profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.post(
     "/:id/reject",
@@ -528,6 +771,7 @@ import * as subSchema from "./profileSub.schema"
  *     tags:
  *       - Profile
  *     summary: Change employment status
+ *     description: Update the employment status (e.g., active, retired) of a staff member. Requires PROFILE.STATUS permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -536,6 +780,7 @@ import * as subSchema from "./profileSub.schema"
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     requestBody:
  *       required: true
  *       content:
@@ -547,9 +792,24 @@ import * as subSchema from "./profileSub.schema"
  *             properties:
  *               status:
  *                 type: string
+ *                 description: New employment status
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully changed status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.patch(
     "/:id/status",
@@ -565,11 +825,38 @@ router.patch(
  *     tags:
  *       - Profile Workflow
  *     summary: Get pending profile tasks for current user
+ *     description: Retrieve a list of all pending workflow tasks (e.g., profile approvals) assigned to the currently authenticated user.
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved pending tasks
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           instanceId:
+ *                             type: integer
+ *                           profileId:
+ *                             type: integer
+ *                           staffName:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
  */
 router.get("/tasks", controller.getMyTasks)
 
@@ -580,6 +867,7 @@ router.get("/tasks", controller.getMyTasks)
  *     tags:
  *       - Profile Workflow
  *     summary: Process a workflow task (approve/reject)
+ *     description: Submit a decision (approve, reject, etc.) for a specific workflow task instance.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -588,6 +876,7 @@ router.get("/tasks", controller.getMyTasks)
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Workflow task instance ID
  *     requestBody:
  *       required: true
  *       content:
@@ -600,11 +889,27 @@ router.get("/tasks", controller.getMyTasks)
  *               action:
  *                 type: string
  *                 enum: [approve, reject, request_revision, forward]
+ *                 description: Action to perform on the task
  *               comment:
  *                 type: string
+ *                 description: Optional comment explaining the decision
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully processed task
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       400:
+ *         description: Invalid action or input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Task instance not found
+ *       500:
+ *         description: Internal server error
  */
 router.post("/tasks/:instanceId", controller.processTask)
 
@@ -617,6 +922,7 @@ router.post("/tasks/:instanceId", controller.processTask)
  *     tags:
  *       - Profile Education
  *     summary: Get education history
+ *     description: Retrieve all education records for a specific profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -625,9 +931,28 @@ router.post("/tasks/:instanceId", controller.processTask)
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved education history
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Education'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
     "/:id/education",
@@ -642,6 +967,7 @@ router.get(
  *     tags:
  *       - Profile Education
  *     summary: Add education record
+ *     description: Add a new education entry (degree, certificate, etc.) to a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -650,6 +976,7 @@ router.get(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     requestBody:
  *       required: true
  *       content:
@@ -658,7 +985,23 @@ router.get(
  *             $ref: '#/components/schemas/Education'
  *     responses:
  *       201:
- *         description: Created
+ *         description: Successfully added education record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Education'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal server error
  */
 router.post(
     "/:id/education",
@@ -674,6 +1017,7 @@ router.post(
  *     tags:
  *       - Profile Education
  *     summary: Update education record
+ *     description: Update an existing education entry.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -682,11 +1026,13 @@ router.post(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *       - in: path
  *         name: subId
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Education record ID
  *     requestBody:
  *       required: true
  *       content:
@@ -695,7 +1041,25 @@ router.post(
  *             $ref: '#/components/schemas/Education'
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully updated education record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Education'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.put(
     "/:id/education/:subId",
@@ -711,6 +1075,7 @@ router.put(
  *     tags:
  *       - Profile Education
  *     summary: Delete education record
+ *     description: Remove an education entry from a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -726,7 +1091,19 @@ router.put(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully deleted education record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.delete(
     "/:id/education/:subId",
@@ -742,6 +1119,7 @@ router.delete(
  *     tags:
  *       - Profile Family
  *     summary: Get family relations
+ *     description: Retrieve all family member records for a specific profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -750,9 +1128,28 @@ router.delete(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved family relations
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Family'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
     "/:id/family",
@@ -767,6 +1164,7 @@ router.get(
  *     tags:
  *       - Profile Family
  *     summary: Add family record
+ *     description: Add a new family member record to a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -775,6 +1173,7 @@ router.get(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     requestBody:
  *       required: true
  *       content:
@@ -783,7 +1182,23 @@ router.get(
  *             $ref: '#/components/schemas/Family'
  *     responses:
  *       201:
- *         description: Created
+ *         description: Successfully added family record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Family'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal server error
  */
 router.post(
     "/:id/family",
@@ -799,6 +1214,7 @@ router.post(
  *     tags:
  *       - Profile Family
  *     summary: Update family record
+ *     description: Update an existing family member record.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -807,11 +1223,13 @@ router.post(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *       - in: path
  *         name: subId
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Family record ID
  *     requestBody:
  *       required: true
  *       content:
@@ -820,7 +1238,25 @@ router.post(
  *             $ref: '#/components/schemas/Family'
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully updated family record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Family'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.put(
     "/:id/family/:subId",
@@ -836,6 +1272,7 @@ router.put(
  *     tags:
  *       - Profile Family
  *     summary: Delete family record
+ *     description: Remove a family member record from a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -851,7 +1288,19 @@ router.put(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully deleted family record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.delete(
     "/:id/family/:subId",
@@ -867,6 +1316,7 @@ router.delete(
  *     tags:
  *       - Profile Work History
  *     summary: Get work history
+ *     description: Retrieve the complete work history for a specific profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -875,9 +1325,28 @@ router.delete(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved work history
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/WorkHistory'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
     "/:id/work-history",
@@ -892,6 +1361,7 @@ router.get(
  *     tags:
  *       - Profile Work History
  *     summary: Add work history record
+ *     description: Add a new work history entry to a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -900,6 +1370,7 @@ router.get(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     requestBody:
  *       required: true
  *       content:
@@ -908,7 +1379,23 @@ router.get(
  *             $ref: '#/components/schemas/WorkHistory'
  *     responses:
  *       201:
- *         description: Created
+ *         description: Successfully added work history record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/WorkHistory'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal server error
  */
 router.post(
     "/:id/work-history",
@@ -924,6 +1411,7 @@ router.post(
  *     tags:
  *       - Profile Work History
  *     summary: Update work history record
+ *     description: Update an existing work history entry.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -932,11 +1420,13 @@ router.post(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *       - in: path
  *         name: subId
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Work history record ID
  *     requestBody:
  *       required: true
  *       content:
@@ -945,7 +1435,25 @@ router.post(
  *             $ref: '#/components/schemas/WorkHistory'
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully updated work history record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/WorkHistory'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.put(
     "/:id/work-history/:subId",
@@ -961,6 +1469,7 @@ router.put(
  *     tags:
  *       - Profile Work History
  *     summary: Delete work history record
+ *     description: Remove a work history entry from a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -976,7 +1485,19 @@ router.put(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully deleted work history record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.delete(
     "/:id/work-history/:subId",
@@ -992,6 +1513,7 @@ router.delete(
  *     tags:
  *       - Profile Extra
  *     summary: Get extra info
+ *     description: Retrieve supplementary information for a specific profile, such as arrest history, foreign relations, and property ownership.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1000,9 +1522,26 @@ router.delete(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved extra info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/ExtraInfo'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
     "/:id/extra",
@@ -1017,6 +1556,7 @@ router.get(
  *     tags:
  *       - Profile Extra
  *     summary: Update extra info
+ *     description: Update the supplementary information for a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1025,6 +1565,7 @@ router.get(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     requestBody:
  *       required: true
  *       content:
@@ -1033,7 +1574,25 @@ router.get(
  *             $ref: '#/components/schemas/ExtraInfo'
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully updated extra info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/ExtraInfo'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.put(
     "/:id/extra",
@@ -1050,6 +1609,7 @@ router.put(
  *     tags:
  *       - Profile Health
  *     summary: Get health records
+ *     description: Retrieve health-related information (e.g., status, height, weight, blood type) for a specific profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1058,9 +1618,26 @@ router.put(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved health records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/HealthRecord'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
     "/:id/health",
@@ -1075,6 +1652,7 @@ router.get(
  *     tags:
  *       - Profile Health
  *     summary: Update health records
+ *     description: Update the health-related information for a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1083,6 +1661,7 @@ router.get(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     requestBody:
  *       required: true
  *       content:
@@ -1091,7 +1670,25 @@ router.get(
  *             $ref: '#/components/schemas/HealthRecord'
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully updated health records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/HealthRecord'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.put(
     "/:id/health",
@@ -1108,6 +1705,7 @@ router.put(
  *     tags:
  *       - Profile Positions
  *     summary: Get position history
+ *     description: Retrieve the history of all positions and roles held by a staff member.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1116,9 +1714,28 @@ router.put(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved position history
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Position'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
     "/:id/positions",
@@ -1133,6 +1750,7 @@ router.get(
  *     tags:
  *       - Profile Positions
  *     summary: Add position record
+ *     description: Add a new position or role record to a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1141,6 +1759,7 @@ router.get(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     requestBody:
  *       required: true
  *       content:
@@ -1149,7 +1768,23 @@ router.get(
  *             $ref: '#/components/schemas/Position'
  *     responses:
  *       201:
- *         description: Created
+ *         description: Successfully added position record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Position'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal server error
  */
 router.post(
     "/:id/positions",
@@ -1165,6 +1800,7 @@ router.post(
  *     tags:
  *       - Profile Positions
  *     summary: Update position record
+ *     description: Update an existing position or role record.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1173,11 +1809,13 @@ router.post(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *       - in: path
  *         name: subId
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Position record ID
  *     requestBody:
  *       required: true
  *       content:
@@ -1186,7 +1824,25 @@ router.post(
  *             $ref: '#/components/schemas/Position'
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully updated position record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Position'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.put(
     "/:id/positions/:subId",
@@ -1202,6 +1858,7 @@ router.put(
  *     tags:
  *       - Profile Positions
  *     summary: Delete position record
+ *     description: Remove a position record from a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1217,7 +1874,19 @@ router.put(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully deleted position record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.delete(
     "/:id/positions/:subId",
@@ -1233,6 +1902,7 @@ router.delete(
  *     tags:
  *       - Profile Research Works
  *     summary: Get research works
+ *     description: Retrieve all research works, publications, and projects for a specific profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1241,9 +1911,28 @@ router.delete(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved research works
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/ResearchWork'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
     "/:id/research-works",
@@ -1258,6 +1947,7 @@ router.get(
  *     tags:
  *       - Profile Research Works
  *     summary: Add research work
+ *     description: Add a new research work or publication record to a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1266,6 +1956,7 @@ router.get(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *     requestBody:
  *       required: true
  *       content:
@@ -1274,7 +1965,23 @@ router.get(
  *             $ref: '#/components/schemas/ResearchWork'
  *     responses:
  *       201:
- *         description: Created
+ *         description: Successfully added research work
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/ResearchWork'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Internal server error
  */
 router.post(
     "/:id/research-works",
@@ -1290,6 +1997,7 @@ router.post(
  *     tags:
  *       - Profile Research Works
  *     summary: Update research work
+ *     description: Update an existing research work or publication record.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1298,11 +2006,13 @@ router.post(
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Profile ID
  *       - in: path
  *         name: subId
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Research work record ID
  *     requestBody:
  *       required: true
  *       content:
@@ -1311,7 +2021,25 @@ router.post(
  *             $ref: '#/components/schemas/ResearchWork'
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully updated research work
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/ResearchWork'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.put(
     "/:id/research-works/:subId",
@@ -1327,6 +2055,7 @@ router.put(
  *     tags:
  *       - Profile Research Works
  *     summary: Delete research work
+ *     description: Remove a research work record from a profile.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1342,7 +2071,19 @@ router.put(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully deleted research work
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Record not found
+ *       500:
+ *         description: Internal server error
  */
 router.delete(
     "/:id/research-works/:subId",

@@ -6,6 +6,78 @@ import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./admin.schema"
 
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     User:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         username:
+ *           type: string
+ *         email:
+ *           type: string
+ *         fullName:
+ *           type: string
+ *         unitId:
+ *           type: integer
+ *         isActive:
+ *           type: boolean
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         lastLoginAt:
+ *           type: string
+ *           format: date-time
+ *     Role:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         code:
+ *           type: string
+ *         name:
+ *           type: string
+ *         description:
+ *           type: string
+ *     Unit:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         code:
+ *           type: string
+ *         name:
+ *           type: string
+ *         unit_type:
+ *           type: string
+ *           enum: [school, faculty, department, lab]
+ *         parent_id:
+ *           type: integer
+ *     AuditLog:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         userId:
+ *           type: integer
+ *         eventType:
+ *           type: string
+ *         resourceType:
+ *           type: string
+ *         resourceId:
+ *           type: string
+ *         eventTime:
+ *           type: string
+ *           format: date-time
+ *         clientIp:
+ *           type: string
+ *         details:
+ *           type: object
+ */
+
 const router = Router()
 
 router.use(authenticate)
@@ -17,6 +89,7 @@ router.use(authenticate)
  *     tags:
  *       - Admin
  *     summary: Get list of users
+ *     description: Retrieve a paginated list of all users in the system. Requires USER_MANAGE permission.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -24,13 +97,34 @@ router.use(authenticate)
  *         name: page
  *         schema:
  *           type: integer
+ *           default: 1
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved list of users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/User'
  */
 router.get("/users", requirePermission(PERM.SYSTEM.USER_MANAGE), controller.getUsers)
 
@@ -41,6 +135,7 @@ router.get("/users", requirePermission(PERM.SYSTEM.USER_MANAGE), controller.getU
  *     tags:
  *       - Admin
  *     summary: Create new user
+ *     description: Create a new system user with specified roles and unit assignment.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -53,6 +148,7 @@ router.get("/users", requirePermission(PERM.SYSTEM.USER_MANAGE), controller.getU
  *               - username
  *               - email
  *               - fullName
+ *               - password
  *             properties:
  *               username:
  *                 type: string
@@ -66,7 +162,15 @@ router.get("/users", requirePermission(PERM.SYSTEM.USER_MANAGE), controller.getU
  *                 type: integer
  *     responses:
  *       201:
- *         description: Created
+ *         description: User created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/User'
  */
 router.post(
     "/users",
@@ -82,6 +186,7 @@ router.post(
  *     tags:
  *       - Admin
  *     summary: Update user
+ *     description: Update existing user information such as full name or active status.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -99,11 +204,21 @@ router.post(
  *             properties:
  *               fullName:
  *                 type: string
+ *               unitId:
+ *                 type: integer
  *               isActive:
  *                 type: boolean
  *     responses:
  *       200:
- *         description: Success
+ *         description: User updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/User'
  */
 router.put(
     "/users/:id",
@@ -119,6 +234,7 @@ router.put(
  *     tags:
  *       - Admin
  *     summary: Delete user
+ *     description: Soft delete a user from the system.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -129,7 +245,11 @@ router.put(
  *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: User deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
  */
 router.delete("/users/:id", requirePermission(PERM.SYSTEM.USER_MANAGE), controller.deleteUser)
 
@@ -140,6 +260,7 @@ router.delete("/users/:id", requirePermission(PERM.SYSTEM.USER_MANAGE), controll
  *     tags:
  *       - Admin
  *     summary: Assign role to user
+ *     description: Grant a specific role to a user with optional scope and expiration date.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -162,6 +283,7 @@ router.delete("/users/:id", requirePermission(PERM.SYSTEM.USER_MANAGE), controll
  *               scopeType:
  *                 type: string
  *                 enum: [school, faculty, department, self]
+ *                 default: school
  *               scopeUnitId:
  *                 type: integer
  *               expiresAt:
@@ -169,7 +291,11 @@ router.delete("/users/:id", requirePermission(PERM.SYSTEM.USER_MANAGE), controll
  *                 format: date-time
  *     responses:
  *       200:
- *         description: Success
+ *         description: Role assigned successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
  */
 router.post(
     "/users/:id/roles",
@@ -185,18 +311,27 @@ router.post(
  *     tags:
  *       - Admin
  *     summary: Revoke role from user
+ *     description: Remove a previously assigned role from a user.
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
+ *         schema:
+ *           type: integer
  *       - in: path
  *         name: roleId
  *         required: true
+ *         schema:
+ *           type: integer
  *     responses:
  *       200:
- *         description: Success
+ *         description: Role revoked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
  */
 router.delete(
     "/users/:id/roles/:roleId",
@@ -211,11 +346,22 @@ router.delete(
  *     tags:
  *       - Admin
  *     summary: Get all roles
+ *     description: Retrieve a list of all available roles in the system.
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved roles
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Role'
  */
 router.get("/roles", requirePermission(PERM.SYSTEM.ROLE_MANAGE), controller.getRoles)
 
@@ -226,6 +372,7 @@ router.get("/roles", requirePermission(PERM.SYSTEM.ROLE_MANAGE), controller.getR
  *     tags:
  *       - Admin
  *     summary: Create new role
+ *     description: Define a new role with a unique code and name.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -246,7 +393,15 @@ router.get("/roles", requirePermission(PERM.SYSTEM.ROLE_MANAGE), controller.getR
  *                 type: string
  *     responses:
  *       201:
- *         description: Created
+ *         description: Role created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Role'
  */
 router.post(
     "/roles",
@@ -262,11 +417,22 @@ router.post(
  *     tags:
  *       - Admin
  *     summary: Get all units
+ *     description: Retrieve a list of all organizational units (faculties, departments, etc.).
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved units
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Unit'
  */
 router.get("/units", requirePermission(PERM.SYSTEM.CONFIG_READ), controller.getUnits)
 
@@ -277,6 +443,7 @@ router.get("/units", requirePermission(PERM.SYSTEM.CONFIG_READ), controller.getU
  *     tags:
  *       - Admin
  *     summary: Create new unit
+ *     description: Add a new organizational unit to the system hierarchy.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -301,7 +468,15 @@ router.get("/units", requirePermission(PERM.SYSTEM.CONFIG_READ), controller.getU
  *                 type: integer
  *     responses:
  *       201:
- *         description: Created
+ *         description: Unit created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Unit'
  */
 router.post(
     "/units",
@@ -317,6 +492,7 @@ router.post(
  *     tags:
  *       - Admin
  *     summary: Get audit logs
+ *     description: Retrieve a paginated list of system audit logs for security and tracking.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -324,13 +500,25 @@ router.post(
  *         name: page
  *         schema:
  *           type: integer
+ *           default: 1
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
+ *           default: 50
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully retrieved audit logs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/AuditLog'
  */
 router.get("/audit-logs", requirePermission(PERM.SYSTEM.AUDIT_READ), controller.getAuditLogs)
 
