@@ -10,12 +10,14 @@ export const PERM = {
     },
     RECRUITMENT: {
         READ: 'hrm.recruitment.read',
+        SELF_READ: 'hrm.recruitment.self_read',
         WRITE: 'hrm.recruitment.write',
         APPROVE: 'hrm.recruitment.approve',
         EXPORT: 'hrm.recruitment.export'
     },
     CONTRACT: {
         READ: 'hrm.contract.read',
+        SELF_READ: 'hrm.contract.self_read',
         WRITE: 'hrm.contract.write',
         APPROVE: 'hrm.contract.approve',
         TERMINATE: 'hrm.contract.terminate',
@@ -65,6 +67,16 @@ export const PERM = {
         SALARY: 'hrm.stats.salary.read',
         WORKLOAD: 'hrm.stats.workload.read',
         REWARD: 'hrm.stats.reward.read'
+    },
+    WORKFLOW: {
+        READ: 'hrm.workflow.read',
+        WRITE: 'hrm.workflow.write',
+        APPROVE: 'hrm.workflow.approve',
+        BALLOT: 'hrm.workflow.ballot',
+        DISMISS: 'hrm.workflow.dismiss',
+        EXTEND: 'hrm.workflow.extend',
+        EXPORT: 'hrm.workflow.export',
+        ALERT_READ: 'hrm.workflow.alert_read'
     },
     SYSTEM: {
         ROLE_GRANT: 'system.auth.role.grant',

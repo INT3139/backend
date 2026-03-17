@@ -319,6 +319,8 @@ import * as schema from "./profile.schema"
 
 const router = Router()
 
+router.use(authenticate)
+
 const getOwner = async (req: any) => (await profileService.getProfileById(+req.params.id))?.userId ?? 0
 
 /**
@@ -341,7 +343,19 @@ const getOwner = async (req: any) => (await profileService.getProfileById(+req.p
  *                 - $ref: '#/components/schemas/ApiResponse'
  *                 - properties:
  *                     data:
- *                       $ref: '#/components/schemas/CreateProfile'
+ *                       allOf:
+ *                         - $ref: '#/components/schemas/CreateProfile'
+ *                         - type: object
+ *                           properties:
+ *                             rewards:
+ *                               type: object
+ *                               nullable: true
+ *                             salary:
+ *                               type: object
+ *                               nullable: true
+ *                             recruitment:
+ *                               type: object
+ *                               nullable: true
  *       401:
  *         description: Unauthorized - Token missing or invalid
  *         content:

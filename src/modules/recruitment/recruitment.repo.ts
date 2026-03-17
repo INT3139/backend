@@ -177,6 +177,31 @@ export class RecruitmentRepo {
             .where(eq(recruitmentCandidates.id, id))
         return true
     }
+
+    // --- RECRUITMENT INFO & CONTRACTS ---
+
+    /**
+     * Get recruitment info by profile ID
+     */
+    async findInfoByProfileId(profileId: ID) {
+        const { recruitmentInfo } = await import("@/db/schema/recruitment")
+        const result = await db.select()
+            .from(recruitmentInfo)
+            .where(eq(recruitmentInfo.profileId, profileId))
+            .limit(1)
+        return result[0] ?? null
+    }
+
+    /**
+     * Get recruitment contracts by profile ID
+     */
+    async findContractsByProfileId(profileId: ID) {
+        const { recruitmentContracts } = await import("@/db/schema/recruitment")
+        return await db.select()
+            .from(recruitmentContracts)
+            .where(eq(recruitmentContracts.profileId, profileId))
+            .orderBy(desc(recruitmentContracts.startDate))
+    }
 }
 
 export const recruitmentRepo = new RecruitmentRepo()

@@ -8,6 +8,11 @@ import { asyncHandler } from "@/core/middlewares/errorHandler"
 import { exportService } from "@/services/export.service"
 import { storageService } from "@/services/storage.service"
 import { workflowEngine } from "@/core/workflow/engine"
+import { rewardService } from "../reward/reward.service"
+import { salaryService } from "../salary/salary.service"
+import { recruitmentService } from "../recruitment/recruitment.service"
+import { permissionService } from "@/core/permissions/permission.service"
+import { PERM } from "@/constants/permission"
 
 interface AuthRequest extends Request {
     user?: AuthUser
@@ -21,8 +26,30 @@ export const getMyProfile = asyncHandler(async (
     req: AuthRequest,
     res: Response
 ): Promise<Response> => {
-    const profile = await profileService.getProfileByUserId(req.user!.id)
-    await logAction(req.userId!, 'read', 'profile_self', profile?.id.toString())
+    const userId = req.userId!
+    const profile = await profileService.getProfileByUserId(userId)
+    
+    if (profile) {
+        const [hasRewardPerm, hasSalaryPerm, hasRecruitmentPerm] = await Promise.all([
+            permissionService.hasPermission(userId, PERM.REWARD.SELF_READ),
+            permissionService.hasPermission(userId, PERM.SALARY.SELF_READ),
+            permissionService.hasPermission(userId, PERM.RECRUITMENT.SELF_READ)
+        ])
+
+        const extraData = await Promise.all([
+            hasRewardPerm ? rewardService.getRewardsByUserId(userId) : Promise.resolve(null),
+            hasSalaryPerm ? salaryService.getSalaryByUserId(userId) : Promise.resolve(null),
+            hasRecruitmentPerm ? recruitmentService.getRecruitmentData(profile.id) : Promise.resolve(null)
+        ])
+
+        Object.assign(profile, {
+            rewards: extraData[0],
+            salary: extraData[1],
+            recruitment: extraData[2]
+        })
+    }
+
+    await logAction(userId, 'read', 'profile_self', profile?.id.toString())
 
     return success(res, profile)
 })

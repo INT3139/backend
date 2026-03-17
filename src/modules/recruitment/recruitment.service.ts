@@ -221,6 +221,16 @@ export class RecruitmentService {
 
         return await recruitmentRepo.deleteCandidate(id)
     }
+    /**
+     * Get recruitment info and contracts for a profile
+     */
+    async getRecruitmentData(profileId: ID) {
+        const [info, contracts] = await Promise.all([
+            recruitmentRepo.findInfoByProfileId(profileId),
+            recruitmentRepo.findContractsByProfileId(profileId)
+        ])
+        return { info, contracts }
+    }
 }
 
 export const recruitmentService = new RecruitmentService()
