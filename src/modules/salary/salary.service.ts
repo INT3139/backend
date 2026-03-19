@@ -198,29 +198,19 @@ export class SalaryService {
         comment?: string
     ): Promise<any> {
         const inst = await workflowEngine.advance(instanceId, actorId, action, comment)
-
-        if (inst.status === 'approved') {
-            return await this.applyChangesFromWorkflow(instanceId, actorId)
-        }
-
-        if (inst.status === 'rejected') {
-            await this.handleRejection(instanceId, actorId)
-            return { message: 'Đề xuất nâng lương đã bị từ chối.' }
-        }
-
         return { message: 'Bước quy trình đã được thực hiện thành công.', status: inst.status }
     }
 
     /**
      * Áp dụng thay đổi lương sau khi workflow được phê duyệt
      */
-    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID): Promise<any> {
+    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID, tx?: any): Promise<any> {
         const inst = await workflowEngine.getStatus(workflowId)
         if (inst.status !== 'approved') {
             throw new ForbiddenError('Workflow must be approved first')
         }
 
-        const proposal = await salaryRepo.findProposalById(inst.resourceId)
+        const proposal = await salaryRepo.findProposalById(inst.resourceId, tx)
         if (!proposal) throw new NotFoundError('Proposal not found')
 
         // Apply salary changes using the proposed values and date from the proposal
@@ -229,7 +219,7 @@ export class SalaryService {
             salaryCoefficient: proposal.proposedCoefficient,
             nextGradeDate: proposal.proposedNextDate,
             effectiveDate: proposal.proposedNextDate
-        })
+        }, tx)
 
         // Log to salary_logs
         await salaryRepo.createLog({
@@ -243,12 +233,13 @@ export class SalaryService {
             nextGradeDate: updatedSalary.nextGradeDate,
             decisionNumber: updatedSalary.decisionNumber,
             occupationGroup: updatedSalary.occupationGroup
-        })
+        }, tx)
 
-        await salaryRepo.updateProposalStatus(proposal.id, 'approved')
+        await salaryRepo.updateProposalStatus(proposal.id, 'approved', tx)
 
         // Send email notification
-        const userRows = await db.select({ email: users.email, fullName: users.fullName })
+        const dbClient = tx || db
+        const userRows = await dbClient.select({ email: users.email, fullName: users.fullName })
             .from(users)
             .innerJoin(profileStaff, eq(profileStaff.userId, users.id))
             .where(eq(profileStaff.id, proposal.profileId))
@@ -268,9 +259,9 @@ export class SalaryService {
     /**
      * Xử lý khi workflow bị từ chối
      */
-    async handleRejection(workflowId: ID, _rejectedBy: ID): Promise<void> {
+    async handleRejection(workflowId: ID, _rejectedBy: ID, tx?: any): Promise<void> {
         const inst = await workflowEngine.getStatus(workflowId)
-        await salaryRepo.updateProposalStatus(inst.resourceId, 'rejected')
+        await salaryRepo.updateProposalStatus(inst.resourceId, 'rejected', tx)
     }
 }
 
@@ -279,6 +270,6 @@ export const salaryService = new SalaryService()
 // Register workflow handlers for the dispatcher
 registerWorkflowHandler(
     'salary_upgrade',
-    (inst, actorId) => salaryService.applyChangesFromWorkflow(inst.id, actorId),
-    (inst, actorId) => salaryService.handleRejection(inst.id, actorId)
+    (inst, actorId, tx) => salaryService.applyChangesFromWorkflow(inst.id, actorId, tx),
+    (inst, actorId, tx) => salaryService.handleRejection(inst.id, actorId, tx)
 )

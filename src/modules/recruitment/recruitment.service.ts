@@ -134,38 +134,28 @@ export class RecruitmentService {
         comment?: string
     ): Promise<any> {
         const inst = await workflowEngine.advance(instanceId, actorId, action, comment)
-
-        if (inst.status === 'approved') {
-            return await this.applyChangesFromWorkflow(instanceId, actorId)
-        }
-
-        if (inst.status === 'rejected') {
-            await this.handleRejection(instanceId, actorId)
-            return { message: 'Đề xuất tuyển dụng đã bị từ chối.' }
-        }
-
         return { message: 'Bước quy trình đã được thực hiện thành công.', status: inst.status }
     }
 
     /**
      * Áp dụng thay đổi sau khi workflow tuyển dụng được phê duyệt
      */
-    async applyChangesFromWorkflow(workflowId: ID, _approvedBy: ID): Promise<any> {
+    async applyChangesFromWorkflow(workflowId: ID, _approvedBy: ID, tx?: any): Promise<any> {
         const inst = await workflowEngine.getStatus(workflowId)
         if (inst.status !== 'approved') {
             throw new ForbiddenError('Workflow must be approved first')
         }
 
-        const updated = await recruitmentRepo.update(inst.resourceId, { status: 'approved' })
+        const updated = await recruitmentRepo.update(inst.resourceId, { status: 'approved' }, tx)
         return { message: 'Đề xuất tuyển dụng đã được phê duyệt.', proposal: updated }
     }
 
     /**
      * Xử lý khi workflow bị từ chối
      */
-    async handleRejection(workflowId: ID, _rejectedBy: ID): Promise<void> {
+    async handleRejection(workflowId: ID, _rejectedBy: ID, tx?: any): Promise<void> {
         const inst = await workflowEngine.getStatus(workflowId)
-        await recruitmentRepo.update(inst.resourceId, { status: 'rejected' })
+        await recruitmentRepo.update(inst.resourceId, { status: 'rejected' }, tx)
     }
 
     // --- CANDIDATE METHODS ---
@@ -310,6 +300,6 @@ export const recruitmentService = new RecruitmentService()
 // Register workflow handlers for the dispatcher
 registerWorkflowHandler(
     'recruitment_proposal',
-    (inst, actorId) => recruitmentService.applyChangesFromWorkflow(inst.id, actorId),
-    (inst, actorId) => recruitmentService.handleRejection(inst.id, actorId)
+    (inst, actorId, tx) => recruitmentService.applyChangesFromWorkflow(inst.id, actorId, tx),
+    (inst, actorId, tx) => recruitmentService.handleRejection(inst.id, actorId, tx)
 )

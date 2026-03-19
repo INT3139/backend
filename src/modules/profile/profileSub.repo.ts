@@ -5,15 +5,15 @@ import { eq, desc } from "drizzle-orm"
 
 export class ProfileSubRepo {
     // --- EDUCATION ---
-    async getEducation(profileId: ID) {
-        return await db.select()
+    async getEducation(profileId: ID, tx?: any) {
+        return await (tx || db).select()
             .from(profileEducationHistories)
             .where(eq(profileEducationHistories.profileId, profileId))
             .orderBy(desc(profileEducationHistories.fromDate))
     }
 
-    async createEducation(data: EducationHistoryInput) {
-        const res = await db.insert(profileEducationHistories)
+    async createEducation(data: EducationHistoryInput, tx?: any) {
+        const res = await (tx || db).insert(profileEducationHistories)
             .values({
                 profileId: data.profileId,
                 eduType: data.eduType as any,
@@ -33,9 +33,9 @@ export class ProfileSubRepo {
         return res[0]
     }
 
-    async updateEducation(id: ID, data: Partial<EducationHistoryInput>) {
+    async updateEducation(id: ID, data: Partial<EducationHistoryInput>, tx?: any) {
         const { profileId, ...updateData } = data
-        const res = await db.update(profileEducationHistories)
+        const res = await (tx || db).update(profileEducationHistories)
             .set({
                 ...updateData as any,
             })
@@ -44,20 +44,20 @@ export class ProfileSubRepo {
         return res[0]
     }
 
-    async deleteEducation(id: ID) {
-        await db.delete(profileEducationHistories)
+    async deleteEducation(id: ID, tx?: any) {
+        await (tx || db).delete(profileEducationHistories)
             .where(eq(profileEducationHistories.id, id))
     }
 
     // --- FAMILY ---
-    async getFamily(profileId: ID) {
-        return await db.select()
+    async getFamily(profileId: ID, tx?: any) {
+        return await (tx || db).select()
             .from(profileFamilyRelations)
             .where(eq(profileFamilyRelations.profileId, profileId))
     }
 
-    async createFamily(data: FamilyRelationInput) {
-        const res = await db.insert(profileFamilyRelations)
+    async createFamily(data: FamilyRelationInput, tx?: any) {
+        const res = await (tx || db).insert(profileFamilyRelations)
             .values({
                 profileId: data.profileId,
                 side: data.side,
@@ -71,9 +71,9 @@ export class ProfileSubRepo {
         return res[0]
     }
 
-    async updateFamily(id: ID, data: Partial<FamilyRelationInput>) {
+    async updateFamily(id: ID, data: Partial<FamilyRelationInput>, tx?: any) {
         const { profileId, ...updateData } = data
-        const res = await db.update(profileFamilyRelations)
+        const res = await (tx || db).update(profileFamilyRelations)
             .set({
                 ...updateData as any,
             })
@@ -82,21 +82,21 @@ export class ProfileSubRepo {
         return res[0]
     }
 
-    async deleteFamily(id: ID) {
-        await db.delete(profileFamilyRelations)
+    async deleteFamily(id: ID, tx?: any) {
+        await (tx || db).delete(profileFamilyRelations)
             .where(eq(profileFamilyRelations.id, id))
     }
 
     // --- WORK HISTORY ---
-    async getWorkHistory(profileId: ID) {
-        return await db.select()
+    async getWorkHistory(profileId: ID, tx?: any) {
+        return await (tx || db).select()
             .from(profileWorkHistories)
             .where(eq(profileWorkHistories.profileId, profileId))
             .orderBy(desc(profileWorkHistories.fromDate))
     }
 
-    async createWorkHistory(data: any) {
-        const res = await db.insert(profileWorkHistories)
+    async createWorkHistory(data: any, tx?: any) {
+        const res = await (tx || db).insert(profileWorkHistories)
             .values({
                 profileId: data.profileId,
                 historyType: data.historyType,
@@ -111,9 +111,9 @@ export class ProfileSubRepo {
         return res[0]
     }
 
-    async updateWorkHistory(id: ID, data: any) {
+    async updateWorkHistory(id: ID, data: any, tx?: any) {
         const { profileId, ...updateData } = data
-        const res = await db.update(profileWorkHistories)
+        const res = await (tx || db).update(profileWorkHistories)
             .set({
                 ...updateData,
             })
@@ -122,21 +122,21 @@ export class ProfileSubRepo {
         return res[0]
     }
 
-    async deleteWorkHistory(id: ID) {
-        await db.delete(profileWorkHistories)
+    async deleteWorkHistory(id: ID, tx?: any) {
+        await (tx || db).delete(profileWorkHistories)
             .where(eq(profileWorkHistories.id, id))
     }
 
     // --- EXTRA INFO ---
-    async getExtraInfo(profileId: ID) {
-        const res = await db.select()
+    async getExtraInfo(profileId: ID, tx?: any) {
+        const res = await (tx || db).select()
             .from(profileExtraInfo)
             .where(eq(profileExtraInfo.profileId, profileId))
             .limit(1)
         return res[0] ?? null
     }
 
-    async upsertExtraInfo(profileId: ID, data: any) {
+    async upsertExtraInfo(profileId: ID, data: any, tx?: any) {
         const values = {
             profileId: profileId,
             arrestHistory: data.arrestHistory,
@@ -155,7 +155,7 @@ export class ProfileSubRepo {
             updatedAt: new Date()
         }
 
-        const res = await db.insert(profileExtraInfo)
+        const res = await (tx || db).insert(profileExtraInfo)
             .values(values)
             .onConflictDoUpdate({
                 target: profileExtraInfo.profileId,
@@ -166,15 +166,15 @@ export class ProfileSubRepo {
     }
 
     // --- HEALTH RECORDS ---
-    async getHealthRecords(profileId: ID) {
-        const res = await db.select()
+    async getHealthRecords(profileId: ID, tx?: any) {
+        const res = await (tx || db).select()
             .from(profileHealthRecords)
             .where(eq(profileHealthRecords.profileId, profileId))
             .limit(1)
         return res[0] ?? null
     }
 
-    async upsertHealthRecords(profileId: ID, data: HealthRecordInput) {
+    async upsertHealthRecords(profileId: ID, data: HealthRecordInput, tx?: any) {
         const values = {
             profileId: profileId,
             healthStatus: data.healthStatus,
@@ -185,7 +185,7 @@ export class ProfileSubRepo {
             updatedAt: new Date()
         }
 
-        const res = await db.insert(profileHealthRecords)
+        const res = await (tx || db).insert(profileHealthRecords)
             .values(values as any)
             .onConflictDoUpdate({
                 target: profileHealthRecords.profileId,
@@ -196,15 +196,15 @@ export class ProfileSubRepo {
     }
 
     // --- POSITIONS ---
-    async getPositions(profileId: ID) {
-        return await db.select()
+    async getPositions(profileId: ID, tx?: any) {
+        return await (tx || db).select()
             .from(profilePositions)
             .where(eq(profilePositions.profileId, profileId))
             .orderBy(desc(profilePositions.startDate))
     }
 
-    async createPosition(data: any) {
-        const res = await db.insert(profilePositions)
+    async createPosition(data: any, tx?: any) {
+        const res = await (tx || db).insert(profilePositions)
             .values({
                 profileId: data.profileId,
                 unitId: data.unitId,
@@ -219,30 +219,30 @@ export class ProfileSubRepo {
         return res[0]
     }
 
-    async updatePosition(id: ID, data: any) {
+    async updatePosition(id: ID, data: any, tx?: any) {
         const { profileId, ...updateData } = data
-        const res = await db.update(profilePositions)
+        const res = await (tx || db).update(profilePositions)
             .set(updateData)
             .where(eq(profilePositions.id, id))
             .returning()
         return res[0]
     }
 
-    async deletePosition(id: ID) {
-        await db.delete(profilePositions)
+    async deletePosition(id: ID, tx?: any) {
+        await (tx || db).delete(profilePositions)
             .where(eq(profilePositions.id, id))
     }
 
     // --- RESEARCH WORKS ---
-    async getResearchWorks(profileId: ID) {
-        return await db.select()
+    async getResearchWorks(profileId: ID, tx?: any) {
+        return await (tx || db).select()
             .from(profileResearchWorks)
             .where(eq(profileResearchWorks.profileId, profileId))
             .orderBy(desc(profileResearchWorks.publishYear))
     }
 
-    async createResearchWork(data: any) {
-        const res = await db.insert(profileResearchWorks)
+    async createResearchWork(data: any, tx?: any) {
+        const res = await (tx || db).insert(profileResearchWorks)
             .values({
                 profileId: data.profileId,
                 workType: data.workType,
@@ -258,17 +258,17 @@ export class ProfileSubRepo {
         return res[0]
     }
 
-    async updateResearchWork(id: ID, data: any) {
+    async updateResearchWork(id: ID, data: any, tx?: any) {
         const { profileId, ...updateData } = data
-        const res = await db.update(profileResearchWorks)
+        const res = await (tx || db).update(profileResearchWorks)
             .set(updateData)
             .where(eq(profileResearchWorks.id, id))
             .returning()
         return res[0]
     }
 
-    async deleteResearchWork(id: ID) {
-        await db.delete(profileResearchWorks)
+    async deleteResearchWork(id: ID, tx?: any) {
+        await (tx || db).delete(profileResearchWorks)
             .where(eq(profileResearchWorks.id, id))
     }
 }

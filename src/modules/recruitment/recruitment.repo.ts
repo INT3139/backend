@@ -19,7 +19,8 @@ export class RecruitmentRepo {
      */
     async findMany(
         filter: RecruitmentProposalFilter,
-        pagination: PaginationQuery
+        pagination: PaginationQuery,
+        tx?: any
     ): Promise<PaginatedResult<RecruitmentProposalRow>> {
         const { page, limit, sort, order } = pagination
         const offset = (page - 1) * limit
@@ -43,7 +44,7 @@ export class RecruitmentRepo {
 
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-        const countRes = await db.select({ total: count() })
+        const countRes = await (tx || db).select({ total: count() })
             .from(recruitmentProposals)
             .where(whereClause)
         const total = Number(countRes[0].total)
@@ -56,7 +57,7 @@ export class RecruitmentRepo {
             }
         }
 
-        const rows = await db.select()
+        const rows = await (tx || db).select()
             .from(recruitmentProposals)
             .where(whereClause)
             .limit(limit)
@@ -75,8 +76,8 @@ export class RecruitmentRepo {
     /**
      * Find proposal by ID
      */
-    async findById(id: ID): Promise<RecruitmentProposalRow | null> {
-        const result = await db.select()
+    async findById(id: ID, tx?: any): Promise<RecruitmentProposalRow | null> {
+        const result = await (tx || db).select()
             .from(recruitmentProposals)
             .where(eq(recruitmentProposals.id, id))
             .limit(1)
@@ -86,8 +87,8 @@ export class RecruitmentRepo {
     /**
      * Create new proposal
      */
-    async create(data: any): Promise<RecruitmentProposalRow> {
-        const res = await db.insert(recruitmentProposals)
+    async create(data: any, tx?: any): Promise<RecruitmentProposalRow> {
+        const res = await (tx || db).insert(recruitmentProposals)
             .values(data)
             .returning()
         return res[0]
@@ -96,8 +97,8 @@ export class RecruitmentRepo {
     /**
      * Update proposal
      */
-    async update(id: ID, data: any): Promise<RecruitmentProposalRow> {
-        const res = await db.update(recruitmentProposals)
+    async update(id: ID, data: any, tx?: any): Promise<RecruitmentProposalRow> {
+        const res = await (tx || db).update(recruitmentProposals)
             .set(data)
             .where(eq(recruitmentProposals.id, id))
             .returning()
@@ -111,17 +112,18 @@ export class RecruitmentRepo {
      */
     async findCandidates(
         proposalId: ID,
-        pagination: PaginationQuery
+        pagination: PaginationQuery,
+        tx?: any
     ): Promise<PaginatedResult<CandidateRow>> {
         const { page, limit } = pagination
         const offset = (page - 1) * limit
 
-        const countRes = await db.select({ total: count() })
+        const countRes = await (tx || db).select({ total: count() })
             .from(recruitmentCandidates)
             .where(eq(recruitmentCandidates.proposalId, proposalId))
         const total = Number(countRes[0].total)
 
-        const rows = await db.select()
+        const rows = await (tx || db).select()
             .from(recruitmentCandidates)
             .where(eq(recruitmentCandidates.proposalId, proposalId))
             .orderBy(desc(recruitmentCandidates.createdAt))
@@ -140,8 +142,8 @@ export class RecruitmentRepo {
     /**
      * Find candidate by ID
      */
-    async findCandidateById(id: ID): Promise<CandidateRow | null> {
-        const result = await db.select()
+    async findCandidateById(id: ID, tx?: any): Promise<CandidateRow | null> {
+        const result = await (tx || db).select()
             .from(recruitmentCandidates)
             .where(eq(recruitmentCandidates.id, id))
             .limit(1)
@@ -151,8 +153,8 @@ export class RecruitmentRepo {
     /**
      * Create new candidate
      */
-    async createCandidate(data: any): Promise<CandidateRow> {
-        const res = await db.insert(recruitmentCandidates)
+    async createCandidate(data: any, tx?: any): Promise<CandidateRow> {
+        const res = await (tx || db).insert(recruitmentCandidates)
             .values(data)
             .returning()
         return res[0]
@@ -161,8 +163,8 @@ export class RecruitmentRepo {
     /**
      * Update candidate
      */
-    async updateCandidate(id: ID, data: any): Promise<CandidateRow> {
-        const res = await db.update(recruitmentCandidates)
+    async updateCandidate(id: ID, data: any, tx?: any): Promise<CandidateRow> {
+        const res = await (tx || db).update(recruitmentCandidates)
             .set(data)
             .where(eq(recruitmentCandidates.id, id))
             .returning()
@@ -172,8 +174,8 @@ export class RecruitmentRepo {
     /**
      * Delete candidate
      */
-    async deleteCandidate(id: ID): Promise<boolean> {
-        await db.delete(recruitmentCandidates)
+    async deleteCandidate(id: ID, tx?: any): Promise<boolean> {
+        await (tx || db).delete(recruitmentCandidates)
             .where(eq(recruitmentCandidates.id, id))
         return true
     }
@@ -183,9 +185,9 @@ export class RecruitmentRepo {
     /**
      * Get recruitment info by profile ID
      */
-    async findInfoByProfileId(profileId: ID) {
+    async findInfoByProfileId(profileId: ID, tx?: any) {
         const { recruitmentInfo } = await import("@/db/schema/recruitment")
-        const result = await db.select()
+        const result = await (tx || db).select()
             .from(recruitmentInfo)
             .where(eq(recruitmentInfo.profileId, profileId))
             .limit(1)
@@ -195,9 +197,9 @@ export class RecruitmentRepo {
     /**
      * Get recruitment contracts by profile ID
      */
-    async findContractsByProfileId(profileId: ID) {
+    async findContractsByProfileId(profileId: ID, tx?: any) {
         const { recruitmentContracts } = await import("@/db/schema/recruitment")
-        return await db.select()
+        return await (tx || db).select()
             .from(recruitmentContracts)
             .where(eq(recruitmentContracts.profileId, profileId))
             .orderBy(desc(recruitmentContracts.startDate))

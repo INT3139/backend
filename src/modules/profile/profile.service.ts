@@ -8,6 +8,9 @@ import { rSetJson, rGetJson, rDel } from "@/configs/redis"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { workflowEngine } from "@/core/workflow/engine"
 import { WF } from "@/constants/workflowCodes"
+import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
+import { updateProfileSchema } from "./profile.schema"
+import { educationSchema, familySchema, workHistorySchema, extraInfoSchema, healthSchema, positionSchema, researchWorkSchema } from "./profileSub.schema"
 
 export interface FullProfileRow extends ProfileRow {
     education?: any[]
@@ -236,7 +239,7 @@ export class ProfileService {
     /**
      * Xử lý khi Workflow bị từ chối
      */
-    async handleRejectionFromWorkflow(workflowId: ID, rejectedBy: ID): Promise<void> {
+    async handleRejectionFromWorkflow(workflowId: ID, rejectedBy: ID, tx?: any): Promise<void> {
         const inst = await workflowEngine.getStatus(workflowId)
         const profileId = inst.resourceId
         
@@ -245,29 +248,16 @@ export class ProfileService {
         await profileRepo.update(profileId, {
             profileStatus: 'approved',
             lastUpdatedBy: rejectedBy
-        })
+        }, tx)
 
-        await rDel(CacheKey.profileFull(profileId))
+        try { await rDel(CacheKey.profileFull(profileId)) } catch (e) { console.error('Redis cache error:', e) }
     }
 
     /**
-     * Hàm tổng hợp để xử lý một bước trong workflow và tự động apply thay đổi nếu là bước cuối
+     * Hàm tổng hợp để xử lý một bước trong workflow
      */
     async completeWorkflowTask(instanceId: ID, actorId: ID, action: 'approve' | 'reject' | 'request_revision' | 'forward', comment?: string): Promise<any> {
-        // 1. Tiến hành bước tiếp theo trong workflow engine
         const inst = await workflowEngine.advance(instanceId, actorId, action, comment)
-
-        // 2. Nếu workflow đã hoàn thành (approved), apply data từ metadata vào DB
-        if (inst.status === 'approved') {
-            return await this.applyChangesFromWorkflow(instanceId, actorId)
-        }
-
-        // 3. Nếu workflow bị từ chối (rejected), xử lý revert trạng thái
-        if (inst.status === 'rejected') {
-            await this.handleRejectionFromWorkflow(instanceId, actorId)
-            return { message: 'Yêu cầu đã bị từ chối và hồ sơ đã được trả về trạng thái cũ.' }
-        }
-
         return { message: 'Bước quy trình đã được thực hiện thành công.', status: inst.status }
     }
 
@@ -293,7 +283,7 @@ export class ProfileService {
         }
 
         await profileRepo.delete(id)
-        await rDel(CacheKey.profileFull(id))
+        try { await rDel(CacheKey.profileFull(id)) } catch (e) { console.error('Redis cache error:', e) }
     }
 
     /**
@@ -306,7 +296,7 @@ export class ProfileService {
     /**
      * Áp dụng thay đổi từ Workflow sau khi được duyệt
      */
-    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID): Promise<any> {
+    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID, tx?: any): Promise<any> {
         const inst = await workflowEngine.getStatus(workflowId)
         if (inst.status !== 'approved') {
             throw new ForbiddenError('Workflow must be approved first')
@@ -320,60 +310,68 @@ export class ProfileService {
         if (action === 'delete') {
             switch (type) {
                 case 'education':
-                    result = await profileSubRepo.deleteEducation(subId)
+                    result = await profileSubRepo.deleteEducation(subId, tx)
                     break
                 case 'family':
-                    result = await profileSubRepo.deleteFamily(subId)
+                    result = await profileSubRepo.deleteFamily(subId, tx)
                     break
                 case 'workHistory':
-                    result = await profileSubRepo.deleteWorkHistory(subId)
+                    result = await profileSubRepo.deleteWorkHistory(subId, tx)
                     break
                 case 'position':
-                    result = await profileSubRepo.deletePosition(subId)
+                    result = await profileSubRepo.deletePosition(subId, tx)
                     break
                 case 'researchWork':
-                    result = await profileSubRepo.deleteResearchWork(subId)
+                    result = await profileSubRepo.deleteResearchWork(subId, tx)
                     break
             }
         } else {
             switch (type) {
                 case 'main':
+                    const validData = updateProfileSchema.parse(data)
                     result = await profileRepo.update(profileId, {
-                        ...data,
+                        ...validData,
                         profileStatus: 'approved',
                         lastUpdatedBy: approvedBy
-                    })
+                    }, tx)
                     break
                 case 'education':
+                    const eduData = educationSchema.parse(data)
                     result = subId
-                        ? await profileSubRepo.updateEducation(subId, data)
-                        : await profileSubRepo.createEducation({ ...data, profileId })
+                        ? await profileSubRepo.updateEducation(subId, eduData, tx)
+                        : await profileSubRepo.createEducation({ ...eduData, profileId } as any, tx)
                     break
                 case 'family':
+                    const famData = familySchema.parse(data)
                     result = subId
-                        ? await profileSubRepo.updateFamily(subId, data)
-                        : await profileSubRepo.createFamily({ ...data, profileId })
+                        ? await profileSubRepo.updateFamily(subId, famData, tx)
+                        : await profileSubRepo.createFamily({ ...famData, profileId } as any, tx)
                     break
                 case 'workHistory':
+                    const whData = workHistorySchema.parse(data)
                     result = subId
-                        ? await profileSubRepo.updateWorkHistory(subId, data)
-                        : await profileSubRepo.createWorkHistory({ ...data, profileId })
+                        ? await profileSubRepo.updateWorkHistory(subId, whData, tx)
+                        : await profileSubRepo.createWorkHistory({ ...whData, profileId }, tx)
                     break
                 case 'extraInfo':
-                    result = await profileSubRepo.upsertExtraInfo(profileId, data)
+                    const exData = extraInfoSchema.parse(data)
+                    result = await profileSubRepo.upsertExtraInfo(profileId, exData, tx)
                     break
                 case 'healthRecords':
-                    result = await profileSubRepo.upsertHealthRecords(profileId, data)
+                    const hrData = healthSchema.parse(data)
+                    result = await profileSubRepo.upsertHealthRecords(profileId, hrData as any, tx)
                     break
                 case 'position':
+                    const posData = positionSchema.parse(data)
                     result = subId
-                        ? await profileSubRepo.updatePosition(subId, data)
-                        : await profileSubRepo.createPosition({ ...data, profileId })
+                        ? await profileSubRepo.updatePosition(subId, posData, tx)
+                        : await profileSubRepo.createPosition({ ...posData, profileId }, tx)
                     break
                 case 'researchWork':
+                    const rwData = researchWorkSchema.parse(data)
                     result = subId
-                        ? await profileSubRepo.updateResearchWork(subId, data)
-                        : await profileSubRepo.createResearchWork({ ...data, profileId })
+                        ? await profileSubRepo.updateResearchWork(subId, rwData, tx)
+                        : await profileSubRepo.createResearchWork({ ...rwData, profileId }, tx)
                     break
                 default:
                     // Fallback for legacy metadata (no type field)
@@ -381,16 +379,16 @@ export class ProfileService {
                         ...inst.metadata,
                         profileStatus: 'approved',
                         lastUpdatedBy: approvedBy
-                    })
+                    }, tx)
             }
         }
 
         // For non-main updates, set the parent profile back to 'approved'
         if (type !== 'main') {
-            await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() })
+            await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() }, tx)
         }
 
-        await rDel(CacheKey.profileFull(profileId))
+        try { await rDel(CacheKey.profileFull(profileId)) } catch (e) { console.error('Redis cache error:', e) }
         return result
     }
 
@@ -440,3 +438,11 @@ export class ProfileService {
 }
 
 export const profileService = new ProfileService()
+
+// Register workflow handlers for the dispatcher
+registerWorkflowHandler(
+    'profile',
+    (inst, actorId, tx) => profileService.applyChangesFromWorkflow(inst.id, actorId, tx),
+    (inst, actorId, tx) => profileService.handleRejectionFromWorkflow(inst.id, actorId, tx)
+)
+

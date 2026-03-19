@@ -1,8 +1,8 @@
-import { WorkflowInstance } from './engine'
+import type { WorkflowInstance } from './engine'
 import { ID } from '@/types'
 
-type ApprovalHandler = (instance: WorkflowInstance, actorId: ID) => Promise<void>
-type RejectionHandler = (instance: WorkflowInstance, actorId: ID) => Promise<void>
+type ApprovalHandler = (instance: WorkflowInstance, actorId: ID, tx?: any) => Promise<void>
+type RejectionHandler = (instance: WorkflowInstance, actorId: ID, tx?: any) => Promise<void>
 
 const approvalHandlers = new Map<string, ApprovalHandler>()
 const rejectionHandlers = new Map<string, RejectionHandler>()
@@ -16,10 +16,11 @@ export function registerWorkflowHandler(
     if (onReject) rejectionHandlers.set(resourceType, onReject)
 }
 
-export async function dispatchWorkflowResult(instance: WorkflowInstance, actorId: ID): Promise<void> {
+export async function dispatchWorkflowResult(instance: WorkflowInstance, actorId: ID, tx?: any): Promise<void> {
     if (instance.status === 'approved') {
-        await approvalHandlers.get(instance.resourceType)?.(instance, actorId)
+        await approvalHandlers.get(instance.resourceType)?.(instance, actorId, tx)
     } else if (instance.status === 'rejected') {
-        await rejectionHandlers.get(instance.resourceType)?.(instance, actorId)
+        await rejectionHandlers.get(instance.resourceType)?.(instance, actorId, tx)
     }
 }
+

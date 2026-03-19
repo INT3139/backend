@@ -7,6 +7,7 @@ import { CacheKey, CacheTTL } from '../cache/cacheKey'
 import { ID, WorkflowStatus, WorkflowInitPayload } from '@/types'
 import { NotFoundError, ForbiddenError } from '../middlewares/errorHandler'
 import { permissionService } from '../permissions/permission.service'
+import { dispatchWorkflowResult } from './workflow.dispatcher'
 
 export interface WorkflowInstance {
   id: ID
@@ -157,7 +158,7 @@ export class WorkflowEngine {
 
       const newCurrentStep = isReject || isLast ? inst.currentStep : nextStep
 
-      await tx
+      const [updatedInst] = await tx
         .update(wfInstances)
         .set({
           currentStep: newCurrentStep,
@@ -165,11 +166,16 @@ export class WorkflowEngine {
           completedAt: newStatus !== 'in_progress' ? new Date() : null,
         })
         .where(eq(wfInstances.id, inst.id))
+        .returning()
+
+      if (newStatus !== 'in_progress') {
+        await dispatchWorkflowResult(updatedInst as unknown as WorkflowInstance, actorId, tx)
+      }
 
       await cacheService.invalidateWorkflowInstance(inst.id)
 
       return {
-        ...inst,
+        ...updatedInst,
         status: newStatus,
         currentStep: newCurrentStep,
       } as unknown as WorkflowInstance

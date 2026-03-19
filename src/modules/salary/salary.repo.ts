@@ -17,8 +17,8 @@ export class SalaryRepo {
     /**
      * Get salary info by profile id
      */
-    async findByProfileId(profileId: ID): Promise<SalaryInfoRow | null> {
-        const result = await db.select()
+    async findByProfileId(profileId: ID, tx?: any): Promise<SalaryInfoRow | null> {
+        const result = await (tx || db).select()
             .from(salaryInfo)
             .where(eq(salaryInfo.profileId, profileId))
             .limit(1)
@@ -28,8 +28,8 @@ export class SalaryRepo {
     /**
      * Get salary info by user id (via profile)
      */
-    async findByUserId(userId: ID): Promise<SalaryInfoRow | null> {
-        const result = await db.select({
+    async findByUserId(userId: ID, tx?: any): Promise<SalaryInfoRow | null> {
+        const result = await (tx || db).select({
             salary: salaryInfo
         })
         .from(salaryInfo)
@@ -43,8 +43,8 @@ export class SalaryRepo {
     /**
      * Update salary info
      */
-    async update(profileId: ID, data: any): Promise<SalaryInfoRow> {
-        const result = await db.update(salaryInfo)
+    async update(profileId: ID, data: any, tx?: any): Promise<SalaryInfoRow> {
+        const result = await (tx || db).update(salaryInfo)
             .set({
                 ...data,
                 updatedAt: new Date()
@@ -57,8 +57,8 @@ export class SalaryRepo {
     /**
      * Create salary log
      */
-    async createLog(data: any): Promise<SalaryLogRow> {
-        const res = await db.insert(salaryLogs)
+    async createLog(data: any, tx?: any): Promise<SalaryLogRow> {
+        const res = await (tx || db).insert(salaryLogs)
             .values(data)
             .returning()
         return res[0]
@@ -69,7 +69,8 @@ export class SalaryRepo {
      */
     async findProposals(
         filter: SalaryFilter,
-        pagination: PaginationQuery
+        pagination: PaginationQuery,
+        tx?: any
     ): Promise<PaginatedResult<SalaryUpgradeProposalRow>> {
         const { page, limit } = pagination
         const offset = (page - 1) * limit
@@ -89,14 +90,14 @@ export class SalaryRepo {
         const whereClause = conditions.length > 0 ? and(...conditions) : sql`TRUE`
 
         // Count total
-        const countRes = await db.select({ total: count() })
+        const countRes = await (tx || db).select({ total: count() })
             .from(salaryUpgradeProposals)
             .innerJoin(profileStaff, eq(salaryUpgradeProposals.profileId, profileStaff.id))
             .where(whereClause)
         const total = Number(countRes[0].total)
 
         // Get data
-        const rows = await db.select({
+        const rows = await (tx || db).select({
             id: salaryUpgradeProposals.id,
             profileId: salaryUpgradeProposals.profileId,
             currentOccupationCode: salaryUpgradeProposals.currentOccupationCode,
@@ -132,8 +133,8 @@ export class SalaryRepo {
     /**
      * Create new upgrade proposal
      */
-    async createProposal(data: any): Promise<SalaryUpgradeProposalRow> {
-        const res = await db.insert(salaryUpgradeProposals)
+    async createProposal(data: any, tx?: any): Promise<SalaryUpgradeProposalRow> {
+        const res = await (tx || db).insert(salaryUpgradeProposals)
             .values(data)
             .returning()
         return res[0]
@@ -142,8 +143,8 @@ export class SalaryRepo {
     /**
      * Get proposal by ID
      */
-    async findProposalById(id: ID): Promise<SalaryUpgradeProposalRow | null> {
-        const result = await db.select()
+    async findProposalById(id: ID, tx?: any): Promise<SalaryUpgradeProposalRow | null> {
+        const result = await (tx || db).select()
             .from(salaryUpgradeProposals)
             .where(eq(salaryUpgradeProposals.id, id))
             .limit(1)
@@ -153,8 +154,8 @@ export class SalaryRepo {
     /**
      * Update proposal status
      */
-    async updateProposalStatus(id: ID, status: string): Promise<SalaryUpgradeProposalRow> {
-        const res = await db.update(salaryUpgradeProposals)
+    async updateProposalStatus(id: ID, status: string, tx?: any): Promise<SalaryUpgradeProposalRow> {
+        const res = await (tx || db).update(salaryUpgradeProposals)
             .set({ status: status as any })
             .where(eq(salaryUpgradeProposals.id, id))
             .returning()

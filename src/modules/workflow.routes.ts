@@ -146,8 +146,6 @@ router.post(
                 comment,
             )
 
-            await dispatchWorkflowResult(instance, req.userId as ID)
-
             res.json({ data: instance })
         } catch (e) { next(e) }
     },

@@ -21,7 +21,7 @@ export const familySchema = z.object({
     fullName: z.string().min(1),
     birthYear: z.number().int().optional(),
     description: z.string().optional(),
-    status: z.string().optional()
+    status: z.enum(['pending', 'approved', 'rejected']).optional()
 })
 
 export const workHistorySchema = z.object({
@@ -31,7 +31,7 @@ export const workHistorySchema = z.object({
     unitName: z.string().min(1),
     positionName: z.string().optional(),
     activityType: z.string().optional(),
-    status: z.string().optional()
+    status: z.enum(['pending', 'approved', 'rejected']).optional()
 })
 
 export const extraInfoSchema = z.object({
@@ -76,5 +76,5 @@ export const researchWorkSchema = z.object({
     publishYear: z.number().int().optional(),
     doi: z.string().optional(),
     academicYear: z.string().optional(),
-    status: z.string().optional()
+    status: z.enum(['pending', 'approved', 'rejected']).optional()
 })

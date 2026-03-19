@@ -28,7 +28,8 @@ export class ProfileRepository {
      */
     async findMany(
         filter: ProfileFilter,
-        pagination: PaginationQuery
+        pagination: PaginationQuery,
+        tx?: any
     ): Promise<PaginatedResult<ProfileListRow>> {
         const conditions: any[] = [isNull(profileStaff.deletedAt)]
 
@@ -58,7 +59,7 @@ export class ProfileRepository {
         const whereClause = and(...conditions)
 
         // Count total
-        const countResult = await db
+        const countResult = await (tx || db)
             .select({ total: count() })
             .from(profileStaff)
             .innerJoin(users, eq(profileStaff.userId, users.id))
@@ -76,7 +77,7 @@ export class ProfileRepository {
             }
         }
 
-        const rows = await db
+        const rows = await (tx || db)
             .select({
                 profile: profileStaff,
                 user: {
@@ -93,7 +94,7 @@ export class ProfileRepository {
             .orderBy(orderBy)
 
         return {
-            data: rows.map(r => ({ ...r.profile, user: r.user })),
+            data: rows.map((r: any) => ({ ...r.profile, user: r.user })),
             total,
             page: pagination.page,
             limit: pagination.limit,
@@ -104,8 +105,8 @@ export class ProfileRepository {
     /**
      * Get profile by ID
      */
-    async findById(id: ID): Promise<any | null> {
-        const result = await db.select({
+    async findById(id: ID, tx?: any): Promise<any | null> {
+        const result = await (tx || db).select({
             profile: profileStaff,
             user: {
                 fullName: users.fullName,
@@ -129,8 +130,8 @@ export class ProfileRepository {
     /**
      * Get profile by user_id
      */
-    async findByUserId(userId: ID): Promise<ProfileRow | null> {
-        const result = await db.select()
+    async findByUserId(userId: ID, tx?: any): Promise<ProfileRow | null> {
+        const result = await (tx || db).select()
             .from(profileStaff)
             .where(and(eq(profileStaff.userId, userId), isNull(profileStaff.deletedAt)))
             .limit(1)
@@ -140,8 +141,8 @@ export class ProfileRepository {
     /**
      * Create profile mới
      */
-    async create(data: any): Promise<ProfileRow> {
-        const result = await db.insert(profileStaff)
+    async create(data: any, tx?: any): Promise<ProfileRow> {
+        const result = await (tx || db).insert(profileStaff)
             .values({
                 ...data,
                 createdAt: new Date(),
@@ -154,8 +155,8 @@ export class ProfileRepository {
     /**
      * Update profile
      */
-    async update(id: ID, data: any): Promise<ProfileRow> {
-        const result = await db.update(profileStaff)
+    async update(id: ID, data: any, tx?: any): Promise<ProfileRow> {
+        const result = await (tx || db).update(profileStaff)
             .set({
                 ...data,
                 updatedAt: new Date()
@@ -168,8 +169,8 @@ export class ProfileRepository {
     /**
      * Soft delete profile
      */
-    async delete(id: ID): Promise<void> {
-        await db.update(profileStaff)
+    async delete(id: ID, tx?: any): Promise<void> {
+        await (tx || db).update(profileStaff)
             .set({ deletedAt: new Date() })
             .where(eq(profileStaff.id, id))
     }
@@ -177,8 +178,8 @@ export class ProfileRepository {
     /**
      * Get số lượng profiles theo unit
      */
-    async countByUnit(unitId: ID): Promise<number> {
-        const result = await db.select({ total: count() })
+    async countByUnit(unitId: ID, tx?: any): Promise<number> {
+        const result = await (tx || db).select({ total: count() })
             .from(profileStaff)
             .where(and(eq(profileStaff.unitId, unitId), isNull(profileStaff.deletedAt)))
         return Number(result[0].total)
@@ -187,9 +188,9 @@ export class ProfileRepository {
     /**
      * Tìm kiếm profiles theo keyword (full-text search)
      */
-    async search(keyword: string, limit = 10): Promise<ProfileListRow[]> {
+    async search(keyword: string, limit = 10, tx?: any): Promise<ProfileListRow[]> {
         const kw = `%${keyword}%`
-        const rows = await db
+        const rows = await (tx || db)
             .select({
                 profile: profileStaff,
                 user: {
@@ -209,15 +210,15 @@ export class ProfileRepository {
                 )
             ))
             .limit(limit)
-        return rows.map(r => ({ ...r.profile, user: r.user }))
+        return rows.map((r: any) => ({ ...r.profile, user: r.user }))
     }
 
     /**
      * Atomically set profile status to 'pending' only if it is not already pending.
      * Returns the updated row, or null if the profile was already pending.
      */
-    async setPendingAtomically(id: ID): Promise<ProfileRow | null> {
-        const result = await db
+    async setPendingAtomically(id: ID, tx?: any): Promise<ProfileRow | null> {
+        const result = await (tx || db)
             .update(profileStaff)
             .set({ profileStatus: 'pending' as any, updatedAt: new Date() })
             .where(and(eq(profileStaff.id, id), ne(profileStaff.profileStatus, 'pending')))
