@@ -8,6 +8,7 @@ export const CacheKey = {
   staffListByUnit:         (id: ID | string)         => `staff:list:unit:${id}`,
   orgTree:                 ()                   => `org:tree`,
   orgUnit:                 (id: ID | string)         => `org:unit:${id}`,
+  orgDescendants:          (id: ID | string)         => `org:descendants:${id}`,
   quotaParams:             (yr: string)         => `workload:params:${yr}`,
   individualQuota:         (id: ID | string, yr: string) => `workload:quota:${id}:${yr}`,
   annualSummary:           (id: ID | string, yr: string) => `workload:summary:${id}:${yr}`,

@@ -1,5 +1,6 @@
 import { Request, Response } from "express"
 import { recruitmentService } from "./recruitment.service"
+import { workflowEngine } from "@/core/workflow/engine"
 import { success, created } from "@/utils/response"
 import { AuthUser, ID } from "@/types"
 import { logAction } from "@/core/middlewares/auditContext"
@@ -82,11 +83,11 @@ export const createProposal = asyncHandler(async (
     req: AuthRequest,
     res: Response
 ): Promise<Response> => {
-    const proposal = await recruitmentService.createProposal(req.body, req.user!.id)
+    const result = await recruitmentService.createProposal(req.body, req.user!.id)
 
-    await logAction(req.userId!, 'create', 'recruitment_proposal', proposal.id.toString(), req.body)
+    await logAction(req.userId!, 'create', 'recruitment_proposal', result.workflowId.toString(), req.body)
 
-    return created(res, proposal)
+    return created(res, result)
 })
 
 /**
@@ -112,21 +113,32 @@ export const updateProposal = asyncHandler(async (
 })
 
 /**
- * POST /api/v1/recruitment/proposals/:id/approve
- * Approve đề xuất
- * @param {integer} id.path.required - ID of the proposal
+ * GET /api/v1/recruitment/tasks
  */
-export const approveProposal = asyncHandler(async (
+export const getMyTasks = asyncHandler(async (
     req: AuthRequest,
     res: Response
 ): Promise<Response> => {
-    const id = parseInt(req.params.id as string, 10)
+    const result = await workflowEngine.getMyTasks(req.userId!)
+    return success(res, result)
+})
 
-    const updated = await recruitmentService.approveProposal(id, req.user!.id)
-
-    await logAction(req.userId!, 'approve', 'recruitment_proposal', id.toString())
-
-    return success(res, updated)
+/**
+ * POST /api/v1/recruitment/tasks/:instanceId
+ */
+export const processTask = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<Response> => {
+    const { instanceId } = req.params
+    const { action, comment } = req.body
+    const result = await recruitmentService.completeWorkflowTask(
+        parseInt(instanceId as string, 10),
+        req.userId!,
+        action,
+        comment
+    )
+    return success(res, result)
 })
 
 // --- CANDIDATE CONTROLLERS ---

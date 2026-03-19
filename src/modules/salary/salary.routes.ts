@@ -249,25 +249,53 @@ router.post(
 
 /**
  * @openapi
- * /salary/proposals/{id}/approve:
+ * /salary/tasks:
+ *   get:
+ *     tags:
+ *       - Salary Proposals
+ *     summary: Get pending salary workflow tasks for current user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved pending tasks
+ */
+router.get("/tasks", requirePermission(PERM.WORKFLOW.READ), controller.getMyTasks)
+
+/**
+ * @openapi
+ * /salary/tasks/{instanceId}:
  *   post:
  *     tags:
  *       - Salary Proposals
- *     summary: Approve salary upgrade proposal
- *     description: Approve a pending salary upgrade proposal.
+ *     summary: Process a salary workflow task
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: instanceId
  *         required: true
  *         schema:
  *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, reject, request_revision, forward]
+ *               comment:
+ *                 type: string
  *     responses:
  *       200:
- *         description: Proposal approved successfully
+ *         description: Task processed successfully
  */
-router.post("/proposals/:id/approve", requirePermission(PERM.SALARY.APPROVE), controller.approveProposal)
+router.post("/tasks/:instanceId", requirePermission(PERM.WORKFLOW.ADVANCE), controller.processTask)
 
 /**
  * @openapi

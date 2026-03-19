@@ -1,7 +1,7 @@
 import { db } from "@/configs/db"
 import { ID, PaginationQuery, PaginatedResult } from "@/types"
 import { profileStaff, users } from "@/db/schema"
-import { eq, ilike, or, and, sql, count, desc, asc, isNull, inArray } from "drizzle-orm"
+import { eq, ilike, or, and, sql, count, desc, asc, isNull, inArray, ne } from "drizzle-orm"
 
 export interface ProfileFilter {
     unitId?: ID
@@ -14,6 +14,14 @@ export interface ProfileFilter {
 
 export type ProfileRow = typeof profileStaff.$inferSelect
 
+export interface ProfileListRow extends ProfileRow {
+    user: {
+        fullName: string | null
+        username: string
+        email: string
+    }
+}
+
 export class ProfileRepository {
     /**
      * Get danh sách profiles với filter và pagination
@@ -21,7 +29,7 @@ export class ProfileRepository {
     async findMany(
         filter: ProfileFilter,
         pagination: PaginationQuery
-    ): Promise<PaginatedResult<ProfileRow>> {
+    ): Promise<PaginatedResult<ProfileListRow>> {
         const conditions: any[] = [isNull(profileStaff.deletedAt)]
 
         if (filter.unitId) {
@@ -42,19 +50,24 @@ export class ProfileRepository {
             const kw = `%${filter.keyword}%`
             conditions.push(or(
                 ilike(profileStaff.emailVnu, kw),
-                ilike(profileStaff.idNumber, kw)
+                ilike(profileStaff.idNumber, kw),
+                ilike(users.fullName, kw)
             ))
         }
 
         const whereClause = and(...conditions)
 
         // Count total
-        const countResult = await db.select({ total: count() }).from(profileStaff).where(whereClause)
+        const countResult = await db
+            .select({ total: count() })
+            .from(profileStaff)
+            .innerJoin(users, eq(profileStaff.userId, users.id))
+            .where(whereClause)
         const total = Number(countResult[0].total)
 
         // Get data
         const offset = (pagination.page - 1) * pagination.limit
-        
+
         let orderBy: any = desc(profileStaff.createdAt)
         if (pagination.sort) {
             const column = (profileStaff as any)[pagination.sort]
@@ -63,15 +76,24 @@ export class ProfileRepository {
             }
         }
 
-        const rows = await db.select()
+        const rows = await db
+            .select({
+                profile: profileStaff,
+                user: {
+                    fullName: users.fullName,
+                    username: users.username,
+                    email: users.email
+                }
+            })
             .from(profileStaff)
+            .innerJoin(users, eq(profileStaff.userId, users.id))
             .where(whereClause)
             .limit(pagination.limit)
             .offset(offset)
             .orderBy(orderBy)
 
         return {
-            data: rows,
+            data: rows.map(r => ({ ...r.profile, user: r.user })),
             total,
             page: pagination.page,
             limit: pagination.limit,
@@ -165,18 +187,42 @@ export class ProfileRepository {
     /**
      * Tìm kiếm profiles theo keyword (full-text search)
      */
-    async search(keyword: string, limit = 10): Promise<ProfileRow[]> {
+    async search(keyword: string, limit = 10): Promise<ProfileListRow[]> {
         const kw = `%${keyword}%`
-        return await db.select()
+        const rows = await db
+            .select({
+                profile: profileStaff,
+                user: {
+                    fullName: users.fullName,
+                    username: users.username,
+                    email: users.email
+                }
+            })
             .from(profileStaff)
+            .innerJoin(users, eq(profileStaff.userId, users.id))
             .where(and(
                 isNull(profileStaff.deletedAt),
                 or(
                     ilike(profileStaff.emailVnu, kw),
-                    ilike(profileStaff.idNumber, kw)
+                    ilike(profileStaff.idNumber, kw),
+                    ilike(users.fullName, kw)
                 )
             ))
             .limit(limit)
+        return rows.map(r => ({ ...r.profile, user: r.user }))
+    }
+
+    /**
+     * Atomically set profile status to 'pending' only if it is not already pending.
+     * Returns the updated row, or null if the profile was already pending.
+     */
+    async setPendingAtomically(id: ID): Promise<ProfileRow | null> {
+        const result = await db
+            .update(profileStaff)
+            .set({ profileStatus: 'pending' as any, updatedAt: new Date() })
+            .where(and(eq(profileStaff.id, id), ne(profileStaff.profileStatus, 'pending')))
+            .returning()
+        return result[0] ?? null
     }
 }
 

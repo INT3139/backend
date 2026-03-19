@@ -1,4 +1,4 @@
-import { profileRepo, ProfileFilter, ProfileRow } from "./profile.repo"
+import { profileRepo, ProfileFilter, ProfileRow, ProfileListRow } from "./profile.repo"
 import { profileSubRepo } from "./profileSub.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
@@ -71,9 +71,9 @@ export class ProfileService {
     async getProfiles(
         filter: ProfileFilter,
         pagination: PaginationQuery,
-        user: AuthUser
+        userId: ID
     ) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(userId)
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
@@ -170,8 +170,9 @@ export class ProfileService {
             throw new ForbiddenError('You do not have permission to update this profile')
         }
 
-        // NGĂN CHỈNH SỬA KHI ĐANG CHỜ DUYỆT
-        if (existing.profileStatus === 'pending') {
+        // Atomically set to 'pending' — prevents race conditions and double submission
+        const locked = await profileRepo.setPendingAtomically(id)
+        if (!locked) {
             throw new ForbiddenError('Hồ sơ đang trong quá trình chờ duyệt, không thể chỉnh sửa thêm.')
         }
 
@@ -184,11 +185,8 @@ export class ProfileService {
             metadata: {
                 type: 'main',
                 data: data
-            } 
+            }
         })
-
-        // Chuyển trạng thái hồ sơ về 'pending'
-        await profileRepo.update(id, { profileStatus: 'pending' })
 
         return {
             message: 'Yêu cầu cập nhật hồ sơ đã được gửi và đang chờ phê duyệt.',
@@ -197,20 +195,22 @@ export class ProfileService {
     }
 
     /**
-     * Khởi tạo workflow cập nhật cho các phần con (education, family, ...)
+     * Khởi tạo workflow cập nhật/xóa cho các phần con (education, family, ...)
      */
     async initiateSubUpdateWorkflow(
         profileId: ID,
         type: 'education' | 'family' | 'workHistory' | 'extraInfo' | 'healthRecords' | 'position' | 'researchWork',
         subId: ID | undefined,
         data: any,
-        user: AuthUser
+        user: AuthUser,
+        action: 'upsert' | 'delete' = 'upsert'
     ) {
         const existing = await profileRepo.findById(profileId)
         if (!existing) throw new NotFoundError('Profile not found')
 
-        // Ngăn chỉnh sửa khi đang chờ duyệt (nếu cần thiết cho cả sub-info)
-        if (existing.profileStatus === 'pending') {
+        // Atomically set to 'pending' — prevents race conditions and double submission
+        const locked = await profileRepo.setPendingAtomically(profileId)
+        if (!locked) {
             throw new ForbiddenError('Hồ sơ đang trong quá trình chờ duyệt, không thể chỉnh sửa thêm.')
         }
 
@@ -222,15 +222,13 @@ export class ProfileService {
             metadata: {
                 type,
                 subId,
-                data
+                data,
+                action
             }
         })
 
-        // Chuyển trạng thái hồ sơ về 'pending' khi có bất kỳ thay đổi nào cần duyệt
-        await profileRepo.update(profileId, { profileStatus: 'pending' })
-
         return {
-            message: `Yêu cầu cập nhật ${type} đã được gửi và đang chờ phê duyệt.`,
+            message: `Yêu cầu ${action === 'delete' ? 'xóa' : 'cập nhật'} ${type} đã được gửi và đang chờ phê duyệt.`,
             workflowId: workflow.id
         }
     }
@@ -315,95 +313,105 @@ export class ProfileService {
         }
 
         const profileId = inst.resourceId
-        const { type, subId, data } = inst.metadata as any
+        const { type, subId, data, action } = inst.metadata as any
 
         let result: any
 
-        switch (type) {
-            case 'main':
-                result = await profileRepo.update(profileId, {
-                    ...data,
-                    profileStatus: 'approved',
-                    lastUpdatedBy: approvedBy
-                })
-                break
-            case 'education':
-                result = subId 
-                    ? await profileSubRepo.updateEducation(subId, data)
-                    : await profileSubRepo.createEducation({ ...data, profileId })
-                break
-            case 'family':
-                result = subId
-                    ? await profileSubRepo.updateFamily(subId, data)
-                    : await profileSubRepo.createFamily({ ...data, profileId })
-                break
-            case 'workHistory':
-                result = subId
-                    ? await profileSubRepo.updateWorkHistory(subId, data)
-                    : await profileSubRepo.createWorkHistory({ ...data, profileId })
-                break
-            case 'extraInfo':
-                result = await profileSubRepo.upsertExtraInfo(profileId, data)
-                break
-            case 'healthRecords':
-                result = await profileSubRepo.upsertHealthRecords(profileId, data)
-                break
-            case 'position':
-                result = subId
-                    ? await profileSubRepo.updatePosition(subId, data)
-                    : await profileSubRepo.createPosition({ ...data, profileId })
-                break
-            case 'researchWork':
-                result = subId
-                    ? await profileSubRepo.updateResearchWork(subId, data)
-                    : await profileSubRepo.createResearchWork({ ...data, profileId })
-                break
-            default:
-                // Fallback cho metadata cũ (chỉ có data)
-                result = await profileRepo.update(profileId, {
-                    ...inst.metadata,
-                    profileStatus: 'approved',
-                    lastUpdatedBy: approvedBy
-                })
+        if (action === 'delete') {
+            switch (type) {
+                case 'education':
+                    result = await profileSubRepo.deleteEducation(subId)
+                    break
+                case 'family':
+                    result = await profileSubRepo.deleteFamily(subId)
+                    break
+                case 'workHistory':
+                    result = await profileSubRepo.deleteWorkHistory(subId)
+                    break
+                case 'position':
+                    result = await profileSubRepo.deletePosition(subId)
+                    break
+                case 'researchWork':
+                    result = await profileSubRepo.deleteResearchWork(subId)
+                    break
+            }
+        } else {
+            switch (type) {
+                case 'main':
+                    result = await profileRepo.update(profileId, {
+                        ...data,
+                        profileStatus: 'approved',
+                        lastUpdatedBy: approvedBy
+                    })
+                    break
+                case 'education':
+                    result = subId
+                        ? await profileSubRepo.updateEducation(subId, data)
+                        : await profileSubRepo.createEducation({ ...data, profileId })
+                    break
+                case 'family':
+                    result = subId
+                        ? await profileSubRepo.updateFamily(subId, data)
+                        : await profileSubRepo.createFamily({ ...data, profileId })
+                    break
+                case 'workHistory':
+                    result = subId
+                        ? await profileSubRepo.updateWorkHistory(subId, data)
+                        : await profileSubRepo.createWorkHistory({ ...data, profileId })
+                    break
+                case 'extraInfo':
+                    result = await profileSubRepo.upsertExtraInfo(profileId, data)
+                    break
+                case 'healthRecords':
+                    result = await profileSubRepo.upsertHealthRecords(profileId, data)
+                    break
+                case 'position':
+                    result = subId
+                        ? await profileSubRepo.updatePosition(subId, data)
+                        : await profileSubRepo.createPosition({ ...data, profileId })
+                    break
+                case 'researchWork':
+                    result = subId
+                        ? await profileSubRepo.updateResearchWork(subId, data)
+                        : await profileSubRepo.createResearchWork({ ...data, profileId })
+                    break
+                default:
+                    // Fallback for legacy metadata (no type field)
+                    result = await profileRepo.update(profileId, {
+                        ...inst.metadata,
+                        profileStatus: 'approved',
+                        lastUpdatedBy: approvedBy
+                    })
+            }
         }
 
-        // Sau khi apply xong, nếu là update main thì profile đã về 'approved'
-        // Nếu là sub-info, ta cũng nên đảm bảo profile chính ở trạng thái 'approved'
-        await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() })
+        // For non-main updates, set the parent profile back to 'approved'
+        if (type !== 'main') {
+            await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() })
+        }
 
         await rDel(CacheKey.profileFull(profileId))
         return result
     }
 
     /**
-     * Approve profile
+     * Approve profile (initial draft → approved only).
+     * Profiles with pending workflow changes must go through processTask instead.
      */
     async approveProfile(id: ID, approvedBy: ID): Promise<ProfileRow> {
+        const existing = await profileRepo.findById(id)
+        if (!existing) {
+            throw new NotFoundError('Profile not found')
+        }
+
+        if (existing.profileStatus === 'pending') {
+            throw new ForbiddenError('Hồ sơ đang chờ duyệt qua quy trình. Hãy dùng processTask để phê duyệt.')
+        }
+
         const updated = await profileRepo.update(id, {
             profileStatus: 'approved',
             lastUpdatedBy: approvedBy
         })
-
-        if (!updated) {
-            throw new NotFoundError('Profile not found')
-        }
-
-        await rDel(CacheKey.profileFull(id))
-        return updated
-    }
-
-    /**
-     * Reject profile
-     */
-    async rejectProfile(id: ID, rejectedBy: ID): Promise<ProfileRow> {
-        const updated = await profileRepo.update(id, {
-            profileStatus: 'draft',
-            lastUpdatedBy: rejectedBy
-        })
-
-        if (!updated) {
-            throw new NotFoundError('Profile not found')
-        }
 
         await rDel(CacheKey.profileFull(id))
         return updated

@@ -5,9 +5,12 @@ import { permissionService } from "@/core/permissions/permission.service"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { db } from "@/configs/db"
 import { users, profileStaff } from "@/db/schema"
-import { eq, and } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { emailService } from "@/services/email.service"
 import { profileRepo } from "../profile/profile.repo"
+import { workflowEngine } from "@/core/workflow/engine"
+import { WF } from "@/constants/workflowCodes"
+import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
 
 export interface UpdateSalaryDto {
     occupation_group?: string
@@ -67,16 +70,13 @@ export class SalaryService {
         data: UpdateSalaryDto,
         user: AuthUser
     ): Promise<SalaryInfoRow> {
-        const scopes = await permissionService.getScopes(user.id)
-        const canUpdate = await abacService.canAccess(
-            user.id,
-            scopes,
-            'salary',
-            profileId
-        )
+        const profile = await profileRepo.findById(profileId)
+        if (!profile) throw new NotFoundError('Profile not found')
 
-        if (!canUpdate) {
-            throw new ForbiddenError('You do not have permission to update salary info')
+        const scopes = await permissionService.getScopes(user.id)
+        const unitIds = await abacService.getUnitIds(scopes)
+        if (unitIds !== 'all' && (profile.unitId === null || !unitIds.includes(profile.unitId))) {
+            throw new ForbiddenError('You do not have permission to update salary info for this profile')
         }
 
         // Map snake_case to camelCase
@@ -132,19 +132,17 @@ export class SalaryService {
         const scopes = await permissionService.getScopes(user.id)
         const unitIds = await abacService.getUnitIds(scopes)
 
-        console.log('[DEBUG] getProposals:', { userId: user.id, unitIds, scopes });
-
         if (unitIds !== 'all') {
-            filter.unitIds = unitIds
+            filter = { ...filter, unitIds }
         }
 
         return await salaryRepo.findProposals(filter, pagination)
     }
 
     /**
-     * Tạo đề xuất nâng lương
+     * Tạo đề xuất nâng lương và khởi tạo workflow
      */
-    async createProposal(data: CreateSalaryProposalDto, user: AuthUser): Promise<SalaryUpgradeProposalRow> {
+    async createProposal(data: CreateSalaryProposalDto, user: AuthUser): Promise<{ message: string; workflowId: ID }> {
         // Check scope over target profile
         const profile = await profileRepo.findById(data.profile_id)
         if (!profile) throw new NotFoundError('Profile not found')
@@ -168,34 +166,69 @@ export class SalaryService {
             upgradeType: data.upgrade_type as any,
             status: 'pending'
         }
-        return await salaryRepo.createProposal(values)
+        const proposal = await salaryRepo.createProposal(values)
+
+        // Register ABAC scope for the proposal
+        await abacService.registerScope({
+            resourceType: 'salary_upgrade',
+            resourceId: proposal.id,
+            ownerId: user.id,
+            unitId: profile.unitId
+        })
+
+        // Initiate workflow
+        const workflow = await workflowEngine.initiate({
+            definitionCode: WF.SALARY_UPGRADE,
+            resourceType: 'salary_upgrade',
+            resourceId: proposal.id,
+            initiatedBy: user.id,
+            metadata: { data: values }
+        })
+
+        return { message: 'Đề xuất nâng lương đã được tạo và đang chờ phê duyệt.', workflowId: workflow.id }
     }
 
     /**
-     * Duyệt nâng lương
+     * Xử lý một bước trong workflow nâng lương
      */
-    async approveProposal(id: ID, user: AuthUser): Promise<SalaryUpgradeProposalRow> {
-        const proposal = await salaryRepo.findProposalById(id)
-        if (!proposal) {
-            throw new NotFoundError('Proposal not found')
+    async completeWorkflowTask(
+        instanceId: ID,
+        actorId: ID,
+        action: 'approve' | 'reject' | 'request_revision' | 'forward',
+        comment?: string
+    ): Promise<any> {
+        const inst = await workflowEngine.advance(instanceId, actorId, action, comment)
+
+        if (inst.status === 'approved') {
+            return await this.applyChangesFromWorkflow(instanceId, actorId)
         }
 
-        // Check scope over the proposal's profile
-        const profile = await profileRepo.findById(proposal.profileId)
-        if (!profile) throw new NotFoundError('Profile not found')
-
-        const scopes = await permissionService.getScopes(user.id)
-        const unitIds = await abacService.getUnitIds(scopes)
-        if (unitIds !== 'all' && (profile.unitId === null || !unitIds.includes(profile.unitId))) {
-            throw new ForbiddenError('You do not have permission to approve salary upgrade for this profile')
+        if (inst.status === 'rejected') {
+            await this.handleRejection(instanceId, actorId)
+            return { message: 'Đề xuất nâng lương đã bị từ chối.' }
         }
 
-        // Update salary info table when proposal is approved
+        return { message: 'Bước quy trình đã được thực hiện thành công.', status: inst.status }
+    }
+
+    /**
+     * Áp dụng thay đổi lương sau khi workflow được phê duyệt
+     */
+    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID): Promise<any> {
+        const inst = await workflowEngine.getStatus(workflowId)
+        if (inst.status !== 'approved') {
+            throw new ForbiddenError('Workflow must be approved first')
+        }
+
+        const proposal = await salaryRepo.findProposalById(inst.resourceId)
+        if (!proposal) throw new NotFoundError('Proposal not found')
+
+        // Apply salary changes using the proposed values and date from the proposal
         const updatedSalary = await salaryRepo.update(proposal.profileId, {
             salaryGrade: proposal.proposedGrade,
             salaryCoefficient: proposal.proposedCoefficient,
             nextGradeDate: proposal.proposedNextDate,
-            effectiveDate: new Date()
+            effectiveDate: proposal.proposedNextDate
         })
 
         // Log to salary_logs
@@ -212,7 +245,7 @@ export class SalaryService {
             occupationGroup: updatedSalary.occupationGroup
         })
 
-        const updated = await salaryRepo.updateProposalStatus(id, 'approved')
+        await salaryRepo.updateProposalStatus(proposal.id, 'approved')
 
         // Send email notification
         const userRows = await db.select({ email: users.email, fullName: users.fullName })
@@ -220,16 +253,32 @@ export class SalaryService {
             .innerJoin(profileStaff, eq(profileStaff.userId, users.id))
             .where(eq(profileStaff.id, proposal.profileId))
             .limit(1)
-            
+
         const targetUser = userRows[0]
         if (targetUser) {
-            const grade = typeof proposal.proposedGrade === 'string' ? parseInt(proposal.proposedGrade, 10) : (proposal.proposedGrade ?? 0);
+            const grade = typeof proposal.proposedGrade === 'string' ? parseInt(proposal.proposedGrade, 10) : (proposal.proposedGrade ?? 0)
             emailService.sendSalaryApprovalEmail(targetUser.email, targetUser.fullName, grade).catch(err => {
                 console.error('Failed to send salary approval email', err)
             })
         }
-        return updated
+
+        return { message: 'Đề xuất nâng lương đã được phê duyệt và áp dụng thành công.', salary: updatedSalary }
+    }
+
+    /**
+     * Xử lý khi workflow bị từ chối
+     */
+    async handleRejection(workflowId: ID, _rejectedBy: ID): Promise<void> {
+        const inst = await workflowEngine.getStatus(workflowId)
+        await salaryRepo.updateProposalStatus(inst.resourceId, 'rejected')
     }
 }
 
 export const salaryService = new SalaryService()
+
+// Register workflow handlers for the dispatcher
+registerWorkflowHandler(
+    'salary_upgrade',
+    (inst, actorId) => salaryService.applyChangesFromWorkflow(inst.id, actorId),
+    (inst, actorId) => salaryService.handleRejection(inst.id, actorId)
+)

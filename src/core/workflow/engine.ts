@@ -228,9 +228,9 @@ export class WorkflowEngine {
             FROM jsonb_array_elements(${wfDefinitions.steps}) AS s
             WHERE (s->>'step')::int = ${wfInstances.currentStep}
             AND   (s->>'role_id')::int = ANY(ARRAY[${sql.join(
-            roleIds.map((id) => sql`${id}`),
+            roleIds.map((id) => sql`${id}::int`),
             sql`, `,
-          )}])
+          )}]::int[])
           )`,
         ),
       )

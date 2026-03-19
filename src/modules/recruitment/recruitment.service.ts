@@ -4,6 +4,9 @@ import { abacService } from "@/core/permissions/abac"
 import { permissionService } from "@/core/permissions/permission.service"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { emailService } from "@/services/email.service"
+import { workflowEngine } from "@/core/workflow/engine"
+import { WF } from "@/constants/workflowCodes"
+import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
 
 export interface CreateProposalDto {
     proposingUnit: ID
@@ -43,7 +46,7 @@ export class RecruitmentService {
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
-            filter.unitIds = unitIds
+            filter = { ...filter, unitIds }
         }
 
         return await recruitmentRepo.findMany(filter, pagination)
@@ -57,9 +60,9 @@ export class RecruitmentService {
     }
 
     /**
-     * Create đề xuất mới
+     * Create đề xuất mới và khởi tạo workflow
      */
-    async createProposal(data: CreateProposalDto, createdBy: ID): Promise<RecruitmentProposalRow> {
+    async createProposal(data: CreateProposalDto, createdBy: ID): Promise<{ message: string; workflowId: ID }> {
         const proposal = await recruitmentRepo.create({
             ...data,
             createdBy: createdBy
@@ -73,7 +76,16 @@ export class RecruitmentService {
             unitId: proposal.proposingUnit
         })
 
-        return proposal
+        // Initiate workflow
+        const workflow = await workflowEngine.initiate({
+            definitionCode: WF.RECRUITMENT_APPROVAL,
+            resourceType: 'recruitment_proposal',
+            resourceId: proposal.id,
+            initiatedBy: createdBy,
+            metadata: { data }
+        })
+
+        return { message: 'Đề xuất tuyển dụng đã được tạo và đang chờ phê duyệt.', workflowId: workflow.id }
     }
 
     /**
@@ -113,18 +125,47 @@ export class RecruitmentService {
     }
 
     /**
-     * Approve đề xuất
+     * Xử lý một bước trong workflow tuyển dụng
      */
-    async approveProposal(id: ID, approvedBy: ID): Promise<RecruitmentProposalRow> {
-        const updated = await recruitmentRepo.update(id, {
-            status: 'approved'
-        })
+    async completeWorkflowTask(
+        instanceId: ID,
+        actorId: ID,
+        action: 'approve' | 'reject' | 'request_revision' | 'forward',
+        comment?: string
+    ): Promise<any> {
+        const inst = await workflowEngine.advance(instanceId, actorId, action, comment)
 
-        if (!updated) {
-            throw new NotFoundError('Proposal not found')
+        if (inst.status === 'approved') {
+            return await this.applyChangesFromWorkflow(instanceId, actorId)
         }
 
-        return updated
+        if (inst.status === 'rejected') {
+            await this.handleRejection(instanceId, actorId)
+            return { message: 'Đề xuất tuyển dụng đã bị từ chối.' }
+        }
+
+        return { message: 'Bước quy trình đã được thực hiện thành công.', status: inst.status }
+    }
+
+    /**
+     * Áp dụng thay đổi sau khi workflow tuyển dụng được phê duyệt
+     */
+    async applyChangesFromWorkflow(workflowId: ID, _approvedBy: ID): Promise<any> {
+        const inst = await workflowEngine.getStatus(workflowId)
+        if (inst.status !== 'approved') {
+            throw new ForbiddenError('Workflow must be approved first')
+        }
+
+        const updated = await recruitmentRepo.update(inst.resourceId, { status: 'approved' })
+        return { message: 'Đề xuất tuyển dụng đã được phê duyệt.', proposal: updated }
+    }
+
+    /**
+     * Xử lý khi workflow bị từ chối
+     */
+    async handleRejection(workflowId: ID, _rejectedBy: ID): Promise<void> {
+        const inst = await workflowEngine.getStatus(workflowId)
+        await recruitmentRepo.update(inst.resourceId, { status: 'rejected' })
     }
 
     // --- CANDIDATE METHODS ---
@@ -198,6 +239,21 @@ export class RecruitmentService {
             throw new NotFoundError('Candidate not found')
         }
 
+        // Check ABAC access to the parent proposal
+        const scopes = await permissionService.getScopes(user.id)
+        const canAccess = await abacService.canAccess(
+            user.id,
+            scopes,
+            'recruitment_proposal',
+            candidate.proposalId
+        )
+        const proposal = await recruitmentRepo.findById(candidate.proposalId)
+        const isOwner = proposal?.createdBy === user.id
+
+        if (!canAccess && !isOwner) {
+            throw new ForbiddenError('You do not have permission to update this candidate')
+        }
+
         const updated = await recruitmentRepo.updateCandidate(id, data)
 
         // Nếu status thay đổi, gửi email notify
@@ -219,8 +275,24 @@ export class RecruitmentService {
             throw new NotFoundError('Candidate not found')
         }
 
+        // Check ABAC access to the parent proposal
+        const scopes = await permissionService.getScopes(user.id)
+        const canAccess = await abacService.canAccess(
+            user.id,
+            scopes,
+            'recruitment_proposal',
+            candidate.proposalId
+        )
+        const proposal = await recruitmentRepo.findById(candidate.proposalId)
+        const isOwner = proposal?.createdBy === user.id
+
+        if (!canAccess && !isOwner) {
+            throw new ForbiddenError('You do not have permission to delete this candidate')
+        }
+
         return await recruitmentRepo.deleteCandidate(id)
     }
+
     /**
      * Get recruitment info and contracts for a profile
      */
@@ -234,3 +306,10 @@ export class RecruitmentService {
 }
 
 export const recruitmentService = new RecruitmentService()
+
+// Register workflow handlers for the dispatcher
+registerWorkflowHandler(
+    'recruitment_proposal',
+    (inst, actorId) => recruitmentService.applyChangesFromWorkflow(inst.id, actorId),
+    (inst, actorId) => recruitmentService.handleRejection(inst.id, actorId)
+)

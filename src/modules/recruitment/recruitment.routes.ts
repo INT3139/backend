@@ -245,33 +245,53 @@ router.put(
 
 /**
  * @openapi
- * /recruitment/proposals/{id}/approve:
+ * /recruitment/tasks:
+ *   get:
+ *     tags:
+ *       - Recruitment
+ *     summary: Get pending recruitment workflow tasks for current user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved pending tasks
+ */
+router.get("/tasks", requirePermission(PERM.WORKFLOW.READ), controller.getMyTasks)
+
+/**
+ * @openapi
+ * /recruitment/tasks/{instanceId}:
  *   post:
  *     tags:
  *       - Recruitment
- *     summary: Approve recruitment proposal
- *     description: Approve a pending recruitment proposal. Requires APPROVE permission.
+ *     summary: Process a recruitment workflow task
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: instanceId
  *         required: true
  *         schema:
  *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, reject, request_revision, forward]
+ *               comment:
+ *                 type: string
  *     responses:
  *       200:
- *         description: Proposal approved successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiResponse'
+ *         description: Task processed successfully
  */
-router.post(
-    "/proposals/:id/approve",
-    requireResource(PERM.RECRUITMENT.APPROVE, 'recruitment_proposal', r => +r.params.id),
-    controller.approveProposal
-)
+router.post("/tasks/:instanceId", requirePermission(PERM.WORKFLOW.ADVANCE), controller.processTask)
 
 // --- CANDIDATE ROUTES ---
 

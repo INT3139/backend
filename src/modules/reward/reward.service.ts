@@ -25,7 +25,7 @@ export class RewardService {
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
-            filter.unitIds = unitIds
+            filter = { ...filter, unitIds }
         }
 
         return await rewardRepo.findCommendations(filter, pagination)
@@ -104,7 +104,7 @@ export class RewardService {
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
-            filter.unitIds = unitIds
+            filter = { ...filter, unitIds }
         }
 
         return await rewardRepo.findTitles(filter, pagination)
@@ -181,7 +181,7 @@ export class RewardService {
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
-            filter.unitIds = unitIds
+            filter = { ...filter, unitIds }
         }
 
         return await rewardRepo.findDisciplinaryRecords(filter, pagination)

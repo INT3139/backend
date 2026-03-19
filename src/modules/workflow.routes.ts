@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { workflowEngine } from '@/core/workflow/engine'
 import { ballotService } from '@/core/workflow/ballot.service'
+import { dispatchWorkflowResult } from '@/core/workflow/workflow.dispatcher'
 import { requirePermission } from '@/core/middlewares/requirePermission'
 import { ValidationError, ForbiddenError } from '@/core/middlewares/errorHandler'
 import { ID } from '@/types'
@@ -144,6 +145,8 @@ router.post(
                 action,
                 comment,
             )
+
+            await dispatchWorkflowResult(instance, req.userId as ID)
 
             res.json({ data: instance })
         } catch (e) { next(e) }

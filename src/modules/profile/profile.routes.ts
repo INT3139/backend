@@ -498,6 +498,9 @@ router.get("/search", requirePermission(PERM.PROFILE.READ), controller.searchPro
  */
 router.get("/", requirePermission(PERM.PROFILE.READ), controller.getProfiles)
 
+router.get("/tasks", requirePermission(PERM.WORKFLOW.READ), controller.getMyTasks)
+router.post("/tasks/:instanceId", requirePermission(PERM.WORKFLOW.ADVANCE), controller.processTask)
+
 /**
  * @openapi
  * /profiles/{id}:
@@ -756,44 +759,6 @@ router.post(
     controller.approveProfile
 )
 
-/**
- * @openapi
- * /profiles/{id}/reject:
- *   post:
- *     tags:
- *       - Profile
- *     summary: Reject profile
- *     description: Reject a pending profile or changes. Requires PROFILE.REJECT permission.
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Successfully rejected profile
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiResponse'
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Profile not found
- *       500:
- *         description: Internal server error
- */
-router.post(
-    "/:id/reject",
-    requireResource(PERM.PROFILE.REJECT, 'profile', r => +r.params.id),
-    controller.rejectProfile
-)
-
 import * as subSchema from "./profileSub.schema"
 
 /**
@@ -849,101 +814,6 @@ router.patch(
     validateBody(schema.changeStatusSchema),
     controller.changeStatus
 )
-
-/**
- * @openapi
- * /profiles/tasks:
- *   get:
- *     tags:
- *       - Profile Workflow
- *     summary: Get pending profile tasks for current user
- *     description: Retrieve a list of all pending workflow tasks (e.g., profile approvals) assigned to the currently authenticated user.
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Successfully retrieved pending tasks
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - properties:
- *                     data:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           instanceId:
- *                             type: integer
- *                           profileId:
- *                             type: integer
- *                           staffName:
- *                             type: string
- *                           status:
- *                             type: string
- *                           createdAt:
- *                             type: string
- *                             format: date-time
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Internal server error
- */
-router.get("/tasks", requirePermission(PERM.WORKFLOW.READ), controller.getMyTasks)
-
-/**
- * @openapi
- * /profiles/tasks/{instanceId}:
- *   post:
- *     tags:
- *       - Profile Workflow
- *     summary: Process a workflow task (approve/reject)
- *     description: Submit a decision (approve, reject, etc.) for a specific workflow task instance.
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: instanceId
- *         required: true
- *         schema:
- *           type: integer
- *         description: Workflow task instance ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - action
- *             properties:
- *               action:
- *                 type: string
- *                 enum: [approve, reject, request_revision, forward]
- *                 description: Action to perform on the task
- *               comment:
- *                 type: string
- *                 description: Optional comment explaining the decision
- *     responses:
- *       200:
- *         description: Successfully processed task
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiResponse'
- *       400:
- *         description: Invalid action or input data
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Task instance not found
- *       500:
- *         description: Internal server error
- */
-router.post("/tasks/:instanceId", requirePermission(PERM.WORKFLOW.ADVANCE), controller.processTask)
 
 // --- SUB-MODULES ---
 

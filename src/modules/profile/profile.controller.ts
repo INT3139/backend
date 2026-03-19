@@ -77,7 +77,7 @@ export const getProfiles = asyncHandler(async (
         limit: parseInt(limit as string, 10)
     }
 
-    const result = await profileService.getProfiles(filter, pagination, req.user!)      
+    const result = await profileService.getProfiles(filter, pagination, req.userId!)
     await logAction(req.userId!, 'read', 'profile_list', undefined, { filter, pagination })
 
     return success(res, result)
@@ -307,19 +307,6 @@ export const approveProfile = asyncHandler(async (
 })
 
 /**
- * POST /api/v1/profile/:id/reject
- */
-export const rejectProfile = asyncHandler(async (
-    req: AuthRequest,
-    res: Response
-): Promise<Response> => {
-    const { id } = req.params
-    const updated = await profileService.rejectProfile(parseInt(id as string, 10), req.userId!)
-    await logAction(req.userId!, 'reject', 'profile', id as string)
-    return success(res, updated)
-})
-
-/**
  * PUT /api/v1/profile/:id/status
  */
 export const changeStatus = asyncHandler(async (
@@ -380,8 +367,15 @@ export const updateEducation = asyncHandler(async (req: AuthRequest, res: Respon
 })
 
 export const deleteEducation = asyncHandler(async (req: AuthRequest, res: Response) => {
-    await profileSubRepo.deleteEducation(parseInt(req.params.subId as string, 10))      
-    return success(res, { message: 'Deleted' })
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'education',
+        parseInt(req.params.subId as string, 10),
+        null,
+        req.user!,
+        'delete'
+    )
+    return success(res, result)
 })
 
 export const getFamily = asyncHandler(async (req: AuthRequest, res: Response) => {      
@@ -411,9 +405,16 @@ export const updateFamily = asyncHandler(async (req: AuthRequest, res: Response)
     return success(res, result)
 })
 
-export const deleteFamily = asyncHandler(async (req: AuthRequest, res: Response) => {   
-    await profileSubRepo.deleteFamily(parseInt(req.params.subId as string, 10))
-    return success(res, { message: 'Deleted' })
+export const deleteFamily = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'family',
+        parseInt(req.params.subId as string, 10),
+        null,
+        req.user!,
+        'delete'
+    )
+    return success(res, result)
 })
 
 export const getWorkHistory = asyncHandler(async (req: AuthRequest, res: Response) => { 
@@ -444,8 +445,15 @@ export const updateWorkHistory = asyncHandler(async (req: AuthRequest, res: Resp
 })
 
 export const deleteWorkHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
-    await profileSubRepo.deleteWorkHistory(parseInt(req.params.subId as string, 10))    
-    return success(res, { message: 'Deleted' })
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'workHistory',
+        parseInt(req.params.subId as string, 10),
+        null,
+        req.user!,
+        'delete'
+    )
+    return success(res, result)
 })
 
 export const getExtraInfo = asyncHandler(async (req: AuthRequest, res: Response) => {   
@@ -508,9 +516,16 @@ export const updatePosition = asyncHandler(async (req: AuthRequest, res: Respons
     return success(res, result)
 })
 
-export const deletePosition = asyncHandler(async (req: AuthRequest, res: Response) => { 
-    await profileSubRepo.deletePosition(parseInt(req.params.subId as string, 10))       
-    return success(res, { message: 'Deleted' })
+export const deletePosition = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'position',
+        parseInt(req.params.subId as string, 10),
+        null,
+        req.user!,
+        'delete'
+    )
+    return success(res, result)
 })
 
 // --- RESEARCH WORKS ---
@@ -542,6 +557,13 @@ export const updateResearchWork = asyncHandler(async (req: AuthRequest, res: Res
 })
 
 export const deleteResearchWork = asyncHandler(async (req: AuthRequest, res: Response) => {
-    await profileSubRepo.deleteResearchWork(parseInt(req.params.subId as string, 10))   
-    return success(res, { message: 'Deleted' })
+    const result = await profileService.initiateSubUpdateWorkflow(
+        parseInt(req.params.id as string, 10),
+        'researchWork',
+        parseInt(req.params.subId as string, 10),
+        null,
+        req.user!,
+        'delete'
+    )
+    return success(res, result)
 })

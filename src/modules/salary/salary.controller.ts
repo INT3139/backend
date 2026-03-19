@@ -1,6 +1,7 @@
 import { exportService } from '@/services/export.service'
 import { Request, Response } from "express"
 import { salaryService } from "./salary.service"
+import { workflowEngine } from "@/core/workflow/engine"
 import { success, created } from "@/utils/response"
 import { AuthUser, ID } from "@/types"
 import { logAction } from "@/core/middlewares/auditContext"
@@ -90,26 +91,40 @@ export const createProposal = asyncHandler(async (
     req: AuthRequest,
     res: Response
 ): Promise<Response> => {
-    const proposal = await salaryService.createProposal(req.body, req.user!)
-    
-    await logAction(req.userId!, 'create', 'salary_upgrade_proposal', proposal.id.toString(), req.body)
+    const result = await salaryService.createProposal(req.body, req.user!)
 
-    return created(res, proposal)
+    await logAction(req.userId!, 'create', 'salary_upgrade_proposal', result.workflowId.toString(), req.body)
+
+    return created(res, result)
 })
 
 /**
- * POST /api/v1/salary/proposals/:id/approve
+ * GET /api/v1/salary/tasks
  */
-export const approveProposal = asyncHandler(async (
+export const getMyTasks = asyncHandler(async (
     req: AuthRequest,
     res: Response
 ): Promise<Response> => {
-    const { id } = req.params
-    const updated = await salaryService.approveProposal(parseInt(id as string, 10), req.user!)
-    
-    await logAction(req.userId!, 'approve', 'salary_upgrade_proposal', id as string)
+    const result = await workflowEngine.getMyTasks(req.userId!)
+    return success(res, result)
+})
 
-    return success(res, updated)
+/**
+ * POST /api/v1/salary/tasks/:instanceId
+ */
+export const processTask = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<Response> => {
+    const { instanceId } = req.params
+    const { action, comment } = req.body
+    const result = await salaryService.completeWorkflowTask(
+        parseInt(instanceId as string, 10),
+        req.userId!,
+        action,
+        comment
+    )
+    return success(res, result)
 })
 
 /**

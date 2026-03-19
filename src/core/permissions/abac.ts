@@ -1,7 +1,9 @@
 import { db } from "@/configs/db";
 import { resourceScopes } from "@/db/schema/core";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { ID, UserScope, ResourceScope } from "@/types";
+import { rGetJson, rSetJson } from "@/configs/redis";
+import { CacheKey, CacheTTL } from "../cache/cacheKey";
 
 export class AbacService {
     /**
@@ -18,6 +20,9 @@ export class AbacService {
         resourceType: string,
         resourceId: ID
     ): Promise<boolean> {
+        // Fast path: school scope grants universal access — skip DB lookup
+        if (userScopes.some((s) => s.scopeType === "school")) return true;
+
         const [row] = await db
             .select({
                 ownerId: resourceScopes.ownerId,
@@ -37,21 +42,49 @@ export class AbacService {
 
         const { ownerId, unitId } = row;
 
-        return userScopes.some((s) => {
-            // school scope: toàn quyền
-            if (s.scopeType === "school") return true;
+        const checks = await Promise.all(
+            userScopes.map(async (s) => {
+                // self scope: chỉ truy cập resource mà mình là owner
+                if (s.scopeType === "self") return ownerId === userId;
 
-            // self scope: chỉ truy cập resource mà mình là owner
-            // Fix: compare ownerId với userId của requester, không phải s.unitId
-            if (s.scopeType === "self") return ownerId === userId;
+                // faculty / department scope: resource phải thuộc đúng đơn vị
+                // hoặc bất kỳ đơn vị con nào của đơn vị đó (kiểm tra đệ quy)
+                if (s.scopeType === "faculty" || s.scopeType === "department") {
+                    if (s.unitId === null || unitId === null) return false;
+                    const descendants = await this.getDescendantUnitIds(s.unitId);
+                    return descendants.has(unitId);
+                }
 
-            // faculty / department scope: resource phải thuộc đúng đơn vị
-            if (s.scopeType === "faculty" || s.scopeType === "department") {
-                return s.unitId !== null && s.unitId === unitId;
-            }
+                return false;
+            })
+        );
 
-            return false;
-        });
+        return checks.some(Boolean);
+    }
+
+    /**
+     * Trả về Set các unit ID là bản thân rootId và tất cả các đơn vị con (đệ quy).
+     * Kết quả được cache trong Redis để tránh query lặp.
+     */
+    private async getDescendantUnitIds(rootId: ID): Promise<Set<ID>> {
+        const cacheKey = CacheKey.orgDescendants(rootId);
+        const cached = await rGetJson<number[]>(cacheKey);
+        if (cached) return new Set(cached);
+
+        const result = await db.execute<{ id: number }>(sql`
+            WITH RECURSIVE tree AS (
+                SELECT id FROM organizational_units WHERE id = ${rootId}
+                UNION ALL
+                SELECT ou.id
+                FROM organizational_units ou
+                JOIN tree t ON ou.parent_id = t.id
+            )
+            SELECT id FROM tree
+        `);
+
+        const ids = result.rows.map((r) => r.id as ID);
+        await rSetJson(cacheKey, ids, CacheTTL.ORG_TREE);
+        return new Set(ids);
     }
 
     async registerScope(scope: ResourceScope): Promise<void> {
