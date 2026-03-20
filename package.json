@@ -13,7 +13,7 @@
     "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only server.ts",
     "build": "tsc && tsc-alias",
     "start": "node dist/server.js",
-    "seed": "psql $DATABASE_URL -f src/db/seeds/01_roles.sql -f src/db/seeds/02_permissions.sql",
+    "seed": "ts-node -r tsconfig-paths/register scripts/seed.ts",
     "test": "jest --runInBand",
     "test:cov": "jest --coverage",
     "test:watch": "jest --watch",

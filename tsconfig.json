@@ -21,6 +21,6 @@
             "@/*": ["src/*"]
         }
     },
-    "include": ["server.ts", "src/**/*"],
+    "include": ["server.ts", "src/**/*", "scripts/seed.ts"],
     "exclude": ["node_modules", "dist", "tests"]
 }
