@@ -213,3 +213,43 @@ export const deleteCandidate = asyncHandler(async (
 
     return success(res, { message: 'Candidate deleted' })
 })
+
+// --- RECRUITMENT INFO CONTROLLERS ---
+
+/**
+ * GET /api/v1/recruitment/me
+ * Get recruitment info and contracts of current user
+ */
+export const getMyRecruitment = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<Response> => {
+    const profile = await recruitmentService.getProfileByUserId(req.userId!)
+    if (!profile) {
+        throw new NotFoundError('Profile not found')
+    }
+
+    const result = await recruitmentService.getRecruitmentData(profile.id)
+
+    await logAction(req.userId!, 'read', 'recruitment_info_self', profile.id.toString())
+
+    return success(res, result)
+})
+
+/**
+ * GET /api/v1/recruitment/info/:profileId
+ * Get recruitment info and contracts by profile ID
+ * @param {integer} profileId.path.required - Profile ID
+ */
+export const getRecruitmentByProfileId = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<Response> => {
+    const profileId = parseInt(req.params.profileId as string, 10)
+
+    const result = await recruitmentService.getRecruitmentData(profileId)
+
+    await logAction(req.userId!, 'read', 'recruitment_info', profileId.toString())
+
+    return success(res, result)
+})

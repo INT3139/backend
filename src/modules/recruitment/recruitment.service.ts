@@ -1,4 +1,5 @@
 import { recruitmentRepo, RecruitmentProposalFilter, RecruitmentProposalRow } from "./recruitment.repo"
+import { profileRepo } from "../profile/profile.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
 import { permissionService } from "@/core/permissions/permission.service"
@@ -281,6 +282,13 @@ export class RecruitmentService {
         }
 
         return await recruitmentRepo.deleteCandidate(id)
+    }
+
+    /**
+     * Get profile by user ID
+     */
+    async getProfileByUserId(userId: ID) {
+        return await profileRepo.findByUserId(userId)
     }
 
     /**

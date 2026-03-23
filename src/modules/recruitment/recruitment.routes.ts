@@ -4,6 +4,7 @@ import { authenticate } from "@/core/middlewares/auth"
 import { requirePermission } from "@/core/middlewares/requirePermission"
 import { requireResource, requireSelfOrPermission } from "@/core/middlewares/requireResource"
 import { recruitmentService } from "./recruitment.service"
+import { profileService } from "../profile/profile.service"
 import { PERM } from "@/constants/permission"
 import { validateBody } from "@/utils/validate"
 import * as schema from "./recruitment.schema"
@@ -329,6 +330,49 @@ router.get(
     "/proposals/:id/candidates",
     requireSelfOrPermission(PERM.RECRUITMENT.READ, 'recruitment_proposal', r => +r.params.id, getOwner),
     controller.getCandidates
+)
+
+/**
+ * @openapi
+ * /recruitment/me:
+ *   get:
+ *     tags:
+ *       - Recruitment Info
+ *     summary: Get current user's recruitment info and contracts
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved recruitment info
+ */
+router.get("/me", requirePermission(PERM.RECRUITMENT.SELF_READ), controller.getMyRecruitment)
+
+/**
+ * @openapi
+ * /recruitment/info/{profileId}:
+ *   get:
+ *     tags:
+ *       - Recruitment Info
+ *     summary: Get recruitment info and contracts by profile ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: profileId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved recruitment info
+ */
+router.get(
+    "/info/:profileId",
+    requireSelfOrPermission(PERM.RECRUITMENT.READ, 'profile', r => +r.params.profileId, async (req) => {
+        const profile = await profileService.getProfileById(+req.params.profileId)
+        return profile?.userId ?? 0
+    }),
+    controller.getRecruitmentByProfileId
 )
 
 /**
