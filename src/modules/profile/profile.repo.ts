@@ -225,6 +225,33 @@ export class ProfileRepository {
             .returning()
         return result[0] ?? null
     }
+
+    /**
+     * Tìm workflow đang hoạt động (pending hoặc in_progress) cho một profile
+     */
+    async findActiveWorkflow(profileId: ID, tx?: any): Promise<any | null> {
+        const result = await (tx || db).execute(sql`
+            SELECT id, metadata FROM wf_instances 
+            WHERE resource_type = 'profile' 
+            AND resource_id = ${profileId} 
+            AND status IN ('pending', 'in_progress')
+            LIMIT 1
+        `)
+        return result.rows[0] ?? null
+    }
+
+    /**
+     * Merge thêm dữ liệu vào metadata của workflow hiện có (Atomic Merge)
+     * Sử dụng toán tử || của PostgreSQL để gộp JSONB
+     */
+    async appendWorkflowMetadata(workflowId: ID, newMetadata: any, tx?: any): Promise<void> {
+        await (tx || db).execute(sql`
+            UPDATE wf_instances 
+            SET metadata = metadata || ${JSON.stringify(newMetadata)}::jsonb,
+                updated_at = NOW()
+            WHERE id = ${workflowId}
+        `)
+    }
 }
 
 export const profileRepo = new ProfileRepository()

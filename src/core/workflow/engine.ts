@@ -147,29 +147,39 @@ export class WorkflowEngine {
 
       // Tính trạng thái mới
       const isReject = action === 'reject'
+      const isRevision = action === 'request_revision'
       const nextStep = inst.currentStep + 1
       const isLast = nextStep > steps.length
 
-      const newStatus: WorkflowStatus = isReject
-        ? 'rejected'
-        : isLast
-          ? 'approved'
-          : 'in_progress'
+      let newStatus: WorkflowStatus = inst.status
+      if (isReject) {
+        newStatus = 'rejected'
+      } else if (isRevision) {
+        newStatus = 'in_progress' // Vẫn in_progress nhưng quay về bước 1
+      } else if (isLast) {
+        newStatus = 'approved'
+      } else {
+        newStatus = 'in_progress'
+      }
 
-      const newCurrentStep = isReject || isLast ? inst.currentStep : nextStep
+      const newCurrentStep = isReject || isLast 
+        ? inst.currentStep 
+        : isRevision 
+          ? 1 
+          : nextStep
 
       const [updatedInst] = await tx
         .update(wfInstances)
         .set({
           currentStep: newCurrentStep,
           status: newStatus,
-          completedAt: newStatus !== 'in_progress' ? new Date() : null,
+          completedAt: (newStatus === 'approved' || newStatus === 'rejected') ? new Date() : null,
         })
         .where(eq(wfInstances.id, inst.id))
         .returning()
 
-      if (newStatus !== 'in_progress') {
-        await dispatchWorkflowResult(updatedInst as unknown as WorkflowInstance, actorId, tx)
+      if (newStatus !== 'in_progress' || isRevision) {
+        await dispatchWorkflowResult(updatedInst as unknown as WorkflowInstance, actorId, tx, action)
       }
 
       await cacheService.invalidateWorkflowInstance(inst.id)

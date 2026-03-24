@@ -20,6 +20,7 @@ export interface FullProfileRow extends ProfileRow {
     healthRecords?: any
     positions?: any[]
     researchWorks?: any[]
+    pendingChanges?: any
 }
 
 export interface CreateProfileDto {
@@ -118,6 +119,15 @@ export class ProfileService {
 
             await rSetJson(cacheKey, profile, CacheTTL.PROFILE_FULL)
         }
+
+        // Bổ sung dữ liệu đang chờ duyệt (nếu có)
+        if (profile && profile.profileStatus === 'pending') {
+            const activeWf = await profileRepo.findActiveWorkflow(id)
+            if (activeWf) {
+                profile.pendingChanges = activeWf.metadata
+            }
+        }
+        
         return profile
     }
 
@@ -159,24 +169,38 @@ export class ProfileService {
             throw new NotFoundError('Profile not found')
         }
 
-        const scopes = await permissionService.getScopes(user.id)
-        const canUpdate = await abacService.canAccess(
-            user.id,
-            scopes,
-            'profile',
-            id
-        )
-
         const isSelf = existing.userId === user.id
-
-        if (!canUpdate && !isSelf) {
-            throw new ForbiddenError('You do not have permission to update this profile')
+        if (!isSelf) {
+            const scopes = await permissionService.getScopes(user.id)
+            const canUpdate = await abacService.canAccess(user.id, scopes, 'profile', id)
+            if (!canUpdate) {
+                throw new ForbiddenError('You do not have permission to update this profile')
+            }
         }
 
-        // Atomically set to 'pending' — prevents race conditions and double submission
+        const changeKey = 'main'
+        const changeData = { [changeKey]: data }
+
+        // Trước khi tạo mới, kiểm tra xem đã có Workflow nào đang chạy chưa
+        const activeWf = await profileRepo.findActiveWorkflow(id)
+        if (activeWf) {
+            await profileRepo.appendWorkflowMetadata(activeWf.id, changeData)
+            // Nếu hồ sơ đang ở 'draft' (do vừa bị Revision), ta chuyển nó về 'pending' lại
+            if (existing.profileStatus !== 'pending') {
+                await profileRepo.update(id, { profileStatus: 'pending' })
+            }
+            return { message: 'Thay đổi thông tin chính đã được cập nhật vào danh sách chờ duyệt.', workflowId: activeWf.id }
+        }
+
+        // Atomically set to 'pending' — prevents race conditions
         const locked = await profileRepo.setPendingAtomically(id)
         if (!locked) {
-            throw new ForbiddenError('Hồ sơ đang trong quá trình chờ duyệt, không thể chỉnh sửa thêm.')
+            // Trường hợp hy hữu: status vừa nhảy sang pending ngay sau khi check activeWf
+            const retryWf = await profileRepo.findActiveWorkflow(id)
+            if (retryWf) {
+                await profileRepo.appendWorkflowMetadata(retryWf.id, changeData)
+                return { message: 'Thay đổi thông tin chính đã được cập nhật vào danh sách chờ duyệt.', workflowId: retryWf.id }
+            }
         }
 
         // Tạo workflow, lưu data thay đổi vào metadata kèm theo type
@@ -185,10 +209,7 @@ export class ProfileService {
             resourceType: 'profile',
             resourceId: id,
             initiatedBy: user.id,
-            metadata: {
-                type: 'main',
-                data: data
-            }
+            metadata: changeData
         })
 
         return {
@@ -211,10 +232,29 @@ export class ProfileService {
         const existing = await profileRepo.findById(profileId)
         if (!existing) throw new NotFoundError('Profile not found')
 
-        // Atomically set to 'pending' — prevents race conditions and double submission
+        // Sử dụng key duy nhất cho từng bản ghi con để tránh ghi đè khi merge JSONB
+        const changeKey = `sub_${type}_${subId || 'new_' + Math.random().toString(36).substring(2, 9)}`
+        const changeData = {
+            [changeKey]: { type, subId, data, action }
+        }
+
+        // Kiểm tra Workflow đang hoạt động
+        const activeWf = await profileRepo.findActiveWorkflow(profileId)
+        if (activeWf) {
+            await profileRepo.appendWorkflowMetadata(activeWf.id, changeData)
+            if (existing.profileStatus !== 'pending') {
+                await profileRepo.update(profileId, { profileStatus: 'pending' })
+            }
+            return { message: `Yêu cầu thay đổi ${type} đã được thêm vào danh sách chờ duyệt.`, workflowId: activeWf.id }
+        }
+
         const locked = await profileRepo.setPendingAtomically(profileId)
         if (!locked) {
-            throw new ForbiddenError('Hồ sơ đang trong quá trình chờ duyệt, không thể chỉnh sửa thêm.')
+            const retryWf = await profileRepo.findActiveWorkflow(profileId)
+            if (retryWf) {
+                await profileRepo.appendWorkflowMetadata(retryWf.id, changeData)
+                return { message: `Yêu cầu thay đổi ${type} đã được thêm vào danh sách chờ duyệt.`, workflowId: retryWf.id }
+            }
         }
 
         const workflow = await workflowEngine.initiate({
@@ -222,16 +262,11 @@ export class ProfileService {
             resourceType: 'profile',
             resourceId: profileId,
             initiatedBy: user.id,
-            metadata: {
-                type,
-                subId,
-                data,
-                action
-            }
+            metadata: changeData
         })
 
         return {
-            message: `Yêu cầu ${action === 'delete' ? 'xóa' : 'cập nhật'} ${type} đã được gửi và đang chờ phê duyệt.`,
+            message: `Yêu cầu thay đổi ${type} đã được gửi và đang chờ phê duyệt.`,
             workflowId: workflow.id
         }
     }
@@ -303,95 +338,81 @@ export class ProfileService {
         }
 
         const profileId = inst.resourceId
-        const { type, subId, data, action } = inst.metadata as any
+        const metadata = inst.metadata as any
+        const results: any = {}
 
-        let result: any
+        // Duyệt qua tất cả các thay đổi trong Metadata (Cơ chế Batch/Append)
+        for (const [key, item] of Object.entries(metadata)) {
+            if (key === 'main') {
+                const validData = updateProfileSchema.parse(item)
+                results.main = await profileRepo.update(profileId, {
+                    ...validData,
+                    profileStatus: 'approved',
+                    lastUpdatedBy: approvedBy
+                }, tx)
+            } else if (key.startsWith('sub_')) {
+                const { type, subId, data, action } = item as any
 
-        if (action === 'delete') {
-            switch (type) {
-                case 'education':
-                    result = await profileSubRepo.deleteEducation(subId, tx)
-                    break
-                case 'family':
-                    result = await profileSubRepo.deleteFamily(subId, tx)
-                    break
-                case 'workHistory':
-                    result = await profileSubRepo.deleteWorkHistory(subId, tx)
-                    break
-                case 'position':
-                    result = await profileSubRepo.deletePosition(subId, tx)
-                    break
-                case 'researchWork':
-                    result = await profileSubRepo.deleteResearchWork(subId, tx)
-                    break
-            }
-        } else {
-            switch (type) {
-                case 'main':
-                    const validData = updateProfileSchema.parse(data)
-                    result = await profileRepo.update(profileId, {
-                        ...validData,
-                        profileStatus: 'approved',
-                        lastUpdatedBy: approvedBy
-                    }, tx)
-                    break
-                case 'education':
-                    const eduData = educationSchema.parse(data)
-                    result = subId
-                        ? await profileSubRepo.updateEducation(subId, eduData, tx)
-                        : await profileSubRepo.createEducation({ ...eduData, profileId } as any, tx)
-                    break
-                case 'family':
-                    const famData = familySchema.parse(data)
-                    result = subId
-                        ? await profileSubRepo.updateFamily(subId, famData, tx)
-                        : await profileSubRepo.createFamily({ ...famData, profileId } as any, tx)
-                    break
-                case 'workHistory':
-                    const whData = workHistorySchema.parse(data)
-                    result = subId
-                        ? await profileSubRepo.updateWorkHistory(subId, whData, tx)
-                        : await profileSubRepo.createWorkHistory({ ...whData, profileId }, tx)
-                    break
-                case 'extraInfo':
-                    const exData = extraInfoSchema.parse(data)
-                    result = await profileSubRepo.upsertExtraInfo(profileId, exData, tx)
-                    break
-                case 'healthRecords':
-                    const hrData = healthSchema.parse(data)
-                    result = await profileSubRepo.upsertHealthRecords(profileId, hrData as any, tx)
-                    break
-                case 'position':
-                    const posData = positionSchema.parse(data)
-                    result = subId
-                        ? await profileSubRepo.updatePosition(subId, posData, tx)
-                        : await profileSubRepo.createPosition({ ...posData, profileId }, tx)
-                    break
-                case 'researchWork':
-                    const rwData = researchWorkSchema.parse(data)
-                    result = subId
-                        ? await profileSubRepo.updateResearchWork(subId, rwData, tx)
-                        : await profileSubRepo.createResearchWork({ ...rwData, profileId }, tx)
-                    break
-                default:
-                    // Fallback for legacy metadata (no type field)
-                    result = await profileRepo.update(profileId, {
-                        ...inst.metadata,
-                        profileStatus: 'approved',
-                        lastUpdatedBy: approvedBy
-                    }, tx)
+                if (action === 'delete') {
+                    switch (type) {
+                        case 'education': await profileSubRepo.deleteEducation(subId, tx); break;
+                        case 'family': await profileSubRepo.deleteFamily(subId, tx); break;
+                        case 'workHistory': await profileSubRepo.deleteWorkHistory(subId, tx); break;
+                        case 'position': await profileSubRepo.deletePosition(subId, tx); break;
+                        case 'researchWork': await profileSubRepo.deleteResearchWork(subId, tx); break;
+                    }
+                    results[key] = { success: true, action: 'delete' }
+                } else {
+                    switch (type) {
+                        case 'education':
+                            const eduData = educationSchema.parse(data);
+                            results[key] = subId 
+                                ? await profileSubRepo.updateEducation(subId, eduData, tx) 
+                                : await profileSubRepo.createEducation({ ...eduData, profileId } as any, tx);
+                            break;
+                        case 'family':
+                            const famData = familySchema.parse(data);
+                            results[key] = subId 
+                                ? await profileSubRepo.updateFamily(subId, { ...famData, status: 'approved' } as any, tx) 
+                                : await profileSubRepo.createFamily({ ...famData, profileId, status: 'approved' } as any, tx);
+                            break;
+                        case 'workHistory':
+                            const whData = workHistorySchema.parse(data);
+                            results[key] = subId 
+                                ? await profileSubRepo.updateWorkHistory(subId, { ...whData, status: 'approved', approvedBy }, tx) 
+                                : await profileSubRepo.createWorkHistory({ ...whData, profileId, status: 'approved', approvedBy }, tx);
+                            break;
+                        case 'extraInfo':
+                            const exData = extraInfoSchema.parse(data);
+                            results[key] = await profileSubRepo.upsertExtraInfo(profileId, exData, tx);
+                            break;
+                        case 'healthRecords':
+                            const hrData = healthSchema.parse(data);
+                            results[key] = await profileSubRepo.upsertHealthRecords(profileId, hrData as any, tx);
+                            break;
+                        case 'position':
+                            const posData = positionSchema.parse(data);
+                            results[key] = subId 
+                                ? await profileSubRepo.updatePosition(subId, posData, tx) 
+                                : await profileSubRepo.createPosition({ ...posData, profileId }, tx);
+                            break;
+                        case 'researchWork':
+                            const rwData = researchWorkSchema.parse(data);
+                            results[key] = subId 
+                                ? await profileSubRepo.updateResearchWork(subId, { ...rwData, status: 'approved', verifiedBy: approvedBy }, tx) 
+                                : await profileSubRepo.createResearchWork({ ...rwData, profileId, status: 'approved', verifiedBy: approvedBy }, tx);
+                            break;
+                    }
+                }
             }
         }
 
-        // For non-main updates, set the parent profile back to 'approved'
-        if (type !== 'main') {
-            await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() }, tx)
-        }
+        // Luôn chuyển trạng thái hồ sơ về 'approved' sau khi xong tất cả
+        await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() }, tx)
 
         try { await rDel(CacheKey.profileFull(profileId)) } catch (e) { console.error('Redis cache error:', e) }
-        return result
+        return results
     }
-
     /**
      * Approve profile (initial draft → approved only).
      * Profiles with pending workflow changes must go through processTask instead.
@@ -435,6 +456,22 @@ export class ProfileService {
         await rDel(CacheKey.profileFull(id))
         return updated
     }
+    /**
+     * Xử lý khi Workflow yêu cầu chỉnh sửa (Revision)
+     */
+    async handleRevisionFromWorkflow(workflowId: ID, actorId: ID, tx?: any): Promise<void> {
+        const inst = await workflowEngine.getStatus(workflowId)
+        const profileId = inst.resourceId
+        
+        // Khi yêu cầu sửa, ta có thể chuyển về 'draft' hoặc vẫn để 'pending' nhưng user có quyền edit.
+        // Ở đây chuyển về 'draft' để user biết cần sửa.
+        await profileRepo.update(profileId, {
+            profileStatus: 'draft',
+            lastUpdatedBy: actorId
+        }, tx)
+
+        try { await rDel(CacheKey.profileFull(profileId)) } catch (e) { console.error('Redis cache error:', e) }
+    }
 }
 
 export const profileService = new ProfileService()
@@ -443,6 +480,7 @@ export const profileService = new ProfileService()
 registerWorkflowHandler(
     'profile',
     (inst, actorId, tx) => profileService.applyChangesFromWorkflow(inst.id, actorId, tx),
-    (inst, actorId, tx) => profileService.handleRejectionFromWorkflow(inst.id, actorId, tx)
+    (inst, actorId, tx) => profileService.handleRejectionFromWorkflow(inst.id, actorId, tx),
+    (inst, actorId, tx) => profileService.handleRevisionFromWorkflow(inst.id, actorId, tx)
 )
 

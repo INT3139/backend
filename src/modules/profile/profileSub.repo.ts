@@ -105,7 +105,8 @@ export class ProfileSubRepo {
                 unitName: data.unitName,
                 positionName: data.positionName,
                 activityType: data.activityType,
-                status: data.status || 'pending'
+                status: data.status || 'pending',
+                approvedBy: data.approvedBy
             })
             .returning()
         return res[0]
@@ -252,7 +253,8 @@ export class ProfileSubRepo {
                 publishYear: data.publishYear,
                 doi: data.doi,
                 academicYear: data.academicYear,
-                status: data.status || 'pending'
+                status: data.status || 'pending',
+                verifiedBy: data.verifiedBy
             })
             .returning()
         return res[0]
