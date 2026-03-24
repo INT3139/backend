@@ -254,7 +254,12 @@ export class ProfileSubRepo {
                 doi: data.doi,
                 academicYear: data.academicYear,
                 status: data.status || 'pending',
-                verifiedBy: data.verifiedBy
+                avatarDefault: data.avatarDefault ?? true,
+                note: data.note,
+                origin: data.origin,
+                verifiedBy: data.verifiedBy,
+                createdAt: new Date(),
+                updatedAt: new Date()
             })
             .returning()
         return res[0]
@@ -263,7 +268,10 @@ export class ProfileSubRepo {
     async updateResearchWork(id: ID, data: any, tx?: any) {
         const { profileId, ...updateData } = data
         const res = await (tx || db).update(profileResearchWorks)
-            .set(updateData)
+            .set({
+                ...updateData,
+                updatedAt: new Date()
+            })
             .where(eq(profileResearchWorks.id, id))
             .returning()
         return res[0]

@@ -5,7 +5,12 @@ export default {
   schema: './src/db/schema/index.ts',
   out: './src/db/migrations',
   dialect: 'postgresql',
+  verbose: true,
   dbCredentials: {
     url: env.DATABASE_URL,
   },
-} satisfies Config;
+  migrations: {
+    table: 'migrations',
+    schema: 'public',
+  }
+} satisfies Config; 

@@ -69,12 +69,15 @@ export const positionSchema = z.object({
 })
 
 export const researchWorkSchema = z.object({
-    workType: z.string().min(1),
+    workType: z.enum(['journal_paper', 'conference_paper', 'book', 'book_chapter', 'patent', 'software', 'other']),
     title: z.string().min(1),
     journalName: z.string().optional(),
     indexing: z.string().optional(),
     publishYear: z.number().int().optional(),
     doi: z.string().optional(),
     academicYear: z.string().optional(),
-    status: z.enum(['pending', 'approved', 'rejected']).optional()
+    status: z.enum(['pending', 'approved', 'rejected']).optional(),
+    avatarDefault: z.boolean().optional(),
+    note: z.string().optional(),
+    origin: z.string().optional()
 })

@@ -26,6 +26,7 @@ export const wfInstances = pgTable('wf_instances', {
   startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   dueAt: timestamp('due_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => {
   return {
     actorIdx: index('idx_wf_instances_actor').on(table.initiatedBy),

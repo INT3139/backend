@@ -62,6 +62,9 @@ export interface CreateProfileDto {
     joinDate?: Date | string
     retireDate?: Date | string
     profileStatus?: string
+    avatarDefault?: boolean
+    note?: string
+    origin?: string
     lastUpdatedBy?: ID
 }
 

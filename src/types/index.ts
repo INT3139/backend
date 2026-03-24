@@ -28,6 +28,7 @@ export type NotificationChannel = 'in_app' | 'email'
 export type NotificationStatus = 'pending' | 'sent' | 'read' | 'failed'
 export type DisciplineType = 'khien_trach' | 'canh_cao' | 'ha_bac_luong' | 'buoc_thoi_viec'
 export type ScopeType = 'school' | 'faculty' | 'department' | 'self'
+export type ResearchWorkType = 'journal_paper' | 'conference_paper' | 'book' | 'book_chapter' | 'patent' | 'software' | 'other'
 
 // --- Common Objects ---
 export interface PaginationQuery {

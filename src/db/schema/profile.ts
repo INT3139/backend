@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, date, numeric, jsonb, boolean, index, integer
 import { sql } from 'drizzle-orm';
 import { users } from './auth';
 import { organizationalUnits } from './core';
-import { statusEnum, academicDegreeEnum, academicTitleEnum, genderEnum, maritalStatusEnum, politicalTheoryEnum } from './enums';
+import { statusEnum, academicDegreeEnum, academicTitleEnum, genderEnum, maritalStatusEnum, politicalTheoryEnum, researchWorkTypeEnum } from './enums';
 import { profileStaffSeq, profileWorkHistoriesSeq, profileEducationHistoriesSeq, profileExtraInfoSeq, profileFamilyRelationsSeq, profileHealthRecordsSeq, profilePositionsSeq, profileResearchWorksSeq } from './sequences';
 
 export const profileStaff = pgTable('profile_staff', {
@@ -45,6 +45,9 @@ export const profileStaff = pgTable('profile_staff', {
   joinDate: date('join_date'),
   retireDate: date('retire_date'),
   profileStatus: text('profile_status').default('draft').notNull(),
+  avatarDefault: boolean('avatar_default').default(true).notNull(),
+  note: text('note'),
+  origin: text('origin'),
   lastUpdatedBy: integer('last_updated_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -160,7 +163,7 @@ export const profilePositions = pgTable('profile_positions', {
 export const profileResearchWorks = pgTable('profile_research_works', {
   id: integer('id').primaryKey().default(sql`nextval('profile_research_works_id_seq')`).notNull(),
   profileId: integer('profile_id').notNull().references(() => profileStaff.id, { onDelete: 'cascade' }),
-  workType: text('work_type').notNull(),
+  workType: researchWorkTypeEnum('work_type').notNull(),
   title: text('title').notNull(),
   journalName: text('journal_name'),
   indexing: text('indexing'),
@@ -168,8 +171,13 @@ export const profileResearchWorks = pgTable('profile_research_works', {
   doi: text('doi'),
   academicYear: text('academic_year'),
   status: text('status').default('pending'),
+  avatarDefault: boolean('avatar_default').default(true).notNull(),
+  note: text('note'),
+  origin: text('origin'),
   verifiedBy: integer('verified_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => {
   return {
     researchProfileIdx: index('idx_research_profile').on(table.profileId),

@@ -38,7 +38,10 @@ export const createProfileSchema = z.object({
     employmentStatus: z.string().optional(),
     joinDate: z.string().transform(v => new Date(v)).optional(),
     retireDate: z.string().transform(v => new Date(v)).optional(),
-    profileStatus: z.string().optional()
+    profileStatus: z.string().optional(),
+    avatarDefault: z.boolean().optional(),
+    note: z.string().optional(),
+    origin: z.string().optional()
 })
 
 export const updateProfileSchema = createProfileSchema.partial()

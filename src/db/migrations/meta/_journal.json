@@ -8,6 +8,13 @@
       "when": 1773484677872,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774380893784,
+      "tag": "0001_update_profile_and_research_works_schema",
+      "breakpoints": true
     }
   ]
 }

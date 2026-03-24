@@ -53,3 +53,5 @@ export const notificationStatusEnum = pgEnum('notification_status', ['pending', 
 export const disciplineTypeEnum = pgEnum('discipline_type', ['khien_trach', 'canh_cao', 'ha_bac_luong', 'buoc_thoi_viec']);
 
 export const scopeTypeEnum = pgEnum('scope_type', ['school', 'faculty', 'department', 'self']);
+
+export const researchWorkTypeEnum = pgEnum('research_work_type', ['journal_paper', 'conference_paper', 'book', 'book_chapter', 'patent', 'software', 'other']);
