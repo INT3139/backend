@@ -530,7 +530,15 @@ export const deletePosition = asyncHandler(async (req: AuthRequest, res: Respons
 
 // --- RESEARCH WORKS ---
 export const getResearchWorks = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await profileSubRepo.getResearchWorks(parseInt(req.params.id as string, 10))
+    const profileId = parseInt(req.params.id as string, 10)
+    const { type, page, limit } = req.query
+
+    const result = await profileSubRepo.getResearchWorks(profileId, {
+        workType: type as string,
+        page: page ? parseInt(page as string, 10) : undefined,
+        limit: limit ? parseInt(limit as string, 10) : undefined
+    })
+
     return success(res, result)
 })
 

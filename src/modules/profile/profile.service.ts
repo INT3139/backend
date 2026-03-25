@@ -22,7 +22,10 @@ export interface FullProfileRow extends ProfileRow {
     extraInfo?: any
     healthRecords?: any
     positions?: any[]
-    researchWorks?: any[]
+    researchWorks?: {
+        data: any[]
+        summary: any[]
+    }
     pendingChanges?: any
 }
 

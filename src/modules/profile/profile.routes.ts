@@ -1804,7 +1804,9 @@ router.delete(
  *     tags:
  *       - Profile Research Works
  *     summary: Get research works
- *     description: Retrieve all research works, publications, and projects for a specific profile.
+ *     description: |
+ *       Retrieve research works, publications, and projects for a specific profile.
+ *       Supports filtering by type, pagination, and returns a summary of counts by type.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1814,6 +1816,21 @@ router.delete(
  *         schema:
  *           type: integer
  *         description: Profile ID
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *         description: Filter by work type (e.g., journal_paper, book)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Records per page
  *     responses:
  *       200:
  *         description: Successfully retrieved research works
@@ -1824,9 +1841,32 @@ router.delete(
  *                 - $ref: '#/components/schemas/ApiResponse'
  *                 - properties:
  *                     data:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/ResearchWork'
+ *                       type: object
+ *                       properties:
+ *                         data:
+ *                           type: array
+ *                           items:
+ *                             $ref: '#/components/schemas/ResearchWork'
+ *                         summary:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               type:
+ *                                 type: string
+ *                               count:
+ *                                 type: integer
+ *                         meta:
+ *                           type: object
+ *                           properties:
+ *                             total:
+ *                               type: integer
+ *                             page:
+ *                               type: integer
+ *                             limit:
+ *                               type: integer
+ *                             totalPages:
+ *                               type: integer
  *       401:
  *         description: Unauthorized
  *       403:

@@ -1,7 +1,7 @@
 import { db } from "@/configs/db"
 import { ID, EducationHistoryInput, FamilyRelationInput, HealthRecordInput } from "@/types"
 import { profileEducationHistories, profileFamilyRelations, profileWorkHistories, profileExtraInfo, profileHealthRecords, profilePositions, profileResearchWorks } from "@/db/schema"
-import { eq, desc } from "drizzle-orm"
+import { eq, desc, and, count } from "drizzle-orm"
 
 export class ProfileSubRepo {
     // --- EDUCATION ---
@@ -11,6 +11,8 @@ export class ProfileSubRepo {
             .where(eq(profileEducationHistories.profileId, profileId))
             .orderBy(desc(profileEducationHistories.fromDate))
     }
+
+    // ... (rest of the file until Research Works section)
 
     async createEducation(data: EducationHistoryInput, tx?: any) {
         const res = await (tx || db).insert(profileEducationHistories)
@@ -235,11 +237,72 @@ export class ProfileSubRepo {
     }
 
     // --- RESEARCH WORKS ---
-    async getResearchWorks(profileId: ID, tx?: any) {
-        return await (tx || db).select()
+    async getResearchWorks(
+        profileId: ID, 
+        filter: { workType?: string, page?: number, limit?: number } = {},
+        tx?: any
+    ) {
+        const { workType, page, limit } = filter;
+        const dbInst = tx || db;
+
+        // 1. Get summary counts by type (always return this for UI tabs)
+        const summary = await dbInst
+            .select({
+                type: profileResearchWorks.workType,
+                count: count()
+            })
             .from(profileResearchWorks)
             .where(eq(profileResearchWorks.profileId, profileId))
-            .orderBy(desc(profileResearchWorks.publishYear))
+            .groupBy(profileResearchWorks.workType);
+
+        // 2. Build conditions for the main data query
+        const conditions = [eq(profileResearchWorks.profileId, profileId)];
+        if (workType) {
+            conditions.push(eq(profileResearchWorks.workType, workType as any));
+        }
+
+        const whereClause = and(...conditions);
+
+        // 3. Handle Pagination
+        if (page && limit) {
+            const offset = (page - 1) * limit;
+            
+            const [data, totalResult] = await Promise.all([
+                dbInst.select()
+                    .from(profileResearchWorks)
+                    .where(whereClause)
+                    .limit(limit)
+                    .offset(offset)
+                    .orderBy(desc(profileResearchWorks.publishYear)),
+                dbInst.select({ total: count() })
+                    .from(profileResearchWorks)
+                    .where(whereClause)
+            ]);
+
+            const total = Number(totalResult[0].total);
+
+            return {
+                data,
+                summary,
+                meta: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            };
+        }
+
+        // 4. If no pagination provided, return all matching records
+        const data = await dbInst.select()
+            .from(profileResearchWorks)
+            .where(whereClause)
+            .orderBy(desc(profileResearchWorks.publishYear));
+
+        return {
+            data,
+            summary
+        };
     }
 
     async createResearchWork(data: any, tx?: any) {

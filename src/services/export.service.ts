@@ -173,7 +173,7 @@ export class ExportService {
             startDate: formatDate(pos.startDate),
             endDate: formatDate(pos.endDate)
         })),
-        researchWorks: p.researchWorks ?? [],
+        researchWorks: p.researchWorks?.data ?? [],
         
         // Extra Info
         ...(p.extraInfo || {}),
