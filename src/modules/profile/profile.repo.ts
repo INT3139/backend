@@ -1,6 +1,6 @@
 import { db } from "@/configs/db"
 import { ID, PaginationQuery, PaginatedResult } from "@/types"
-import { profileStaff, users } from "@/db/schema"
+import { profileStaff, users, wfInstances } from "@/db/schema"
 import { eq, ilike, or, and, sql, count, desc, asc, isNull, inArray, ne } from "drizzle-orm"
 
 export interface ProfileFilter {
@@ -230,27 +230,66 @@ export class ProfileRepository {
      * Tìm workflow đang hoạt động (pending hoặc in_progress) cho một profile
      */
     async findActiveWorkflow(profileId: ID, tx?: any): Promise<any | null> {
-        const result = await (tx || db).execute(sql`
-            SELECT id, metadata FROM wf_instances 
-            WHERE resource_type = 'profile' 
-            AND resource_id = ${profileId} 
-            AND status IN ('pending', 'in_progress')
-            LIMIT 1
-        `)
-        return result.rows[0] ?? null
+        const rows = await (tx || db)
+            .select({ id: wfInstances.id, metadata: wfInstances.metadata })
+            .from(wfInstances)
+            .where(and(
+                eq(wfInstances.resourceType, 'profile'),
+                eq(wfInstances.resourceId, profileId as any),
+                inArray(wfInstances.status, ['pending', 'in_progress'])
+            ))
+            .limit(1)
+        return rows[0] ?? null
     }
 
     /**
      * Merge thêm dữ liệu vào metadata của workflow hiện có (Atomic Merge)
-     * Sử dụng toán tử || của PostgreSQL để gộp JSONB
+     * Xử lý đặc biệt cho key 'main' và các key 'sub_' để tránh ghi đè toàn bộ thông tin
      */
     async appendWorkflowMetadata(workflowId: ID, newMetadata: any, tx?: any): Promise<void> {
-        await (tx || db).execute(sql`
-            UPDATE wf_instances 
-            SET metadata = metadata || ${JSON.stringify(newMetadata)}::jsonb,
-                updated_at = NOW()
-            WHERE id = ${workflowId}
-        `)
+        for (const [key, value] of Object.entries(newMetadata)) {
+            const item = value as any;
+            
+            if (key === 'main') {
+                const mainData = JSON.stringify(item);
+                await (tx || db).execute(sql`
+                    UPDATE wf_instances 
+                    SET metadata = jsonb_set(
+                        metadata, 
+                        '{main}', 
+                        coalesce(metadata->'main', '{}'::jsonb) || ${mainData}::jsonb
+                    ),
+                    updated_at = NOW()
+                    WHERE id = ${workflowId}
+                `);
+            } else if (key.startsWith('sub_')) {
+                const innerData = JSON.stringify(item.data || {});
+                const otherFields = { ...item };
+                delete otherFields.data;
+                const otherFieldsJson = JSON.stringify(otherFields);
+
+                // Merge cả fields cha và fields bên trong 'data'
+                await (tx || db).execute(sql`
+                    UPDATE wf_instances 
+                    SET metadata = jsonb_set(
+                        metadata || jsonb_build_object(${key}::text, coalesce(metadata->(${key}::text), '{}'::jsonb) || ${otherFieldsJson}::jsonb),
+                        ARRAY[${key}::text, 'data'],
+                        coalesce(metadata->(${key}::text)->'data', '{}'::jsonb) || ${innerData}::jsonb
+                    ),
+                    updated_at = NOW()
+                    WHERE id = ${workflowId}
+                `);
+            }
+ else {
+                // Các key khác thì merge shallow như cũ
+                await (tx || db).execute(sql`
+                    UPDATE wf_instances 
+                    SET metadata = metadata || jsonb_build_object(${key}::text, ${JSON.stringify(item)}::jsonb),
+                        updated_at = NOW()
+                    WHERE id = ${workflowId}
+                `);
+            }
+        }
     }
 }
 

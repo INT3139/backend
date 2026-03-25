@@ -53,11 +53,11 @@ export class WorkflowEngine {
   // Initiate
   // ----------------------------------------------------------------
 
-  async initiate(p: WorkflowInitPayload): Promise<WorkflowInstance> {
+  async initiate(p: WorkflowInitPayload, tx?: any): Promise<WorkflowInstance> {
     const def = await this.getDefinition(p.definitionCode)
     const steps = def.steps as StepDef[]
 
-    const [inst] = await db
+    const [inst] = await (tx || db)
       .insert(wfInstances)
       .values({
         definitionId: def.id,
@@ -72,7 +72,7 @@ export class WorkflowEngine {
       .returning()
 
     // Bước 1 luôn do người initiate thực hiện (forward)
-    await db.insert(wfStepLogs).values({
+    await (tx || db).insert(wfStepLogs).values({
       instanceId: inst.id,
       stepNumber: 1,
       stepName: steps[0]?.name ?? 'Khởi tạo',
@@ -85,7 +85,7 @@ export class WorkflowEngine {
     const newStep = steps.length >= 2 ? 2 : 1
     const newStatus: WorkflowStatus = steps.length === 1 ? 'approved' : 'in_progress'
 
-    await db
+    await (tx || db)
       .update(wfInstances)
       .set({ currentStep: newStep, status: newStatus })
       .where(eq(wfInstances.id, inst.id))

@@ -43,6 +43,8 @@ describe('Profile Integration Tests', () => {
             unitId: testUser.unitId
         })
         authToken = accessToken
+
+        await grantPermission(testUser.id, PERM.PROFILE.READ)
     })
 
     describe('GET /api/v1/profiles/me', () => {

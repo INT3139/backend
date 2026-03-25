@@ -1,4 +1,7 @@
+import { db } from "@/configs/db"
+import { eq, sql } from "drizzle-orm"
 import { profileRepo, ProfileFilter, ProfileRow, ProfileListRow } from "./profile.repo"
+import { profileStaff } from "@/db/schema"
 import { profileSubRepo } from "./profileSub.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
@@ -167,58 +170,63 @@ export class ProfileService {
         data: UpdateProfileDto,
         user: AuthUser
     ): Promise<any> {
-        const existing = await profileRepo.findById(id)
-        if (!existing) {
-            throw new NotFoundError('Profile not found')
-        }
-
-        const isSelf = existing.userId === user.id
-        if (!isSelf) {
-            const scopes = await permissionService.getScopes(user.id)
-            const canUpdate = await abacService.canAccess(user.id, scopes, 'profile', id)
-            if (!canUpdate) {
-                throw new ForbiddenError('You do not have permission to update this profile')
+        return await db.transaction(async (tx) => {
+            // Lock row để tránh race condition và đảm bảo atomicity
+            const [existing] = await tx
+                .select()
+                .from(profileStaff)
+                .where(eq(profileStaff.id, id))
+                .for('update')
+            
+            if (!existing) {
+                throw new NotFoundError('Profile not found')
             }
-        }
 
-        const changeKey = 'main'
-        const changeData = { [changeKey]: data }
-
-        // Trước khi tạo mới, kiểm tra xem đã có Workflow nào đang chạy chưa
-        const activeWf = await profileRepo.findActiveWorkflow(id)
-        if (activeWf) {
-            await profileRepo.appendWorkflowMetadata(activeWf.id, changeData)
-            // Nếu hồ sơ đang ở 'draft' (do vừa bị Revision), ta chuyển nó về 'pending' lại
-            if (existing.profileStatus !== 'pending') {
-                await profileRepo.update(id, { profileStatus: 'pending' })
+            const isSelf = existing.userId === user.id
+            if (!isSelf) {
+                const scopes = await permissionService.getScopes(user.id)
+                const canUpdate = await abacService.canAccess(user.id, scopes, 'profile', id)
+                if (!canUpdate) {
+                    throw new ForbiddenError('You do not have permission to update this profile')
+                }
             }
-            return { message: 'Thay đổi thông tin chính đã được cập nhật vào danh sách chờ duyệt.', workflowId: activeWf.id }
-        }
 
-        // Atomically set to 'pending' — prevents race conditions
-        const locked = await profileRepo.setPendingAtomically(id)
-        if (!locked) {
-            // Trường hợp hy hữu: status vừa nhảy sang pending ngay sau khi check activeWf
-            const retryWf = await profileRepo.findActiveWorkflow(id)
-            if (retryWf) {
-                await profileRepo.appendWorkflowMetadata(retryWf.id, changeData)
-                return { message: 'Thay đổi thông tin chính đã được cập nhật vào danh sách chờ duyệt.', workflowId: retryWf.id }
+            const changeKey = 'main'
+            const changeData = { [changeKey]: data }
+
+            // Kiểm tra xem đã có Workflow nào đang chạy chưa
+            const activeWf = await profileRepo.findActiveWorkflow(id, tx)
+            if (activeWf) {
+                // Merge metadata ngay tại đây để tránh ghi đè (Cộng dồn thay đổi)
+                await profileRepo.appendWorkflowMetadata(activeWf.id, changeData, tx)
+                
+                // Nếu hồ sơ đang ở 'draft' (do vừa bị Revision), ta chuyển nó về 'pending' lại
+                if (existing.profileStatus !== 'pending') {
+                    await profileRepo.update(id, { profileStatus: 'pending' }, tx)
+                }
+                return { 
+                    message: 'Thay đổi thông tin chính đã được cập nhật vào danh sách chờ duyệt.', 
+                    workflowId: activeWf.id 
+                }
             }
-        }
 
-        // Tạo workflow, lưu data thay đổi vào metadata kèm theo type
-        const workflow = await workflowEngine.initiate({
-            definitionCode: WF.PROFILE_UPDATE,
-            resourceType: 'profile',
-            resourceId: id,
-            initiatedBy: user.id,
-            metadata: changeData
+            // Đặt trạng thái sang pending trước khi tạo workflow
+            await profileRepo.update(id, { profileStatus: 'pending' }, tx)
+
+            // Tạo workflow mới
+            const workflow = await workflowEngine.initiate({
+                definitionCode: WF.PROFILE_UPDATE,
+                resourceType: 'profile',
+                resourceId: id,
+                initiatedBy: user.id,
+                metadata: changeData
+            }, tx)
+
+            return {
+                message: 'Yêu cầu cập nhật hồ sơ đã được gửi và đang chờ phê duyệt.',
+                workflowId: workflow.id
+            }
         })
-
-        return {
-            message: 'Yêu cầu cập nhật hồ sơ đã được gửi và đang chờ phê duyệt.',
-            workflowId: workflow.id
-        }
     }
 
     /**
@@ -232,46 +240,58 @@ export class ProfileService {
         user: AuthUser,
         action: 'upsert' | 'delete' = 'upsert'
     ) {
-        const existing = await profileRepo.findById(profileId)
-        if (!existing) throw new NotFoundError('Profile not found')
+        return await db.transaction(async (tx) => {
+            // Lock row
+            const [existing] = await tx
+                .select()
+                .from(profileStaff)
+                .where(eq(profileStaff.id, profileId))
+                .for('update')
 
-        // Sử dụng key duy nhất cho từng bản ghi con để tránh ghi đè khi merge JSONB
-        const changeKey = `sub_${type}_${subId || 'new_' + Math.random().toString(36).substring(2, 9)}`
-        const changeData = {
-            [changeKey]: { type, subId, data, action }
-        }
+            if (!existing) throw new NotFoundError('Profile not found')
 
-        // Kiểm tra Workflow đang hoạt động
-        const activeWf = await profileRepo.findActiveWorkflow(profileId)
-        if (activeWf) {
-            await profileRepo.appendWorkflowMetadata(activeWf.id, changeData)
-            if (existing.profileStatus !== 'pending') {
-                await profileRepo.update(profileId, { profileStatus: 'pending' })
+            // Sử dụng key duy nhất cho từng bản ghi con để tránh ghi đè khi merge JSONB
+            // Fix: 1-to-1 sub-modules dùng key cố định để merge data thay vì tạo key random mới
+            let changeKey: string
+            if (type === 'extraInfo' || type === 'healthRecords') {
+                changeKey = `sub_${type}`
+            } else {
+                changeKey = `sub_${type}_${subId || 'new_' + Math.random().toString(36).substring(2, 9)}`
             }
-            return { message: `Yêu cầu thay đổi ${type} đã được thêm vào danh sách chờ duyệt.`, workflowId: activeWf.id }
-        }
 
-        const locked = await profileRepo.setPendingAtomically(profileId)
-        if (!locked) {
-            const retryWf = await profileRepo.findActiveWorkflow(profileId)
-            if (retryWf) {
-                await profileRepo.appendWorkflowMetadata(retryWf.id, changeData)
-                return { message: `Yêu cầu thay đổi ${type} đã được thêm vào danh sách chờ duyệt.`, workflowId: retryWf.id }
+            const changeData = {
+                [changeKey]: { type, subId, data, action }
             }
-        }
 
-        const workflow = await workflowEngine.initiate({
-            definitionCode: WF.PROFILE_UPDATE,
-            resourceType: 'profile',
-            resourceId: profileId,
-            initiatedBy: user.id,
-            metadata: changeData
+            // Kiểm tra Workflow đang hoạt động
+            const activeWf = await profileRepo.findActiveWorkflow(profileId, tx)
+            if (activeWf) {
+                await profileRepo.appendWorkflowMetadata(activeWf.id, changeData, tx)
+                if (existing.profileStatus !== 'pending') {
+                    await profileRepo.update(profileId, { profileStatus: 'pending' }, tx)
+                }
+                return { 
+                    message: `Yêu cầu thay đổi ${type} đã được thêm vào danh sách chờ duyệt.`, 
+                    workflowId: activeWf.id 
+                }
+            }
+
+            // Set pending và tạo workflow
+            await profileRepo.update(profileId, { profileStatus: 'pending' }, tx)
+
+            const workflow = await workflowEngine.initiate({
+                definitionCode: WF.PROFILE_UPDATE,
+                resourceType: 'profile',
+                resourceId: profileId,
+                initiatedBy: user.id,
+                metadata: changeData
+            }, tx)
+
+            return {
+                message: `Yêu cầu thay đổi ${type} đã được gửi và đang chờ phê duyệt.`,
+                workflowId: workflow.id
+            }
         })
-
-        return {
-            message: `Yêu cầu thay đổi ${type} đã được gửi và đang chờ phê duyệt.`,
-            workflowId: workflow.id
-        }
     }
 
     /**
