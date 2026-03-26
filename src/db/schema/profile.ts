@@ -172,8 +172,8 @@ export const profileResearchWorks = pgTable('profile_research_works', {
   academicYear: text('academic_year'),
   status: text('status').default('pending'),
   avatarDefault: boolean('avatar_default').default(true).notNull(),
-  note: text('note'),
-  origin: text('origin'),
+  projectCode: text('project_code'),
+  extra: jsonb('extra').notNull().default({}),
   verifiedBy: integer('verified_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -182,5 +182,7 @@ export const profileResearchWorks = pgTable('profile_research_works', {
   return {
     researchProfileIdx: index('idx_research_profile').on(table.profileId),
     researchYearIdx: index('idx_research_year').on(table.publishYear),
+    researchTypeIdx: index('idx_research_type').on(table.profileId, table.workType),
+    researchProjectCodeIdx: index('idx_research_project_code').on(table.projectCode).where(sql`project_code IS NOT NULL`),
   };
 });
