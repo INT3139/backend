@@ -221,13 +221,7 @@ export class WorkflowEngine {
       .where(eq(userRolesTable.userId, userId))
 
     const roleIds = roleRows.map((r) => r.roleId)
-    if (roleIds.length === 0) return []
-
-    // Fix: dùng parameterized query thay vì sql.raw để tránh SQL injection
-    // Tìm instance đang in_progress mà bước hiện tại có role_id thuộc roleIds của user
-    // Seed dùng "step" không phải "stepNumber" trong JSONB
-    const placeholders = roleIds.map((_, i) => `$${i + 3}`).join(', ')
-
+    
     const results = await db
       .select({
         instance: wfInstances,
@@ -238,16 +232,15 @@ export class WorkflowEngine {
       .where(
         and(
           eq(wfInstances.status, 'in_progress'),
-          // Fix: dùng "step" bukan "stepNumber", và parameterized role IDs
-          sql`EXISTS (
+          sql`(${wfInstances.initiatedBy} = ${userId} OR EXISTS (
             SELECT 1
             FROM jsonb_array_elements(${wfDefinitions.steps}) AS s
             WHERE (s->>'step')::int = ${wfInstances.currentStep}
             AND   (s->>'role_id')::int = ANY(ARRAY[${sql.join(
-            roleIds.map((id) => sql`${id}::int`),
-            sql`, `,
-          )}]::int[])
-          )`,
+              roleIds.length > 0 ? roleIds.map((id) => sql`${id}::int`) : [sql`0`],
+              sql`, `,
+            )}]::int[])
+          ))`
         ),
       )
 

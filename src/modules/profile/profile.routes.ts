@@ -307,6 +307,7 @@ import * as schema from "./profile.schema"
  *       properties:
  *         workType:
  *           type: string
+ *           enum: [research_project, book, training_product, research_product, patent, journal_paper, conference_paper, book_chapter, other]
  *         title:
  *           type: string
  *         journalName:
@@ -1121,8 +1122,8 @@ router.post(
  *   put:
  *     tags:
  *       - Profile Family
- *     summary: Update family record
- *     description: Update an existing family member record.
+ *     summary: Update family record (Partial)
+ *     description: Update specific fields of an existing family member record.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1505,7 +1506,7 @@ router.get(
 router.put(
     "/:id/extra",
     requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
-    validateBody(subSchema.extraInfoSchema),
+    validateBody(subSchema.extraInfoSchema.partial()),
     controller.updateExtraInfo
 )
 
@@ -1601,7 +1602,7 @@ router.get(
 router.put(
     "/:id/health",
     requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
-    validateBody(subSchema.healthSchema),
+    validateBody(subSchema.healthSchema.partial()),
     controller.updateHealthRecords
 )
 

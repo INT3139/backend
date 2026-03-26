@@ -391,39 +391,39 @@ export class ProfileService {
                 } else {
                     switch (type) {
                         case 'education':
-                            const eduData = educationSchema.parse(data);
+                            const eduData = subId ? educationSchema.partial().parse(data) : educationSchema.parse(data);
                             results[key] = subId 
                                 ? await profileSubRepo.updateEducation(subId, eduData, tx) 
                                 : await profileSubRepo.createEducation({ ...eduData, profileId } as any, tx);
                             break;
                         case 'family':
-                            const famData = familySchema.parse(data);
+                            const famData = subId ? familySchema.partial().parse(data) : familySchema.parse(data);
                             results[key] = subId 
                                 ? await profileSubRepo.updateFamily(subId, { ...famData, status: 'approved' } as any, tx) 
                                 : await profileSubRepo.createFamily({ ...famData, profileId, status: 'approved' } as any, tx);
                             break;
                         case 'workHistory':
-                            const whData = workHistorySchema.parse(data);
+                            const whData = subId ? workHistorySchema.partial().parse(data) : workHistorySchema.parse(data);
                             results[key] = subId 
                                 ? await profileSubRepo.updateWorkHistory(subId, { ...whData, status: 'approved', approvedBy }, tx) 
                                 : await profileSubRepo.createWorkHistory({ ...whData, profileId, status: 'approved', approvedBy }, tx);
                             break;
                         case 'extraInfo':
-                            const exData = extraInfoSchema.parse(data);
+                            const exData = extraInfoSchema.partial().parse(data);
                             results[key] = await profileSubRepo.upsertExtraInfo(profileId, exData, tx);
                             break;
                         case 'healthRecords':
-                            const hrData = healthSchema.parse(data);
+                            const hrData = healthSchema.partial().parse(data);
                             results[key] = await profileSubRepo.upsertHealthRecords(profileId, hrData as any, tx);
                             break;
                         case 'position':
-                            const posData = positionSchema.parse(data);
+                            const posData = subId ? positionSchema.partial().parse(data) : positionSchema.parse(data);
                             results[key] = subId 
                                 ? await profileSubRepo.updatePosition(subId, posData, tx) 
                                 : await profileSubRepo.createPosition({ ...posData, profileId }, tx);
                             break;
                         case 'researchWork':
-                            const rwData = researchWorkSchema.parse(data);
+                            const rwData = subId ? researchWorkSchema.partial().parse(data) : researchWorkSchema.parse(data);
                             results[key] = subId 
                                 ? await profileSubRepo.updateResearchWork(subId, { ...rwData, status: 'approved', verifiedBy: approvedBy }, tx) 
                                 : await profileSubRepo.createResearchWork({ ...rwData, profileId, status: 'approved', verifiedBy: approvedBy }, tx);

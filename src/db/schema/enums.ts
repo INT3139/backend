@@ -54,4 +54,14 @@ export const disciplineTypeEnum = pgEnum('discipline_type', ['khien_trach', 'can
 
 export const scopeTypeEnum = pgEnum('scope_type', ['school', 'faculty', 'department', 'self']);
 
-export const researchWorkTypeEnum = pgEnum('research_work_type', ['journal_paper', 'conference_paper', 'book', 'book_chapter', 'patent', 'software', 'other']);
+export const researchWorkTypeEnum = pgEnum('research_work_type', [
+    'research_project', // đề tài nghiên cứu khoa học
+    'book', // sách
+    'training_product', // sản phẩm đào tạo
+    'research_product', // sản phẩm nghiên cứu
+    'patent', // bằng sáng chế
+    'journal_paper', // bài báo khoa học
+    'conference_paper', // bài báo hội nghị
+    'book_chapter',
+    'other'
+]);

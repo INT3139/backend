@@ -140,29 +140,30 @@ export class ProfileSubRepo {
     }
 
     async upsertExtraInfo(profileId: ID, data: any, tx?: any) {
-        const values = {
-            profileId: profileId,
-            arrestHistory: data.arrestHistory,
-            oldRegimeWork: data.oldRegimeWork,
-            foreignOrgRelations: data.foreignOrgRelations,
-            foreignRelatives: data.foreignRelatives,
-            incomeSalary: data.incomeSalary,
-            incomeOtherSources: data.incomeOtherSources,
-            houseTypeGranted: data.houseTypeGranted,
-            houseAreaGranted: data.houseAreaGranted,
-            houseTypeOwned: data.houseTypeOwned,
-            houseAreaOwned: data.houseAreaOwned,
-            landGrantedM2: data.landGrantedM2,
-            landPurchasedM2: data.landPurchasedM2,
-            landBusinessM2: data.landBusinessM2,
+        const updateData: any = {
             updatedAt: new Date()
         }
 
+        const fields = [
+            'arrestHistory', 'oldRegimeWork', 'foreignOrgRelations', 'foreignRelatives',
+            'incomeSalary', 'incomeOtherSources', 'houseTypeGranted', 'houseAreaGranted',
+            'houseTypeOwned', 'houseAreaOwned', 'landGrantedM2', 'landPurchasedM2', 'landBusinessM2'
+        ]
+
+        fields.forEach(field => {
+            if (data[field] !== undefined) {
+                updateData[field] = data[field]
+            }
+        })
+
         const res = await (tx || db).insert(profileExtraInfo)
-            .values(values)
+            .values({
+                profileId,
+                ...updateData
+            })
             .onConflictDoUpdate({
                 target: profileExtraInfo.profileId,
-                set: values
+                set: updateData
             })
             .returning()
         return res[0]
@@ -178,21 +179,24 @@ export class ProfileSubRepo {
     }
 
     async upsertHealthRecords(profileId: ID, data: HealthRecordInput, tx?: any) {
-        const values = {
-            profileId: profileId,
-            healthStatus: data.healthStatus,
-            weightKg: data.weightKg?.toString(),
-            heightCm: data.heightCm?.toString(),
-            bloodType: data.bloodType,
-            notes: data.notes,
+        const updateData: any = {
             updatedAt: new Date()
         }
 
+        if (data.healthStatus !== undefined) updateData.healthStatus = data.healthStatus
+        if (data.weightKg !== undefined) updateData.weightKg = data.weightKg.toString()
+        if (data.heightCm !== undefined) updateData.heightCm = data.heightCm.toString()
+        if (data.bloodType !== undefined) updateData.bloodType = data.bloodType
+        if (data.notes !== undefined) updateData.notes = data.notes
+
         const res = await (tx || db).insert(profileHealthRecords)
-            .values(values as any)
+            .values({
+                profileId,
+                ...updateData
+            } as any)
             .onConflictDoUpdate({
                 target: profileHealthRecords.profileId,
-                set: values as any
+                set: updateData as any
             })
             .returning()
         return res[0]

@@ -69,7 +69,7 @@ export const positionSchema = z.object({
 })
 
 export const researchWorkSchema = z.object({
-    workType: z.enum(['journal_paper', 'conference_paper', 'book', 'book_chapter', 'patent', 'software', 'other']),
+    workType: z.enum(['research_project', 'book', 'training_product', 'research_product', 'patent', 'journal_paper', 'conference_paper', 'book_chapter', 'other']),
     title: z.string().min(1),
     journalName: z.string().optional(),
     indexing: z.string().optional(),
