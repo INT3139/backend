@@ -9,7 +9,7 @@ import { permissionService } from "@/core/permissions/permission.service"
 import { CacheKey, CacheTTL } from "@/core/cache/cacheKey"
 import { rSetJson, rGetJson, rDel } from "@/configs/redis"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
-import { workflowEngine } from "@/core/workflow/engine"
+import { workflowEngine, type WorkflowInstance } from "@/core/workflow/engine"
 import { WF } from "@/constants/workflowCodes"
 import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
 import { updateProfileSchema } from "./profile.schema"
@@ -300,8 +300,7 @@ export class ProfileService {
     /**
      * Xử lý khi Workflow bị từ chối
      */
-    async handleRejectionFromWorkflow(workflowId: ID, rejectedBy: ID, tx?: any): Promise<void> {
-        const inst = await workflowEngine.getStatus(workflowId)
+    async handleRejectionFromWorkflow(inst: WorkflowInstance, rejectedBy: ID, tx?: any): Promise<void> {
         const profileId = inst.resourceId
         
         // Nếu bị từ chối, ta chuyển profile về 'approved' (coi như vẫn dùng dữ liệu cũ)
@@ -357,8 +356,7 @@ export class ProfileService {
     /**
      * Áp dụng thay đổi từ Workflow sau khi được duyệt
      */
-    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID, tx?: any): Promise<any> {
-        const inst = await workflowEngine.getStatus(workflowId)
+    async applyChangesFromWorkflow(inst: WorkflowInstance, approvedBy: ID, tx?: any): Promise<any> {
         if (inst.status !== 'approved') {
             throw new ForbiddenError('Workflow must be approved first')
         }
@@ -485,8 +483,7 @@ export class ProfileService {
     /**
      * Xử lý khi Workflow yêu cầu chỉnh sửa (Revision)
      */
-    async handleRevisionFromWorkflow(workflowId: ID, actorId: ID, tx?: any): Promise<void> {
-        const inst = await workflowEngine.getStatus(workflowId)
+    async handleRevisionFromWorkflow(inst: WorkflowInstance, actorId: ID, tx?: any): Promise<void> {
         const profileId = inst.resourceId
         
         // Khi yêu cầu sửa, ta có thể chuyển về 'draft' hoặc vẫn để 'pending' nhưng user có quyền edit.
@@ -505,8 +502,8 @@ export const profileService = new ProfileService()
 // Register workflow handlers for the dispatcher
 registerWorkflowHandler(
     'profile',
-    (inst, actorId, tx) => profileService.applyChangesFromWorkflow(inst.id, actorId, tx),
-    (inst, actorId, tx) => profileService.handleRejectionFromWorkflow(inst.id, actorId, tx),
-    (inst, actorId, tx) => profileService.handleRevisionFromWorkflow(inst.id, actorId, tx)
+    (inst, actorId, tx) => profileService.applyChangesFromWorkflow(inst, actorId, tx),
+    (inst, actorId, tx) => profileService.handleRejectionFromWorkflow(inst, actorId, tx),
+    (inst, actorId, tx) => profileService.handleRevisionFromWorkflow(inst, actorId, tx)
 )
 

@@ -8,7 +8,7 @@ import { users, profileStaff } from "@/db/schema"
 import { eq } from "drizzle-orm"
 import { emailService } from "@/services/email.service"
 import { profileRepo } from "../profile/profile.repo"
-import { workflowEngine } from "@/core/workflow/engine"
+import { workflowEngine, type WorkflowInstance } from "@/core/workflow/engine"
 import { WF } from "@/constants/workflowCodes"
 import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
 
@@ -204,8 +204,7 @@ export class SalaryService {
     /**
      * Áp dụng thay đổi lương sau khi workflow được phê duyệt
      */
-    async applyChangesFromWorkflow(workflowId: ID, approvedBy: ID, tx?: any): Promise<any> {
-        const inst = await workflowEngine.getStatus(workflowId)
+    async applyChangesFromWorkflow(inst: WorkflowInstance, approvedBy: ID, tx?: any): Promise<any> {
         if (inst.status !== 'approved') {
             throw new ForbiddenError('Workflow must be approved first')
         }
@@ -259,8 +258,7 @@ export class SalaryService {
     /**
      * Xử lý khi workflow bị từ chối
      */
-    async handleRejection(workflowId: ID, _rejectedBy: ID, tx?: any): Promise<void> {
-        const inst = await workflowEngine.getStatus(workflowId)
+    async handleRejection(inst: WorkflowInstance, _rejectedBy: ID, tx?: any): Promise<void> {
         await salaryRepo.updateProposalStatus(inst.resourceId, 'rejected', tx)
     }
 }
@@ -270,6 +268,6 @@ export const salaryService = new SalaryService()
 // Register workflow handlers for the dispatcher
 registerWorkflowHandler(
     'salary_upgrade',
-    (inst, actorId, tx) => salaryService.applyChangesFromWorkflow(inst.id, actorId, tx),
-    (inst, actorId, tx) => salaryService.handleRejection(inst.id, actorId, tx)
+    (inst, actorId, tx) => salaryService.applyChangesFromWorkflow(inst, actorId, tx),
+    (inst, actorId, tx) => salaryService.handleRejection(inst, actorId, tx)
 )

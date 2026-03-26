@@ -5,7 +5,7 @@ import { abacService } from "@/core/permissions/abac"
 import { permissionService } from "@/core/permissions/permission.service"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { emailService } from "@/services/email.service"
-import { workflowEngine } from "@/core/workflow/engine"
+import { workflowEngine, type WorkflowInstance } from "@/core/workflow/engine"
 import { WF } from "@/constants/workflowCodes"
 import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
 
@@ -141,8 +141,7 @@ export class RecruitmentService {
     /**
      * Áp dụng thay đổi sau khi workflow tuyển dụng được phê duyệt
      */
-    async applyChangesFromWorkflow(workflowId: ID, _approvedBy: ID, tx?: any): Promise<any> {
-        const inst = await workflowEngine.getStatus(workflowId)
+    async applyChangesFromWorkflow(inst: WorkflowInstance, _approvedBy: ID, tx?: any): Promise<any> {
         if (inst.status !== 'approved') {
             throw new ForbiddenError('Workflow must be approved first')
         }
@@ -154,8 +153,7 @@ export class RecruitmentService {
     /**
      * Xử lý khi workflow bị từ chối
      */
-    async handleRejection(workflowId: ID, _rejectedBy: ID, tx?: any): Promise<void> {
-        const inst = await workflowEngine.getStatus(workflowId)
+    async handleRejection(inst: WorkflowInstance, _rejectedBy: ID, tx?: any): Promise<void> {
         await recruitmentRepo.update(inst.resourceId, { status: 'rejected' }, tx)
     }
 
@@ -308,6 +306,6 @@ export const recruitmentService = new RecruitmentService()
 // Register workflow handlers for the dispatcher
 registerWorkflowHandler(
     'recruitment_proposal',
-    (inst, actorId, tx) => recruitmentService.applyChangesFromWorkflow(inst.id, actorId, tx),
-    (inst, actorId, tx) => recruitmentService.handleRejection(inst.id, actorId, tx)
+    (inst, actorId, tx) => recruitmentService.applyChangesFromWorkflow(inst, actorId, tx),
+    (inst, actorId, tx) => recruitmentService.handleRejection(inst, actorId, tx)
 )
