@@ -29,6 +29,13 @@
       "when": 1774549157683,
       "tag": "0003_fix_research_work",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774552145595,
+      "tag": "0004_update_sys_admin_log",
+      "breakpoints": true
     }
   ]
 }
