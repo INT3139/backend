@@ -51,7 +51,7 @@ export const getMyProfile = asyncHandler(async (
         })
     }
 
-    await logAction(userId, 'read', 'profile_self', profile?.id.toString())
+    await logAction(userId, 'read', 'profile_self', profile?.id.toString(), undefined, req)
 
     return success(res, profile)
 })
@@ -77,7 +77,7 @@ export const getProfiles = asyncHandler(async (
     }
 
     const result = await profileService.getProfiles(filter, pagination, req.userId!)
-    await logAction(req.userId!, 'read', 'profile_list', undefined, { filter, pagination })
+    await logAction(req.userId!, 'read', 'profile_list', undefined, { filter, pagination }, req)
 
     return success(res, result)
 })
@@ -103,7 +103,7 @@ export const getProfileById = asyncHandler(async (
 ): Promise<Response> => {
     const { id } = req.params
     const profile = await profileService.getProfileById(parseInt(id as string, 10), req.user!)
-    await logAction(req.userId!, 'read', 'profile', id as string)
+    await logAction(req.userId!, 'read', 'profile', id as string, undefined, req)
 
     return success(res, profile)
 })
@@ -116,7 +116,7 @@ export const createProfile = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const profile = await profileService.createProfile({ ...req.body, createdBy: req.userId! })
-    await logAction(req.userId!, 'create', 'profile', profile.id.toString(), req.body)  
+    await logAction(req.userId!, 'create', 'profile', profile.id.toString(), req.body, req)  
 
     return created(res, profile)
 })
@@ -130,7 +130,7 @@ export const updateProfile = asyncHandler(async (
 ): Promise<Response> => {
     const { id } = req.params
     const updated = await profileService.updateProfile(parseInt(id as string, 10), req.body, req.user!)
-    await logAction(req.userId!, 'update', 'profile', id as string, req.body)
+    await logAction(req.userId!, 'update', 'profile', id as string, req.body, req)
 
     return success(res, updated)
 })
@@ -159,7 +159,7 @@ const handle2CExport = async (profile: any, req: AuthRequest, res: Response) => 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
         res.send(docxBuf)
 
-        await logAction(req.userId!, 'export', 'profile', profile.id.toString())
+        await logAction(req.userId!, 'export', 'profile', profile.id.toString(), undefined, req)
     } catch (error: any) {
         console.error('Export error:', error)
         res.status(500).json({ success: false, error: { message: 'Failed to generate export document' } })
@@ -210,7 +210,7 @@ export const deleteProfile = asyncHandler(async (
 ): Promise<Response> => {
     const { id } = req.params
     await profileService.deleteProfile(parseInt(id as string, 10), req.user!)
-    await logAction(req.userId!, 'delete', 'profile', id as string)
+    await logAction(req.userId!, 'delete', 'profile', id as string, undefined, req)
 
     return success(res, { message: 'Profile deleted' })
 })
@@ -224,7 +224,7 @@ export const approveProfile = asyncHandler(async (
 ): Promise<Response> => {
     const { id } = req.params
     const updated = await profileService.approveProfile(parseInt(id as string, 10), req.userId!)
-    await logAction(req.userId!, 'approve', 'profile', id as string)
+    await logAction(req.userId!, 'approve', 'profile', id as string, undefined, req)
     return success(res, updated)
 })
 
@@ -238,7 +238,7 @@ export const changeStatus = asyncHandler(async (
     const { id } = req.params
     const { status } = req.body
     const updated = await profileService.changeStatus(parseInt(id as string, 10), status, req.user!)
-    await logAction(req.userId!, 'update_status', 'profile', id as string, { status })  
+    await logAction(req.userId!, 'update_status', 'profile', id as string, { status }, req)  
     return success(res, updated)
 })
 

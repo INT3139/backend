@@ -7,6 +7,9 @@ import { ValidationError, ForbiddenError } from '@/core/middlewares/errorHandler
 import { ID } from '@/types'
 import { PERM } from "@/constants/permission"
 import { authenticate } from '@/core/middlewares/auth'
+import { profileService } from '@/modules/profile/profile.service'
+import { db } from '@/configs/db'
+import { wfStepLogs } from '@/db/schema/workflow'
 
 const router = Router()
 router.use(authenticate)
@@ -227,18 +230,116 @@ router.post(
  *       200:
  *         description: Metadata updated successfully
  */
+/**
+ * @openapi
+ * /workflow/{id}/{key}:
+ *   patch:
+ *     tags:
+ *       - Workflow
+ *     summary: Process a specific metadata item
+ *     description: Approve or reject a specific item in the workflow metadata. If approved, it applies changes to DB and advances the workflow.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: key
+ *         required: true
+ *         description: The metadata key to process (e.g., 'main', 'sub_family_61')
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - approved
+ *             properties:
+ *               approved:
+ *                 type: boolean
+ *                 description: True to apply and advance, false to just remove from metadata
+ *               action:
+ *                 type: string
+ *                 enum: [approve, reject, request_revision, forward]
+ *                 default: approve
+ *               comment:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Item processed successfully
+ */
 router.patch(
-    '/:id/metadata',
+    '/:id/:key',
     requirePermission(PERM.WORKFLOW.ADVANCE),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const { metadata } = req.body
-            if (!metadata || typeof metadata !== 'object') {
-                throw new ValidationError('metadata phải là object')
+            const { id: instanceId, key } = req.params as { id: string, key: string }
+            const { approved, action, comment } = req.body
+            const actorId = req.userId as ID
+
+            if (typeof approved !== 'boolean') {
+                throw new ValidationError('approved (boolean) là bắt buộc')
             }
 
-            await workflowEngine.updateMetadata(+req.params.id, metadata)
-            res.json({ message: 'Đã cập nhật metadata' })
+            // 1. Lấy trạng thái hiện tại của workflow
+            const inst = await workflowEngine.getStatus(+instanceId)
+            const metadata = inst.metadata || {}
+
+            if (!metadata[key]) {
+                throw new ValidationError(`Không tìm thấy mục "${key}" trong metadata của workflow này`)
+            }
+
+            // 2. Xử lý logic phê duyệt/áp dụng nếu approved = true
+            if (approved && inst.resourceType === 'profile') {
+                // Tạo mock instance chỉ chứa duy nhất key này để apply vào DB
+                const mockInst = {
+                    ...inst,
+                    metadata: { [key]: metadata[key] },
+                    status: 'approved'
+                } as any
+                await profileService.applyChangesFromWorkflow(mockInst, actorId)
+            }
+
+            // 3. Cập nhật lại Metadata của Workflow (Xóa mục đã xử lý)
+            const newMetadata = { ...metadata }
+            delete newMetadata[key]
+            await workflowEngine.updateMetadata(+instanceId, newMetadata)
+
+            // 4. Quyết định chuyển trạng thái (Advance) hay chỉ ghi log
+            if (approved) {
+                // Chuyển bước quy trình (giống /advance)
+                const updatedInst = await workflowEngine.advance(
+                    +instanceId,
+                    actorId,
+                    action || 'approve',
+                    comment || `Phê duyệt mục: ${key}`
+                )
+                res.json({
+                    message: `Đã phê duyệt mục "${key}" và chuyển bước quy trình thành công.`,
+                    data: updatedInst,
+                    remainingItems: Object.keys(newMetadata).length
+                })
+            } else {
+                // Chỉ xóa khỏi metadata và ghi log, không chuyển bước (stay at current step)
+                await db.insert(wfStepLogs).values({
+                    instanceId: +instanceId,
+                    stepNumber: inst.currentStep,
+                    stepName: `Loại bỏ mục: ${key}`,
+                    actorId,
+                    action: 'forward',
+                    comment: comment || `Admin đã loại bỏ mục "${key}" khỏi danh sách phê duyệt`,
+                })
+                res.json({
+                    message: `Đã loại bỏ mục "${key}" khỏi danh sách chờ. Quy trình giữ nguyên bước hiện tại.`,
+                    remainingItems: Object.keys(newMetadata).length
+                })
+            }
         } catch (e) { next(e) }
     },
 )

@@ -21,7 +21,7 @@ export const getMySalary = asyncHandler(async (
 ): Promise<Response> => {
     const salary = await salaryService.getSalaryByUserId(req.user!.id)
     
-    await logAction(req.userId!, 'read', 'salary', salary?.id.toString())
+    await logAction(req.userId!, 'read', 'salary', salary?.id.toString(), undefined, req)
 
     return success(res, salary)
 })
@@ -36,7 +36,7 @@ export const getSalaryByProfileId = asyncHandler(async (
     const { profileId } = req.params
     const salary = await salaryService.getSalaryByProfileId(parseInt(profileId as string, 10))
     
-    await logAction(req.userId!, 'read', 'salary', profileId as string)
+    await logAction(req.userId!, 'read', 'salary', profileId as string, undefined, req)
 
     return success(res, salary)
 })
@@ -51,7 +51,7 @@ export const updateSalary = asyncHandler(async (
     const { profileId } = req.params
     const updated = await salaryService.updateSalary(parseInt(profileId as string, 10), req.body, req.user!)
     
-    await logAction(req.userId!, 'update', 'salary', profileId as string, req.body)
+    await logAction(req.userId!, 'update', 'salary', profileId as string, req.body, req)
 
     return success(res, updated)
 })
@@ -79,7 +79,7 @@ export const getProposals = asyncHandler(async (
         req.user!
     )
 
-    await logAction(req.userId!, 'read', 'salary_upgrade_proposal', undefined, { filter, pagination })
+    await logAction(req.userId!, 'read', 'salary_upgrade_proposal', undefined, { filter, pagination }, req)
 
     return success(res, result)
 })
@@ -93,7 +93,7 @@ export const createProposal = asyncHandler(async (
 ): Promise<Response> => {
     const result = await salaryService.createProposal(req.body, req.user!)
 
-    await logAction(req.userId!, 'create', 'salary_upgrade_proposal', result.workflowId.toString(), req.body)
+    await logAction(req.userId!, 'create', 'salary_upgrade_proposal', result.workflowId.toString(), req.body, req)
 
     return created(res, result)
 })

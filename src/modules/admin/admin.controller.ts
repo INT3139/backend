@@ -22,7 +22,7 @@ export const getUsers = asyncHandler(async (
     }
 
     const result = await adminService.getUsers(pagination)
-    await logAction(req.userId!, 'read', 'user_list', undefined, { pagination })
+    await logAction(req.userId!, 'read', 'user_list', undefined, { pagination }, req)
 
     return success(res, result)
 })
@@ -35,7 +35,7 @@ export const createUser = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const user = await adminService.createUser(req.body)
-    await logAction(req.userId!, 'create', 'user', user.id.toString(), req.body)
+    await logAction(req.userId!, 'create', 'user', user.id.toString(), req.body, req)
 
     return created(res, user)
 })
@@ -55,7 +55,7 @@ export const updateUser = asyncHandler(async (
         await permissionService.invalidate(id)
     }
 
-    await logAction(req.userId!, 'update', 'user', id.toString(), req.body)
+    await logAction(req.userId!, 'update', 'user', id.toString(), req.body, req)
 
     return success(res, updated)
 })
@@ -69,7 +69,7 @@ export const deleteUser = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     await adminService.deleteUser(id)
-    await logAction(req.userId!, 'delete', 'user', id.toString())
+    await logAction(req.userId!, 'delete', 'user', id.toString(), undefined, req)
 
     return success(res, { message: 'User deleted' })
 })
@@ -82,7 +82,7 @@ export const getRoles = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const roles = await adminService.getRoles()
-    await logAction(req.userId!, 'read', 'role_list')
+    await logAction(req.userId!, 'read', 'role_list', undefined, undefined, req)
 
     return success(res, roles)
 })
@@ -95,7 +95,7 @@ export const createRole = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const role = await adminService.createRole(req.body)
-    await logAction(req.userId!, 'create', 'role', role.id.toString(), req.body)
+    await logAction(req.userId!, 'create', 'role', role.id.toString(), req.body, req)
 
     return created(res, role)
 })
@@ -110,7 +110,7 @@ export const assignRole = asyncHandler(async (
     const userId = parseInt(req.params.id as string, 10)
     const { roleId, scopeType, scopeUnitId, expiresAt } = req.body
     await adminService.assignRole(userId, roleId, req.userId!, scopeType, scopeUnitId, expiresAt)
-    await logAction(req.userId!, 'create', 'user_role', undefined, { userId, ...req.body })
+    await logAction(req.userId!, 'create', 'user_role', undefined, { userId, ...req.body }, req)
 
     return success(res, { message: 'Role assigned successfully' })
 })
@@ -125,7 +125,7 @@ export const revokeRole = asyncHandler(async (
     const userId = parseInt(req.params.id as string, 10)
     const roleId = parseInt(req.params.roleId as string, 10)
     await adminService.revokeRole(userId, roleId)
-    await logAction(req.userId!, 'delete', 'user_role', undefined, { userId, roleId })
+    await logAction(req.userId!, 'delete', 'user_role', undefined, { userId, roleId }, req)
 
     return success(res, { message: 'Role revoked successfully' })
 })
@@ -138,7 +138,7 @@ export const getUnits = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const units = await adminService.getUnits()
-    await logAction(req.userId!, 'read', 'unit_list')
+    await logAction(req.userId!, 'read', 'unit_list', undefined, undefined, req)
 
     return success(res, units)
 })
@@ -151,7 +151,7 @@ export const createUnit = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const unit = await adminService.createUnit(req.body)
-    await logAction(req.userId!, 'create', 'unit', unit.id.toString(), req.body)
+    await logAction(req.userId!, 'create', 'unit', unit.id.toString(), req.body, req)
 
     return created(res, unit)
 })
@@ -200,7 +200,7 @@ export const resetPassword = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     const result = await adminService.resetPassword(id, req.userId!)
-    await logAction(req.userId!, 'password_reset', 'user', String(id))
+    await logAction(req.userId!, 'password_reset', 'user', String(id), undefined, req)
     return success(res, result)
 })
 
@@ -263,6 +263,6 @@ export const triggerJob = asyncHandler(async (
 ): Promise<Response> => {
     const name = req.params.name as string
     await adminService.triggerJob(name, req.userId!)
-    await logAction(req.userId!, 'trigger', 'scheduler_job', name)
+    await logAction(req.userId!, 'trigger', 'scheduler_job', name, undefined, req)
     return success(res, { message: `Job '${name}' triggered` })
 })

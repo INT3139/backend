@@ -48,7 +48,7 @@ export const getProposals = asyncHandler(async (
         req.user!
     )
 
-    await logAction(req.userId!, 'read', 'recruitment_proposal', undefined, { filter, pagination })
+    await logAction(req.userId!, 'read', 'recruitment_proposal', undefined, { filter, pagination }, req)
 
     return success(res, result)
 })
@@ -70,7 +70,7 @@ export const getProposalById = asyncHandler(async (
         throw new NotFoundError('Proposal not found')
     }
 
-    await logAction(req.userId!, 'read', 'recruitment_proposal', id.toString())
+    await logAction(req.userId!, 'read', 'recruitment_proposal', id.toString(), undefined, req)
 
     return success(res, proposal)
 })
@@ -85,7 +85,7 @@ export const createProposal = asyncHandler(async (
 ): Promise<Response> => {
     const result = await recruitmentService.createProposal(req.body, req.user!.id)
 
-    await logAction(req.userId!, 'create', 'recruitment_proposal', result.workflowId.toString(), req.body)
+    await logAction(req.userId!, 'create', 'recruitment_proposal', result.workflowId.toString(), req.body, req)
 
     return created(res, result)
 })
@@ -107,7 +107,7 @@ export const updateProposal = asyncHandler(async (
         req.user!
     )
 
-    await logAction(req.userId!, 'update', 'recruitment_proposal', id.toString(), req.body)
+    await logAction(req.userId!, 'update', 'recruitment_proposal', id.toString(), req.body, req)
 
     return success(res, updated)
 })
@@ -161,7 +161,7 @@ export const getCandidates = asyncHandler(async (
 
     const result = await recruitmentService.getCandidates(id, pagination, req.user!)
 
-    await logAction(req.userId!, 'read', 'recruitment_candidate', undefined, { proposalId: id, pagination })
+    await logAction(req.userId!, 'read', 'recruitment_candidate', undefined, { proposalId: id, pagination }, req)
 
     return success(res, result)
 })
@@ -175,7 +175,7 @@ export const createCandidate = asyncHandler(async (
 ): Promise<Response> => {
     const candidate = await recruitmentService.createCandidate(req.body, req.user!)
 
-    await logAction(req.userId!, 'create', 'recruitment_candidate', candidate.id.toString(), req.body)
+    await logAction(req.userId!, 'create', 'recruitment_candidate', candidate.id.toString(), req.body, req)
 
     return created(res, candidate)
 })
@@ -192,7 +192,7 @@ export const updateCandidate = asyncHandler(async (
 
     const updated = await recruitmentService.updateCandidate(id, req.body, req.user!)
 
-    await logAction(req.userId!, 'update', 'recruitment_candidate', id.toString(), req.body)
+    await logAction(req.userId!, 'update', 'recruitment_candidate', id.toString(), req.body, req)
 
     return success(res, updated)
 })
@@ -209,7 +209,7 @@ export const deleteCandidate = asyncHandler(async (
 
     await recruitmentService.deleteCandidate(id, req.user!)
 
-    await logAction(req.userId!, 'delete', 'recruitment_candidate', id.toString())
+    await logAction(req.userId!, 'delete', 'recruitment_candidate', id.toString(), undefined, req)
 
     return success(res, { message: 'Candidate deleted' })
 })
@@ -231,7 +231,7 @@ export const getMyRecruitment = asyncHandler(async (
 
     const result = await recruitmentService.getRecruitmentData(profile.id)
 
-    await logAction(req.userId!, 'read', 'recruitment_info_self', profile.id.toString())
+    await logAction(req.userId!, 'read', 'recruitment_info_self', profile.id.toString(), undefined, req)
 
     return success(res, result)
 })
@@ -249,7 +249,7 @@ export const getRecruitmentByProfileId = asyncHandler(async (
 
     const result = await recruitmentService.getRecruitmentData(profileId)
 
-    await logAction(req.userId!, 'read', 'recruitment_info', profileId.toString())
+    await logAction(req.userId!, 'read', 'recruitment_info', profileId.toString(), undefined, req)
 
     return success(res, result)
 })

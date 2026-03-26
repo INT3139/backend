@@ -14,7 +14,12 @@ export class AuditService {
         resourceId: data.resourceId,
         oldValues: data.oldValues,
         newValues: data.newValues,
-        actorIp: data.actorIp as any
+        actorIp: data.actorIp as any,
+        userAgent: data.userAgent,
+        method: data.method,
+        path: data.path,
+        statusCode: data.statusCode,
+        requestId: data.requestId
       })
     } catch (err) {
       logger.error('Failed to write audit log', { err, data })

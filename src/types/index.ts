@@ -104,6 +104,11 @@ export interface AuditLogData {
   oldValues?: any
   newValues?: any
   actorIp?: string
+  userAgent?: string
+  method?: string
+  path?: string
+  statusCode?: number
+  requestId?: string
 }
 
 // --- Profile & History ---

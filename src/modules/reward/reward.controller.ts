@@ -89,7 +89,7 @@ export const getMyRewards = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const rewards = await rewardService.getRewardsByUserId(req.user!.id)
-    await logAction(req.userId!, 'read', 'reward_self')
+    await logAction(req.userId!, 'read', 'reward_self', undefined, undefined, req)
 
     return success(res, rewards)
 })
@@ -112,7 +112,7 @@ export const getCommendations = asyncHandler(async (
     }
 
     const result = await rewardService.getCommendations(filter, pagination, req.user!)
-    await logAction(req.userId!, 'read', 'reward_commendation_list', undefined, { filter, pagination })
+    await logAction(req.userId!, 'read', 'reward_commendation_list', undefined, { filter, pagination }, req)
 
     return success(res, result)
 })
@@ -125,7 +125,7 @@ export const createCommendation = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const reward = await rewardService.createCommendation(req.body, req.user!)
-    await logAction(req.userId!, 'create', 'reward_commendation', reward.id.toString(), req.body)
+    await logAction(req.userId!, 'create', 'reward_commendation', reward.id.toString(), req.body, req)
 
     return created(res, reward)
 })
@@ -139,7 +139,7 @@ export const updateCommendation = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     const updated = await rewardService.updateCommendation(id, req.body, req.user!)
-    await logAction(req.userId!, 'update', 'reward_commendation', id.toString(), req.body)
+    await logAction(req.userId!, 'update', 'reward_commendation', id.toString(), req.body, req)
 
     return success(res, updated)
 })
@@ -153,7 +153,7 @@ export const deleteCommendation = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     await rewardService.deleteCommendation(id, req.user!)
-    await logAction(req.userId!, 'delete', 'reward_commendation', id.toString())
+    await logAction(req.userId!, 'delete', 'reward_commendation', id.toString(), undefined, req)
 
     return success(res, { message: 'Commendation deleted' })
 })
@@ -176,7 +176,7 @@ export const getTitles = asyncHandler(async (
     }
 
     const result = await rewardService.getTitles(filter, pagination, req.user!)
-    await logAction(req.userId!, 'read', 'reward_title_list', undefined, { filter, pagination })
+    await logAction(req.userId!, 'read', 'reward_title_list', undefined, { filter, pagination }, req)
 
     return success(res, result)
 })
@@ -189,7 +189,7 @@ export const createTitle = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const title = await rewardService.createTitle(req.body, req.user!)
-    await logAction(req.userId!, 'create', 'reward_title', title.id.toString(), req.body)
+    await logAction(req.userId!, 'create', 'reward_title', title.id.toString(), req.body, req)
 
     return created(res, title)
 })
@@ -203,7 +203,7 @@ export const updateTitle = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     const updated = await rewardService.updateTitle(id, req.body, req.user!)
-    await logAction(req.userId!, 'update', 'reward_title', id.toString(), req.body)
+    await logAction(req.userId!, 'update', 'reward_title', id.toString(), req.body, req)
 
     return success(res, updated)
 })
@@ -217,7 +217,7 @@ export const deleteTitle = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     await rewardService.deleteTitle(id, req.user!)
-    await logAction(req.userId!, 'delete', 'reward_title', id.toString())
+    await logAction(req.userId!, 'delete', 'reward_title', id.toString(), undefined, req)
 
     return success(res, { message: 'Title deleted' })
 })
@@ -239,7 +239,7 @@ export const getDisciplinaryRecords = asyncHandler(async (
     }
 
     const result = await rewardService.getDisciplinaryRecords(filter, pagination, req.user!)
-    await logAction(req.userId!, 'read', 'reward_discipline_list', undefined, { filter, pagination })
+    await logAction(req.userId!, 'read', 'reward_discipline_list', undefined, { filter, pagination }, req)
 
     return success(res, result)
 })
@@ -252,7 +252,7 @@ export const createDiscipline = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const discipline = await rewardService.createDiscipline({ ...req.body, issuedBy: req.userId }, req.user!)
-    await logAction(req.userId!, 'create', 'reward_discipline', discipline.id.toString(), req.body)
+    await logAction(req.userId!, 'create', 'reward_discipline', discipline.id.toString(), req.body, req)
 
     return created(res, discipline)
 })
@@ -266,7 +266,7 @@ export const updateDiscipline = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     const updated = await rewardService.updateDiscipline(id, req.body, req.user!)
-    await logAction(req.userId!, 'update', 'reward_discipline', id.toString(), req.body)
+    await logAction(req.userId!, 'update', 'reward_discipline', id.toString(), req.body, req)
 
     return success(res, updated)
 })
@@ -280,7 +280,7 @@ export const deleteDiscipline = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     await rewardService.deleteDiscipline(id, req.user!)
-    await logAction(req.userId!, 'delete', 'reward_discipline', id.toString())
+    await logAction(req.userId!, 'delete', 'reward_discipline', id.toString(), undefined, req)
 
     return success(res, { message: 'Disciplinary record deleted' })
 })

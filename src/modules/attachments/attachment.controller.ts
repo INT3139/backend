@@ -26,7 +26,7 @@ export const uploadAttachment = asyncHandler(async (
         category
     })
 
-    await logAction(req.userId!, 'upload', 'attachment', attachment.id.toString(), { resourceType, resourceId })
+    await logAction(req.userId!, 'upload', 'attachment', attachment.id.toString(), { resourceType, resourceId }, req)
 
     return created(res, attachment)
 })
@@ -53,7 +53,7 @@ export const deleteAttachment = asyncHandler(async (
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
     await storageService.deleteAttachment(id, req.userId!)
-    await logAction(req.userId!, 'delete', 'attachment', id.toString())
+    await logAction(req.userId!, 'delete', 'attachment', id.toString(), undefined, req)
 
     return success(res, { message: 'Attachment deleted' })
 })
