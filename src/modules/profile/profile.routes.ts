@@ -146,12 +146,18 @@ import * as schema from "./profile.schema"
  *         joinDate:
  *           type: string
  *           format: date
- *         retireDate:
- *           type: string
- *           format: date
- *         profileStatus:
- *           type: string
- *           default: draft
+ retireDate:
+   type: string
+   format: date
+ profileStatus:
+   type: string
+   default: draft
+ avatarUrl:
+   type: string
+   format: uri
+ avatarDefault:
+   type: boolean
+   default: true
  *     UpdateProfile:
  *       $ref: '#/components/schemas/CreateProfile'
  *     Education:

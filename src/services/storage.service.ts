@@ -8,7 +8,13 @@ import { abacService } from '@/core/permissions/abac'
 import { permissionService } from '@/core/permissions/permission.service'
 import { ID } from '@/types'
 
-const ALLOWED = ['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+const ALLOWED = [
+  'application/pdf',
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+]
 
 export type Attachment = InferSelectModel<typeof sysAttachments>
 
@@ -16,10 +22,15 @@ export class StorageService {
   async upload(input: { buffer: Buffer; originalName: string; mimeType: string; resourceType: string; resourceId: ID; uploadedBy: ID; category?: string; customPath?: string }): Promise<Attachment> {
     validateFileSize(input.buffer.length, 20)
     validateMimeType(input.mimeType, ALLOWED)
-    
+
     // Nếu có customPath, ta dùng nó, nếu không dùng mặc định của config
-    const { storageKey, bucket } = await uploadFile(input.buffer, input.originalName, input.mimeType, input.customPath || input.resourceType)
-    
+    const { storageKey, bucket } = await uploadFile({
+      buffer: input.buffer,
+      originalName: input.originalName,
+      mimeType: input.mimeType,
+      folder: input.customPath || input.resourceType
+    })
+
     const [row] = await db.insert(sysAttachments).values({
       resourceType: input.resourceType,
       resourceId: input.resourceId,
@@ -51,7 +62,7 @@ export class StorageService {
       resourceType: sysAttachments.resourceType,
       resourceId: sysAttachments.resourceId
     }).from(sysAttachments).where(and(eq(sysAttachments.id, id), isNull(sysAttachments.deletedAt)))
-    
+
     if (!att) throw new NotFoundError('Attachment')
 
     const scopes = await permissionService.getScopes(requesterId)
@@ -80,10 +91,10 @@ export class StorageService {
     // Check permissions: Owner or has hrm.attachment.delete + ABAC access
     const isOwner = att.uploadedBy === actorId
     if (!isOwner) {
-       const hasPerm = await permissionService.hasPermission(actorId, 'hrm.attachment.delete')
-       const scopes = await permissionService.getScopes(actorId)
-       const hasScope = await abacService.canAccess(actorId, scopes, att.resourceType, att.resourceId)
-       if (!hasPerm || !hasScope) throw new ForbiddenError()
+      const hasPerm = await permissionService.hasPermission(actorId, 'hrm.attachment.delete')
+      const scopes = await permissionService.getScopes(actorId)
+      const hasScope = await abacService.canAccess(actorId, scopes, att.resourceType, att.resourceId)
+      if (!hasPerm || !hasScope) throw new ForbiddenError()
     }
 
     await deleteFile(att.storageKey)

@@ -20,9 +20,28 @@ export interface ProfileListRow extends ProfileRow {
         username: string
         email: string
     }
+    avatarUrl?: string
 }
 
 export class ProfileRepository {
+    private attachAvatarUrl(profile: ProfileRow, username: string): ProfileListRow {
+        const bucket = process.env.S3_BUCKET || 'hrm-storage'
+        const endpoint = process.env.S3_ENDPOINT || 'http://localhost:9000'
+        
+        let avatarKey = 'avatar.jpg'
+        if (!profile.avatarDefault) {
+            avatarKey = `${username}/${profile.id}/avatar.jpg`
+        }
+        
+        const avatarUrl = `${endpoint}/${bucket}/${avatarKey}`
+        
+        return {
+            ...profile,
+            user: (profile as any).user, // Will be overridden if user info is present
+            avatarUrl
+        }
+    }
+
     /**
      * Get danh sách profiles với filter và pagination
      */
@@ -94,7 +113,11 @@ export class ProfileRepository {
             .orderBy(orderBy)
 
         return {
-            data: rows.map((r: any) => ({ ...r.profile, user: r.user })),
+            data: rows.map((r: any) => {
+                const p = this.attachAvatarUrl(r.profile, r.user.username)
+                p.user = r.user
+                return p
+            }),
             total,
             page: pagination.page,
             limit: pagination.limit,
@@ -121,21 +144,28 @@ export class ProfileRepository {
         
         if (!result[0]) return null
         
-        return {
-            ...result[0].profile,
-            user: result[0].user
-        }
+        const p = this.attachAvatarUrl(result[0].profile, result[0].user.username)
+        p.user = result[0].user
+        return p
     }
 
     /**
      * Get profile by user_id
      */
-    async findByUserId(userId: ID, tx?: any): Promise<ProfileRow | null> {
-        const result = await (tx || db).select()
+    async findByUserId(userId: ID, tx?: any): Promise<any | null> {
+        const result = await (tx || db).select({
+            profile: profileStaff,
+            user: {
+                username: users.username
+            }
+        })
             .from(profileStaff)
+            .innerJoin(users, eq(profileStaff.userId, users.id))
             .where(and(eq(profileStaff.userId, userId), isNull(profileStaff.deletedAt)))
             .limit(1)
-        return result[0] ?? null
+            
+        if (!result[0]) return null
+        return this.findById(result[0].profile.id, tx)
     }
 
     /**

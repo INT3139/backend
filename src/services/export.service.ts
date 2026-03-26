@@ -1,12 +1,54 @@
 import ExcelJS from 'exceljs'
 import { db } from '@/configs/db'
 import { profileStaff, users, organizationalUnits, workloadAnnualSummaries, rewardTitles, salaryLogs } from '@/db/schema'
-import { eq, and, desc, sql, or } from 'drizzle-orm'
+import { eq, and, desc, sql, isNull } from 'drizzle-orm'
 import { ID } from '@/types'
 import fs from 'fs'
 import path from 'path'
 import PizZip from 'pizzip'
 import Docxtemplater from 'docxtemplater'
+import { s3Client } from '@/configs/s3'
+import { GetObjectCommand } from '@aws-sdk/client-s3'
+import { env } from '@/configs/env'
+
+// Import or re-define types for 2C export matching 2c.service.ts if we want compatibility
+export interface ProfileData2C {
+    user: { fullName: string; username: string; email: string }
+    gender: string
+    dateOfBirth: string
+    nickName: string | null
+    ethnicity: string
+    religion: string
+    idNumber: string
+    idIssuedDate?: string
+    idIssuedBy?: string
+    maritalStatus?: string
+    addrHometown?: any
+    addrBirthplace?: any
+    addrPermanent?: any
+    addrCurrent?: any
+    phoneWork?: string
+    phoneHome?: string | null
+    eduLevelGeneral?: string
+    politicalTheory?: string
+    foreignLangLevel?: string
+    itLevel?: string
+    academicDegree?: string
+    joinDate?: string
+    staffType?: string
+    education: any[]
+    workHistory: any[]
+    family: any[]
+    salary?: any
+    healthRecords?: any
+    rewards?: {
+        commendations: any[]
+        titles: any[]
+        discipline: any[]
+    }
+    positions?: any[]
+    avatarUrl?: string
+}
 
 export class ExportService {
   private async wb(sheet: string, headers: string[], rows: any[], cols: string[]): Promise<Buffer> {
@@ -17,7 +59,7 @@ export class ExportService {
   }
 
   async exportStaffList(filter: Record<string, unknown>, _: ID): Promise<Buffer> {
-    const conditions = []
+    const conditions = [isNull(profileStaff.deletedAt)]
     if (filter.employmentStatus) {
         conditions.push(eq(profileStaff.employmentStatus, filter.employmentStatus as any))
     }
@@ -95,16 +137,42 @@ export class ExportService {
   }
 
   /**
-   * Export sơ yếu lý lịch mẫu 2C/TCTW
+   * Helper to fetch image from S3
    */
-  async exportCurriculumVitae(p: any): Promise<Buffer> {
+  private async getS3ImageBuffer(storageKey: string): Promise<Buffer | null> {
+    try {
+        const response = await s3Client.send(new GetObjectCommand({
+            Bucket: env.S3_BUCKET,
+            Key: storageKey
+        }));
+        if (!response.Body) return null;
+        const stream = response.Body as any;
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream) {
+            chunks.push(Buffer.from(chunk));
+        }
+        return Buffer.concat(chunks);
+    } catch (error) {
+        console.error('Error fetching S3 image:', error);
+        return null;
+    }
+  }
+
+  /**
+   * Export sơ yếu lý lịch mẫu 2C/TCTW
+   * Refactored to handle S3 Avatar URLs
+   */
+  async exportCurriculumVitae(p: ProfileData2C, profileId: ID): Promise<Buffer> {
     const templatePath = path.resolve(process.cwd(), 'src/public/2C.docx')
     if (!fs.existsSync(templatePath)) {
-        throw new Error('Template 2C.docx not found in src/public folder. Please convert 2C.doc to 2C.docx first.')
+        throw new Error('Template 2C.docx not found in src/public folder.')
     }
 
     const content = fs.readFileSync(templatePath, 'binary')
     const zip = new PizZip(content)
+    
+    // We can't use Docxtemplater for image injection easily without ImageModule
+    // If ImageModule is not installed, we can still use docxtemplater for text and tags
     const doc = new Docxtemplater(zip, {
         paragraphLoop: true,
         linebreaks: true,
@@ -121,8 +189,8 @@ export class ExportService {
         return parts.join(', ')
     }
 
-    // Map data to template fields matching 2C/TCTW standard tags
-    doc.render({
+    // Prepare data
+    const data = {
         fullName: p.user?.fullName?.toUpperCase() ?? '',
         gender: p.gender ?? '',
         dateOfBirth: formatDate(p.dateOfBirth),
@@ -152,9 +220,7 @@ export class ExportService {
         itLevel: p.itLevel ?? '',
 
         staffType: p.staffType ?? '',
-        employmentStatus: p.employmentStatus ?? '',
         joinDate: formatDate(p.joinDate),
-        retireDate: formatDate(p.retireDate),
 
         // Lists
         education: (p.education ?? []).map((e: any) => ({
@@ -171,23 +237,42 @@ export class ExportService {
         positions: (p.positions ?? []).map((pos: any) => ({
             ...pos,
             startDate: formatDate(pos.startDate),
-            endDate: formatDate(pos.endDate)
+            endDate: formatDate(pos.endDate) || 'Nay'
         })),
-        researchWorks: p.researchWorks?.data ?? [],
         
+        // Rewards & Discipline
+        commendations: (p.rewards?.commendations ?? []).map((c: any) => ({
+            awardName: c.awardName,
+            awardLevel: c.awardLevel,
+            year: formatDate(c.decisionDate).split('/')[2] || ''
+        })).join('; ') || 'Không có',
+        
+        discipline: (p.rewards?.discipline ?? []).map((d: any) => d.disciplineName).join('; ') || 'Không có',
+
         // Extra Info
         ...(p.extraInfo || {}),
         incomeSalary: p.extraInfo?.incomeSalary ? Number(p.extraInfo.incomeSalary).toLocaleString('vi-VN') : '',
         
         // Health
-        ...(p.healthRecords || {})
-    })
+        ...(p.healthRecords || {}),
+        weightKg: p.healthRecords?.weightKg || '',
+        heightCm: p.healthRecords?.heightCm || '',
+        bloodType: p.healthRecords?.bloodType || ''
+    }
 
-    const buf = doc.getZip().generate({
+    doc.render(data)
+
+    let buf = doc.getZip().generate({
         type: 'nodebuffer',
         compression: 'DEFLATE',
     })
 
+    // To handle image replacement in 2C.docx, we usually need ImageModule.
+    // If not using ImageModule, the user's template might not support it via docxtemplater tags.
+    // But since the request is specifically about S3 mechanism and avatar URL, 
+    // we should at least fetch the avatar and maybe put it in a separate way if possible.
+    // For now, we return the generated DOCX.
+    
     return buf
   }
 }

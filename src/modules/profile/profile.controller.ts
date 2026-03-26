@@ -1,7 +1,6 @@
 import { Request, Response } from "express"
 import path from "path"
 import fs from "fs"
-import { export2CForm, ProfileData } from "@/services/2c.service"
 import { profileService } from "./profile.service"
 import { profileSubRepo } from "./profileSub.repo"
 import { success, created } from "@/utils/response"
@@ -141,97 +140,20 @@ export const updateProfile = asyncHandler(async (
  * Syncs data fetching with getMyProfile logic
  */
 const handle2CExport = async (profile: any, req: AuthRequest, res: Response) => {
-    const userId = profile.userId
-    const profileId = profile.id
-
-    // Lấy dữ liệu extra giống hệt getMyProfile
-    const [salary, rewards] = await Promise.all([
-        salaryService.getSalaryByUserId(userId),
-        rewardService.getRewardsByUserId(userId)
-    ])
-
-    // Serialize để convert Date -> String ISO (rất quan trọng cho 2c.service)
-    const p = JSON.parse(JSON.stringify(profile))
-    const s = salary ? JSON.parse(JSON.stringify(salary)) : null
-    const r = rewards ? JSON.parse(JSON.stringify(rewards)) : null
-
-    // Map dữ liệu sang ProfileData cho service
-    const profileData: ProfileData = {
-        user: p.user || { fullName: '', username: '', email: '' },
-        gender: p.gender || '',
-        dateOfBirth: p.dateOfBirth || '',
-        nickName: p.nickName || '',
-        ethnicity: p.ethnicity || '',
-        religion: p.religion || '',
-        idNumber: p.idNumber || '',
-        idIssuedDate: p.idIssuedDate || '',
-        idIssuedBy: p.idIssuedBy || '',
-        maritalStatus: p.maritalStatus || '',
-        addrHometown: p.addrHometown || {},
-        addrBirthplace: p.addrBirthplace || {},
-        addrPermanent: p.addrPermanent || {},
-        addrCurrent: p.addrCurrent || {},
-        phoneWork: p.phoneWork || '',
-        phoneHome: p.phoneHome || '',
-        eduLevelGeneral: p.eduLevelGeneral || '',
-        politicalTheory: p.politicalTheory || '',
-        foreignLangLevel: p.foreignLangLevel || '',
-        itLevel: p.itLevel || '',
-        academicDegree: p.academicDegree || '',
-        joinDate: p.joinDate || '',
-        staffType: p.staffType || '',
-        education: p.education || [],
-        workHistory: p.workHistory || [],
-        family: p.family || [],
-        salary: s ? {
-            occupationTitle: s.occupationTitle || '',
-            occupationCode: s.occupationCode || '',
-            salaryGrade: s.salaryGrade || 0,
-            salaryCoefficient: s.salaryCoefficient || '',
-            effectiveDate: s.effectiveDate || ''
-        } : null,
-        healthRecords: p.healthRecords ? {
-            healthStatus: p.healthRecords.healthStatus || '',
-            weightKg: p.healthRecords.weightKg?.toString() || '',
-            heightCm: p.healthRecords.heightCm?.toString() || '',
-            bloodType: p.healthRecords.bloodType || ''
-        } : null,
-        rewards: r ? {
-            commendations: (r.commendations || []).map((c: any) => ({
-                awardName: c.awardName,
-                decisionDate: c.decisionDate,
-                decisionNumber: c.decisionNumber,
-                awardLevel: c.awardLevel,
-                isHighestAward: c.isHighestAward
-            })),
-            titles: (r.titles || []).map((t: any) => ({
-                titleName: t.titleName,
-                awardedYear: t.awardedYear,
-                decisionNumber: t.decisionNumber,
-                titleLevel: t.titleLevel,
-                isHighest: t.isHighest
-            })),
-            discipline: r.discipline || []
-        } : { commendations: [], titles: [], discipline: [] }
-    }
-
-    const templatePath = path.join(process.cwd(), "src/public/2C.docx")
-    const defaultPhotoPath = path.join(process.cwd(), "src/public/4_6.png")
-    
     try {
-        let photo: any = undefined
-        if (fs.existsSync(defaultPhotoPath)) {
-            photo = {
-                data: fs.readFileSync(defaultPhotoPath),
-                mimeType: 'image/png'
-            }
+        const userId = profile.userId
+        const [salary, rewards] = await Promise.all([
+            salaryService.getSalaryByUserId(userId),
+            rewardService.getRewardsByUserId(userId)
+        ])
+
+        const profileData = {
+            ...profile,
+            salary,
+            rewards
         }
 
-        const docxBuf = await export2CForm({
-            templatePath,
-            profile: profileData,
-            photo
-        })
+        const docxBuf = await exportService.exportCurriculumVitae(profileData, profile.id)
 
         res.setHeader('Content-Disposition', `attachment; filename="LyLich_2C_${profile.id}.docx"`)
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')

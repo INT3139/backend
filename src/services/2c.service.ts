@@ -1,582 +1,351 @@
-/**
- * 2c.service.ts
- * Generate filled 2C Sơ yếu lý lịch DOCX from HRM profile data.
- *
- * Strategy: the 2C.docx template contains literal ASCII-dot placeholders
- * (e.g. "Sinh ngày: .......... tháng ..........").  We open the DOCX as a zip,
- * regex-replace the dot sequences in word/document.xml with real values,
- * then inject proper table rows for education, work-history and family.
- */
+import fs from 'fs-extra';
+import path from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import z from 'zod';
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+import PizZip from 'pizzip';
+import Docxtemplater from 'docxtemplater';
 
-import * as fs from 'fs'
-import PizZip from 'pizzip'
+dayjs.extend(customParseFormat);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types (public – used by profile.controller.ts)
-// ─────────────────────────────────────────────────────────────────────────────
+const execFileAsync = promisify(execFile);
 
-export interface Address {
-    ward?: string
-    street?: string
-    district?: string
-    province?: string
-    country?: string
-}
+// Định dạng ngày tháng chuẩn Việt Nam DD/MM/YYYY
+const dateVietnamSchema = z.string().refine((val) => {
+    const date = dayjs(val, ['DD/MM/YYYY', 'YYYY-MM-DD'], true);
+    return date.isValid();
+}, "Ngày tháng phải theo định dạng DD/MM/YYYY hoặc YYYY-MM-DD");
 
-export interface EducationItem {
-    fromDate: string
-    toDate: string
-    degreeLevel: string
-    institution: string
-    major: string
-    trainingForm: string
-}
+// Mục 30a: Quan hệ gia đình (Bố, mẹ, vợ chồng, con, anh chị em)
+const familyMemberSchema = z.object({
+    quanHe: z.string().min(1, "Quan hệ không được để trống (Ví dụ: Bố, Mẹ)"),
+    hoTen: z.string().min(1, "Họ tên không được để trống"),
+    namSinh: z.string().optional(),
+    queQuanNgheNghiep: z.string().optional(),
+});
 
-export interface WorkHistoryItem {
-    fromDate: string
-    toDate: string | null
-    positionName: string | null
-    unitName: string
-}
+// Mục 27: Quá trình công tác
+const workHistorySchema = z.object({
+    thoiGian: z.string().min(1, "Thời gian không được để trống"),
+    chucDanhDonVi: z.string().min(1, "Chức danh đơn vị không được để trống"),
+});
 
-export interface FamilyMember {
-    side: 'self' | 'spouse'
-    relationship: string
-    fullName: string
-    birthYear: number
-    description: string
-}
+// Mục 26: Đào tạo
+const educationSchema = z.object({
+    tenTruong: z.string().optional(),
+    nganhHoc: z.string().optional(),
+    thoiGianHoc: z.string().optional(),
+    hinhThucHoc: z.string().optional(),
+    vanBang: z.string().optional(),
+});
 
-export interface SalaryInfo {
-    occupationTitle: string
-    occupationCode: string
-    salaryGrade: number
-    salaryCoefficient: string
-    effectiveDate: string
-}
+// Schema chính cho toàn bộ Lý lịch 2C
+export const LyLich2CSchema = z.object({
+    // Thông tin chung
+    tinh: z.string().optional(),
+    boPhan: z.string().optional(),
+    donViTrucThuoc: z.string().optional(),
+    donViCoSo: z.string().optional(),
+    soHieuCanBo: z.string().optional(),
 
-export interface HealthRecord {
-    healthStatus: string
-    weightKg: string
-    heightCm: string | null
-    bloodType: string
-}
+    // 1) Họ tên
+    hoTen: z.string().min(1, "Họ và tên khai sinh là bắt buộc"),
+    gioiTinh: z.enum(["Nam", "Nữ"]),
 
-export interface CommendationItem {
-    awardName: string
-    decisionDate: string
-    decisionNumber?: string
-    awardLevel: string
-    isHighestAward: boolean
-}
+    // 2) Tên gọi khác
+    tenGoiKhac: z.string().optional(),
 
-export interface TitleItem {
-    titleName: string
-    awardedYear: string
-    decisionNumber?: string
-    titleLevel: string
-    isHighest: boolean
-}
+    // 3) Cấp ủy, Chức vụ
+    capUyHienTai: z.string().optional(),
+    chucVu: z.string().optional(),
+    phuCapChucVu: z.string().optional(),
 
-export interface ProfileData {
-    user: { fullName: string; username: string; email: string }
-    gender: string
-    dateOfBirth: string
-    nickName: string | null
-    ethnicity: string
-    religion: string
-    idNumber: string
-    idIssuedDate?: string
-    idIssuedBy?: string
-    maritalStatus?: string
-    addrHometown?: Address | null
-    addrBirthplace?: Address | null
-    addrPermanent?: Address | null
-    addrCurrent?: Address | null
-    phoneWork?: string
-    phoneHome?: string | null
-    eduLevelGeneral?: string
-    politicalTheory?: string
-    foreignLangLevel?: string
-    itLevel?: string
-    academicDegree?: string
-    joinDate?: string
-    staffType?: string
-    education: EducationItem[]
-    workHistory: WorkHistoryItem[]
-    family: FamilyMember[]
-    salary?: SalaryInfo | null
-    healthRecords?: HealthRecord | null
-    rewards?: {
-        commendations: CommendationItem[]
-        titles: TitleItem[]
-        discipline: unknown[]
-    }
-}
+    // 4) Ngày sinh
+    ngaySinh: dateVietnamSchema,
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Utilities
-// ─────────────────────────────────────────────────────────────────────────────
+    // 5) Nơi sinh
+    noiSinh: z.string().optional(),
 
-const esc = (v: unknown): string =>
-    String(v ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
+    // 6) Quê quán
+    queQuan: z.object({
+        xaPhuong: z.string().optional(),
+        huyenQuan: z.string().optional(),
+        tinhTP: z.string().optional(),
+    }),
 
-const fmtDay = (iso?: string | null) => (iso ? iso.substring(8, 10) : '')
-const fmtMo  = (iso?: string | null) => (iso ? iso.substring(5, 7)  : '')
-const fmtYr  = (iso?: string | null) => (iso ? iso.substring(0, 4)  : '')
-/** "2002-07-01" → "07/2002" */
-const fmtMonthYear = (iso?: string | null) =>
-    iso ? `${iso.substring(5, 7)}/${iso.substring(0, 4)}` : ''
+    // 7) Nơi ở hiện nay & Hộ khẩu
+    noiOHienNay: z.string().optional(),
+    dienThoai: z.string().optional(),
+    hoKhauThuongTru: z.string().optional(),
 
-const fmtAddr = (a?: Address | null) =>
-    [a?.street, a?.ward, a?.district, a?.province].filter(Boolean).join(', ')
+    // 8) Dân tộc, 9) Tôn giáo
+    danToc: z.string().optional(),
+    tonGiao: z.string().optional(),
 
-const capitalize = (s?: string | null) =>
-    s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+    // 10) Thành phần gia đình
+    thanhPhanGiaDinh: z.string().optional(),
 
-// ─────────────────────────────────────────────────────────────────────────────
-// OOXML snippet builders (for table row injection)
-// ─────────────────────────────────────────────────────────────────────────────
+    // 11) Nghề nghiệp trước khi tuyển dụng
+    ngheNghiepBanThan: z.string().optional(),
 
-const xmlP = (text: string, align: 'left' | 'center', sz = 22): string => {
-    const jc = align === 'center' ? '<w:jc w:val="center"/>' : ''
-    const sp = align === 'left' ? ' xml:space="preserve"' : ''
-    return (
-        `<w:p w:rsidR="0023262B" w:rsidRDefault="0023262B">` +
-        `<w:pPr>${jc}<w:rPr><w:sz w:val="${sz}"/></w:rPr></w:pPr>` +
-        `<w:r><w:rPr><w:sz w:val="${sz}"/></w:rPr>` +
-        `<w:t${sp}>${esc(text)}</w:t></w:r></w:p>`
-    )
-}
+    // 12) Ngày tuyển dụng
+    ngayTuyenDung: dateVietnamSchema.optional(),
+    coQuanTuyenDung: z.string().optional(),
 
-const xmlCell = (w: number, ...paras: string[]): string =>
-    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/></w:tcPr>${paras.join('')}</w:tc>`
+    // 13) Ngày vào cơ quan hiện tại
+    ngayVaoCoQuanHienTai: dateVietnamSchema.optional(),
+    ngayThamGiaCachMang: dateVietnamSchema.optional(),
 
-const xmlRow = (...cells: string[]): string =>
-    `<w:tr w:rsidR="0023262B" w:rsidRPr="00F42440">` +
-    `<w:tblPrEx><w:tblCellMar>` +
-    `<w:top w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/>` +
-    `</w:tblCellMar></w:tblPrEx>${cells.join('')}</w:tr>`
+    // 14) Đảng viên
+    ngayVaoDang: dateVietnamSchema.optional(),
+    ngayChinhThuc: dateVietnamSchema.optional(),
 
-/** "2002-07-01" → "07/2002" */
-const fmtMY = (iso?: string | null) => {
-    if (!iso) return ''
-    const [y, m] = iso.substring(0, 10).split('-')
-    return `${m}/${y}`
-}
+    // 15) Tổ chức chính trị xã hội
+    ngayThamGiaToChuc: z.string().optional(),
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Field replacement (regex against raw word/document.xml)
-// ─────────────────────────────────────────────────────────────────────────────
+    // 16) Quân sự
+    ngayNhapNgu: dateVietnamSchema.optional(),
+    ngayXuatNgu: dateVietnamSchema.optional(),
+    quanHamChucVu: z.string().optional(),
 
-function applyRegexFields(xml: string, d: ProfileData): string {
-    const birth   = d.addrBirthplace ?? {}
-    const home    = d.addrHometown ?? {}
-    const curr    = d.addrCurrent ?? d.addrPermanent ?? {}
-    const sal     = d.salary
-    const hr      = d.healthRecords
-    const phone   = d.phoneHome || d.phoneWork || ''
+    // 17) Học vấn
+    trinhDoPhoThong: z.string().optional(),
+    hocHamHocVi: z.string().optional(),
+    lyLuanChinhTri: z.string().optional(),
+    ngoaiNgu: z.string().optional(),
 
-    const dobD = fmtDay(d.dateOfBirth)
-    const dobM = fmtMo(d.dateOfBirth)
-    const dobY = fmtYr(d.dateOfBirth)
-    const joinD = fmtDay(d.joinDate)
-    const joinM = fmtMo(d.joinDate)
-    const joinY = fmtYr(d.joinDate)
-    const salMo = fmtMonthYear(sal?.effectiveDate).split('/')[0] ?? ''
-    const salYr = fmtMonthYear(sal?.effectiveDate).split('/')[1] ?? ''
+    // 18) Công tác đang làm
+    congTacChinh: z.string().optional(),
 
-    const currentJob = [...d.workHistory]
-        .filter(w => !w.toDate)
-        .sort((a, b) => b.fromDate.localeCompare(a.fromDate))[0]
-    const jobTitle = currentJob?.positionName
-        ? `${currentJob.positionName} - ${currentJob.unitName}`
-        : currentJob?.unitName ?? ''
+    // 19) Ngạch công chức
+    ngachCongChuc: z.string().optional(),
+    maSo: z.string().optional(),
+    bacLuong: z.string().optional(),
+    heSoLuong: z.string().optional(),
 
-    const topEdu = [...d.education].sort((a, b) => b.toDate.localeCompare(a.toDate))[0]
-    const degreeLabel = topEdu
-        ? `${topEdu.degreeLevel} ${topEdu.major}, ${topEdu.toDate?.substring(0, 4) ?? ''}`
-        : ''
+    // 20) Danh hiệu
+    danhHieu: z.string().optional(),
 
-    const titlesSorted = [...(d.rewards?.titles ?? [])].sort((a, b) =>
-        b.awardedYear.localeCompare(a.awardedYear))
-    const commendsSorted = [...(d.rewards?.commendations ?? [])].sort((a, b) =>
-        b.decisionDate.localeCompare(a.decisionDate))
-    const awardsText = [
-        ...titlesSorted.map(t => `${t.titleName} (${t.awardedYear})`),
-        ...commendsSorted.map(c => `${c.awardName} (${(c.decisionDate ?? '').substring(0, 4)})`),
-    ].join('; ') || 'Không có'
-    const disciplineText = (d.rewards?.discipline?.length ?? 0) > 0
-        ? 'Có (xem hồ sơ kỷ luật)' : 'Không có'
+    // 21) Sở trường
+    soTruong: z.string().optional(),
+    congViecLauNhat: z.string().optional(),
 
-    // Within a paragraph: (?:(?!<\/w:p>)[\s\S])*? — never crosses </w:p>
-    const inPara = '(?:(?!<\\/w:p>)[\\s\\S])*?'
+    // 22) Khen thưởng
+    khenThuong: z.string().optional(),
 
-    type Rule = {
-        label: string
-        pattern: RegExp
-        value: string | ((...args: string[]) => string)
+    // 23) Kỷ luật
+    kyLuat: z.string().optional(),
+
+    // 24) Sức khỏe
+    tinhTrangSucKhoe: z.string().optional(),
+    chieuCao: z.string().optional(),
+    canNang: z.string().optional(),
+    nhomMau: z.string().optional(),
+
+    // 25) CMND
+    soCMND: z.string().optional(),
+    thuongBinhLoai: z.string().optional(),
+    giaDinhLietSi: z.string().optional(),
+
+    // 26) Đào tạo (Mảng)
+    daoTao: z.array(educationSchema).optional(),
+
+    // 27) Quá trình công tác (Mảng - Bắt buộc có dữ liệu)
+    quaTrinhCongTac: z.array(workHistorySchema).min(1, "Phải có ít nhất một quá trình công tác"),
+
+    // 28) Đặc điểm lịch sử
+    dacDiemLichSu: z.string().optional(),
+    lamViecCheDoCu: z.string().optional(),
+
+    // 29) Quan hệ nước ngoài
+    quanHeNuocNgoai: z.string().optional(),
+    thanNhanNuocNgoai: z.string().optional(),
+
+    // 30) Quan hệ gia đình (Bắt buộc kiểm tra logic Bố/Mẹ)
+    quanHeGiaDinh: z.object({
+        banThan: z.array(familyMemberSchema), // Bố, mẹ, vợ, con...
+        benVoChong: z.array(familyMemberSchema).optional(), // Bố mẹ vợ/chồng
+    }),
+
+    // 31) Hoàn cảnh kinh tế
+    quaTrinhLuong: z.array(z.object({
+        thangNam: z.string(),
+        ngachBac: z.string(),
+        heSo: z.string()
+    })).optional(),
+    nguonThuNhap: z.string().optional(),
+    nhaO: z.string().optional(),
+    datO: z.string().optional(),
+
+    // Ảnh 4x6 (Path hoặc Buffer)
+    anhDaiDien: z.string().optional(), // Đường dẫn file ảnh
+});
+
+export type LyLich2CData = z.infer<typeof LyLich2CSchema>;
+
+export class ExportService {
+    private templatePath: string;
+    private outputDir: string;
+
+    constructor() {
+        this.templatePath = path.join(__dirname, "../public/2C.docx")
+        this.outputDir = path.join(__dirname, '../public/export');
     }
 
-    const rules: Rule[] = [
-        // ── Field 1: Họ tên — the name run is <w:t>: …… </w:t> with Unicode ellipsis
-        {
-            label: 'Họ tên',
-            pattern: /(<w:t>: )[\u2026\u2025\u22EF…]+\.+(<\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(d.user.fullName)}${p2}`,
-        },
-        // ── Field 1: Giới tính
-        {
-            label: 'Giới tính',
-            pattern: /(Nam, nữ: )\.+(<\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(d.gender)}${p2}`,
-        },
-        // ── Field 2: Tên gọi khác — tab then dots in next run
-        {
-            label: 'Tên gọi khác',
-            pattern: new RegExp(
-                `(Các tên gọi khác: <\\/w:t><\\/w:r>${inPara}<w:tab\\/>)<w:t>(\\.+)(<\\/w:t>)`, 's'),
-            value: (_, p1, __, p3) => `${p1}<w:t>${esc(d.nickName ?? 'Không có')}${p3}`,
-        },
-        // ── Field 4: Ngày sinh DD tháng MM năm YYYY
-        {
-            label: 'Ngày sinh',
-            pattern: /(Sinh ngày: )\.+( tháng )\.+( năm )\.+( <\/w:t>)/,
-            value: (_, p1, p2, p3, p4) => `${p1}${dobD}${p2}${dobM}${p3}${dobY}${p4}`,
-        },
-        // ── Field 5: Nơi sinh
-        {
-            label: 'Nơi sinh',
-            pattern: /(5\) Nơi sinh: )\.+(<\/w:t>)/,
-            value: (_, p1, p2) =>
-                `${p1}${esc([birth.ward, birth.district, birth.province].filter(Boolean).join(', '))}${p2}`,
-        },
-        // ── Field 6: Quê quán – xã (unique: only <w:t xml:space="preserve">: ..... </w:t>)
-        {
-            label: 'Quê quán - xã',
-            pattern: new RegExp(
-                `(phường\\)<\\/w:t><\\/w:r>${inPara}<w:t[^>]*>: )\\.+( <\\/w:t>${inPara}huyện, quận)`, 's'),
-            value: (_, p1, p2) => `${p1}${esc(home.ward ?? '')}${p2}`,
-        },
-        // ── Field 6: Quê quán – huyện
-        {
-            label: 'Quê quán - huyện',
-            pattern: new RegExp(
-                `(huyện, quận\\):<\\/w:t><\\/w:r>${inPara}<w:t[^>]*> )\\.+( <\\/w:t>${inPara}tỉnh, TP)`, 's'),
-            value: (_, p1, p2) => `${p1}${esc(home.district ?? '')}${p2}`,
-        },
-        // ── Field 6: Quê quán – tỉnh (last run in that paragraph)
-        {
-            label: 'Quê quán - tỉnh',
-            pattern: new RegExp(
-                `(tỉnh, TP\\):<\\/w:t><\\/w:r>${inPara}<w:t[^>]*> *)\\.+( *<\\/w:t><\\/w:r><\\/w:p>)`, 's'),
-            value: (_, p1, p2) => `${p1}${esc(home.province ?? '')}${p2}`,
-        },
-        // ── Field 7: Nơi ở hiện nay
-        {
-            label: 'Nơi ở',
-            pattern: new RegExp(
-                `(đường phố, TP\\): <\\/w:t><\\/w:r>${inPara}<w:t[^>]*>)\\.+( <\\/w:t>)`, 's'),
-            value: (_, p1, p2) => `${p1}${esc(fmtAddr(curr))}${p2}`,
-        },
-        // ── Field 7: Điện thoại
-        {
-            label: 'Điện thoại',
-            pattern: /(đ\/thoại: )\.+(<\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(phone)}${p2}`,
-        },
-        // ── Field 8: Dân tộc
-        {
-            label: 'Dân tộc',
-            pattern: new RegExp(
-                `(đê\\.\\.\\.\\): <\\/w:t><\\/w:r>${inPara}<w:t[^>]*>)\\.+( <\\/w:t>)`, 's'),
-            value: (_, p1, p2) => `${p1}${esc(d.ethnicity)}${p2}`,
-        },
-        // ── Field 9: Tôn giáo
-        {
-            label: 'Tôn giáo',
-            pattern: /(9\) Tôn giáo: )\.+(<\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(d.religion)}${p2}`,
-        },
-        // ── Field 10: Thành phần gia đình xuất thân
-        {
-            label: 'Thành phần gia đình',
-            pattern: new RegExp(
-                `(gia đình xuất thân: <\\/w:t><\\/w:r>${inPara}<w:tab\\/>)<w:t>(\\.+)(<\\/w:t>)`, 's'),
-            value: (_, p1, __, p3) => `${p1}<w:t>${esc(d.staffType ?? '')}${p3}`,
-        },
-        // ── Field 12: Ngày tuyển dụng DD / MM / YYYY
-        {
-            label: 'Ngày tuyển dụng',
-            pattern: /(tuyển dụng: )\.+( \/ )\.+( \/ )\.+( <\/w:t>)/,
-            value: (_, p1, p2, p3, p4) => `${p1}${joinD}${p2}${joinM}${p3}${joinY}${p4}`,
-        },
-        // ── Field 12: Cơ quan đầu tiên
-        {
-            label: 'Cơ quan đầu tiên',
-            pattern: /(Vào cơ quan nào, ở dâu: )\.+(<\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(currentJob?.unitName ?? '')}${p2}`,
-        },
-        // ── Field 13: Ngày vào cơ quan hiện tại DD / MM / YYYY
-        {
-            label: 'Ngày vào cơ quan',
-            pattern: /(công tác: )\.+( \/ )\.+( \/ )\.+(, <\/w:t>)/,
-            value: (_, p1, p2, p3, p4) => `${p1}${joinD}${p2}${joinM}${p3}${joinY}${p4}`,
-        },
-        // ── Field 17a: Giáo dục phổ thông
-        {
-            label: 'Giáo dục phổ thông',
-            pattern: /(Giáo dục phổ thông: )\.+( <\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(d.eduLevelGeneral ?? '')}${p2}`,
-        },
-        // ── Field 17a: Học hàm học vị
-        {
-            label: 'Học hàm học vị',
-            pattern: /(Học hàm, học vị cao nhất: )\.+(<\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(degreeLabel)}${p2}`,
-        },
-        // ── Field 17b: Lý luận chính trị
-        {
-            label: 'Lý luận chính trị',
-            pattern: /(Lý luận chính trị: )\.+( <\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(capitalize(d.politicalTheory))}${p2}`,
-        },
-        // ── Field 17b: Ngoại ngữ
-        {
-            label: 'Ngoại ngữ',
-            pattern: /(- Ngoại ngữ: )\.+(<\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(d.foreignLangLevel ?? '')}${p2}`,
-        },
-        // ── Field 18: Công tác chính — tab then dots
-        {
-            label: 'Công tác chính',
-            pattern: new RegExp(
-                `(Công tác chính đang làm: <\\/w:t><\\/w:r>${inPara}<w:tab\\/>)<w:t>(\\.+)(<\\/w:t>)`, 's'),
-            value: (_, p1, __, p3) => `${p1}<w:t>${esc(jobTitle)}${p3}`,
-        },
-        // ── Field 19: Ngạch công chức (occupation title)
-        {
-            label: 'Ngạch công chức',
-            pattern: /(Ngạch công chức: )\.+( <\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(sal?.occupationTitle ?? '')}${p2}`,
-        },
-        // ── Field 19: Mã số
-        {
-            label: 'Mã số ngạch',
-            pattern: /(mã số: )\.+(\) <\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(sal?.occupationCode ?? '')}${p2}`,
-        },
-        // ── Field 19: Bậc lương, hệ số, từ tháng MM/YYYY
-        {
-            label: 'Bậc lương hệ số',
-            pattern: /(Bậc lương: )\.+(, hệ số: )\.+( từ tháng )\.+(\/)\.+(<\/w:t>)/,
-            value: (_, p1, p2, p3, p4, p5) =>
-                `${p1}${esc(String(sal?.salaryGrade ?? ''))}${p2}${esc(sal?.salaryCoefficient ?? '')}${p3}${esc(salMo)}${p4}${esc(salYr)}${p5}`,
-        },
-        // ── Field 22: Khen thưởng
-        {
-            label: 'Khen thưởng',
-            pattern: new RegExp(
-                `(Khen thưởng: <\\/w:t><\\/w:r>${inPara}<w:tab\\/>)<w:t>(\\.+)(<\\/w:t>)`, 's'),
-            value: (_, p1, __, p3) =>
-                `${p1}<w:t xml:space="preserve">${esc(awardsText.substring(0, 250))}${p3}`,
-        },
-        // ── Field 23: Kỷ luật
-        {
-            label: 'Kỷ luật',
-            pattern: new RegExp(
-                `(Kỷ luật${inPara}: <\\/w:t><\\/w:r>${inPara}<w:tab\\/>)<w:t>(\\.+)(<\\/w:t>)`, 's'),
-            value: (_, p1, __, p3) => `${p1}<w:t>${esc(disciplineText)}${p3}`,
-        },
-        // ── Field 24: Tình trạng sức khỏe
-        {
-            label: 'Sức khỏe',
-            pattern: /(Tình trạng sức khỏe: )\.+( <\/w:t>)/,
-            value: (_, p1, p2) =>
-                `${p1}${esc((hr?.healthStatus ?? '').replace('Loại A: ', 'Loại A - '))}${p2}`,
-        },
-        // ── Field 24: Cao, Cân nặng, Nhóm máu
-        {
-            label: 'Chiều cao cân nặng',
-            pattern: /(Cao: 1m )\.+(, {1,2}Cân nặng: )\.+( \(kg\), Nhóm máu: )\.+(<\/w:t>)/,
-            value: (_, p1, p2, p3, p4) =>
-                `${p1}${esc(hr?.heightCm ?? '')}${p2}${esc(hr?.weightKg ?? '')}${p3}${esc(hr?.bloodType ?? '')}${p4}`,
-        },
-        // ── Field 25: Số CMND
-        {
-            label: 'CMND',
-            pattern: /(chứng minh nhân dân: )\.+( <\/w:t>)/,
-            value: (_, p1, p2) => `${p1}${esc(d.idNumber)}${p2}`,
-        },
-    ]
+    private normalizeData(data: any): LyLich2CData {
+        const normalizeDate = (dateStr: string | undefined) => {
+            if (!dateStr) return "";
+            const d = dayjs(dateStr, ['DD/MM/YYYY', 'YYYY-MM-DD'], true);
+            return d.isValid() ? d.format('DD/MM/YYYY') : dateStr;
+        };
 
-    let result = xml
-    let filled = 0
-    for (const rule of rules) {
-        if (rule.pattern.test(result)) {
-            result = result.replace(rule.pattern, rule.value as any)
-            filled++
-        } else {
-            console.warn(`[export2C] No match: ${rule.label}`)
-        }
+        return {
+            ...data,
+            ngaySinh: normalizeDate(data.ngaySinh),
+            ngayTuyenDung: normalizeDate(data.ngayTuyenDung),
+            ngayVaoCoQuanHienTai: normalizeDate(data.ngayVaoCoQuanHienTai),
+            ngayThamGiaCachMang: normalizeDate(data.ngayThamGiaCachMang),
+            ngayVaoDang: normalizeDate(data.ngayVaoDang),
+            ngayChinhThuc: normalizeDate(data.ngayChinhThuc),
+            ngayNhapNgu: normalizeDate(data.ngayNhapNgu),
+            ngayXuatNgu: normalizeDate(data.ngayXuatNgu),
+            // Xử lý mảng ngày tháng nếu có (ví dụ trong quá trình công tác)
+            quaTrinhCongTac: data.quaTrinhCongTac?.map((item: any) => ({
+                ...item,
+                // Nếu có trường ngày cụ thể trong mảng thì chuẩn hóa ở đây
+            })),
+        };
     }
-    console.log(`[export2C] Fields: ${filled}/${rules.length}`)
-    return result
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Table row builders
-// ─────────────────────────────────────────────────────────────────────────────
+    /**
+     * Kiểm tra logic nghiệp vụ đặc thù (Ví dụ: Mục 30 phải có Bố và Mẹ)
+     */
+    private validateBusinessLogic(data: LyLich2CData) {
+        const errors: string[] = [];
 
-/** Field 26 – education (5 cols: 2628|2880|1620|1620|2572) */
-function buildEducationRows(education: EducationItem[]): string {
-    return [...education]
-        .sort((a, b) => a.fromDate.localeCompare(b.fromDate))
-        .map(e =>
-            xmlRow(
-                xmlCell(2628, xmlP(e.institution, 'left')),
-                xmlCell(2880, xmlP(e.major, 'left')),
-                xmlCell(1620, xmlP(`${fmtMY(e.fromDate)} - ${fmtMY(e.toDate)}`, 'center')),
-                xmlCell(1620, xmlP(e.trainingForm, 'center')),
-                xmlCell(2572, xmlP(e.degreeLevel, 'left')),
-            ),
-        )
-        .join('\n')
-}
+        // Kiểm tra Mục 30a: Bắt buộc có Bố và Mẹ
+        const listBanThan = data.quanHeGiaDinh?.banThan || [];
+        const hasBo = listBanThan.some(p => p.quanHe.toLowerCase().includes('bố') || p.quanHe.toLowerCase().includes('cha'));
+        const hasMe = listBanThan.some(p => p.quanHe.toLowerCase().includes('mẹ') || p.quanHe.toLowerCase().includes('mẹ'));
 
-/** Field 27 – work history (2 cols: 1908|9414) */
-function buildWorkHistoryRows(workHistory: WorkHistoryItem[]): string {
-    return [...workHistory]
-        .sort((a, b) => a.fromDate.localeCompare(b.fromDate))
-        .map(w => {
-            const period = `${fmtMY(w.fromDate)} - ${w.toDate ? fmtMY(w.toDate) : 'nay'}`
-            const position = w.positionName
-                ? `${w.positionName} - ${w.unitName}`
-                : `Giảng viên - ${w.unitName}`
-            return xmlRow(
-                xmlCell(1908, xmlP(period, 'center')),
-                xmlCell(9414, xmlP(position, 'left')),
-            )
-        })
-        .join('\n')
-}
+        if (!hasBo) errors.push("Thiếu thông tin Bố (hoặc Cha) trong mục Quan hệ gia đình.");
+        if (!hasMe) errors.push("Thiếu thông tin Mẹ trong mục Quan hệ gia đình.");
 
-/** Field 30 – family (4 cols: 1008|2340|900|7072) */
-function buildFamilyRows(members: FamilyMember[]): string {
-    const ORDER = [
-        'Ông nội', 'Bà nội', 'Ông ngoại', 'Bà ngoại',
-        'Bố đẻ', 'Mẹ đẻ', 'Vợ', 'Chồng',
-        'Con trai', 'Con gái', 'Anh trai', 'Chị gái', 'Em trai', 'Em gái',
-    ]
-    return [...members]
-        .sort((a, b) => {
-            const ia = ORDER.indexOf(a.relationship)
-            const ib = ORDER.indexOf(b.relationship)
-            return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
-        })
-        .map(m =>
-            xmlRow(
-                xmlCell(1008, xmlP(m.relationship, 'center')),
-                xmlCell(2340, xmlP(m.fullName, 'left')),
-                xmlCell(900, xmlP(String(m.birthYear), 'center')),
-                xmlCell(7072, xmlP(m.description, 'left')),
-            ),
-        )
-        .join('\n')
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Generic table row injector
-// ─────────────────────────────────────────────────────────────────────────────
-
-function injectTableRows(
-    xml: string,
-    tablePattern: RegExp,
-    rowPattern: RegExp,
-    newRows: string,
-    label: string,
-): string {
-    const tblMatch = tablePattern.exec(xml)
-    if (!tblMatch) { console.warn(`[export2C] Table "${label}" not found`); return xml }
-
-    const oldTable = tblMatch[1]
-    const rowMatch = rowPattern.exec(oldTable)
-    if (!rowMatch) { console.warn(`[export2C] Placeholder row in "${label}" not found`); return xml }
-
-    const newTable = oldTable.replace(rowMatch[1], newRows)
-    console.log(`[export2C] Table "${label}" filled`)
-    return xml.replace(oldTable, newTable)
-}
-
-// Table patterns – identified by unique column-width signatures
-const T_EDU = /(<w:tbl>(?:(?!<w:tbl>).)*?<w:gridCol w:w="2628"\/>(?:(?!<\/w:tbl>).)*?<\/w:tbl>)/s
-const T_WH  = /(<w:tbl>(?:(?!<w:tbl>).)*?<w:gridCol w:w="1908"\/>\s*<w:gridCol w:w="9414"\/>(?:(?!<\/w:tbl>).)*?<\/w:tbl>)/s
-const T_FAM = /(<w:tbl>(?:(?!<w:tbl>).)*?<w:gridCol w:w="1008"\/>(?:(?!<\/w:tbl>).)*?<\/w:tbl>)/s
-
-// Row patterns – find the existing placeholder row to replace
-const R_DOTS  = /(<w:tr\b[^>]*>(?:(?!<w:tr\b).)*?\.{10,}(?:(?!<\/w:tr>).)*?<\/w:tr>)/s
-const R_BOMME = /(<w:tr\b[^>]*>(?:(?!<w:tr\b).)*?Bố, mẹ(?:(?!<\/w:tr>).)*?<\/w:tr>)/s
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Public API
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface Export2COptions {
-    templatePath: string
-    profile: ProfileData
-    /** Optional photo — not injected in current version */
-    photo?: unknown
-}
-
-/**
- * Generate a filled 2C lý lịch .docx.
- * Returns a Buffer ready to write to disk or stream over HTTP.
- */
-export async function export2CForm(opts: Export2COptions): Promise<Buffer> {
-    const { templatePath, profile: d } = opts
-
-    const zip = new PizZip(fs.readFileSync(templatePath, 'binary'))
-    let xml = zip.file('word/document.xml')!.asText()
-
-    // 1 – Fill simple fields
-    xml = applyRegexFields(xml, d)
-
-    // 2 – Field 26: Education table
-    xml = injectTableRows(xml, T_EDU, R_DOTS, buildEducationRows(d.education), 'education')
-
-    // 3 – Field 27: Work history table
-    xml = injectTableRows(xml, T_WH, R_DOTS, buildWorkHistoryRows(d.workHistory), 'workHistory')
-
-    // 4 – Field 30a: Family (self side)
-    const famSelf   = d.family.filter(m => m.side === 'self')
-    const famSpouse = d.family.filter(m => m.side === 'spouse')
-    xml = injectTableRows(xml, T_FAM, R_BOMME, buildFamilyRows(famSelf), 'family-a')
-
-    // 5 – Field 30b: Family (spouse side) — second table with same column signature
-    const famAllMatches = [...xml.matchAll(
-        /(<w:tbl>(?:(?!<w:tbl>).)*?<w:gridCol w:w="1008"\/>(?:(?!<\/w:tbl>).)*?<\/w:tbl>)/gs,
-    )]
-    if (famAllMatches.length >= 2) {
-        const oldTableB = famAllMatches[1][1]
-        const rowB = R_DOTS.exec(oldTableB)
-        if (rowB) {
-            xml = xml.replace(oldTableB, oldTableB.replace(rowB[1], buildFamilyRows(famSpouse)))
-            console.log('[export2C] Table "family-b" filled')
+        if (errors.length > 0) {
+            throw new Error(`Lỗi dữ liệu lý lịch 2C: ${errors.join(" ")}`);
         }
     }
 
-    zip.file('word/document.xml', xml)
+    /**
+     * Tạo file Word (.docx) từ template và dữ liệu
+     */
+    async generateWord(data: LyLich2CData, fileName: string): Promise<string> {
+        // 1. Validate & Normalize
+        const parsedData = LyLich2CSchema.parse(data);
+        this.validateBusinessLogic(parsedData);
+        const normalizedData = this.normalizeData(parsedData);
 
-    const output = zip.generate({
-        type: 'nodebuffer',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 },
-    }) as Buffer
+        // 2. Đọc Template
+        if (!fs.existsSync(this.templatePath)) {
+            throw new Error(`Không tìm thấy file template: ${this.templatePath}`);
+        }
+        const content = fs.readFileSync(this.templatePath, 'binary');
+        const zip = new PizZip(content);
 
-    console.log(`[export2C] Done — ${(output.length / 1024).toFixed(1)} KB`)
-    return output
+        // 3. Cấu hình Image Module (Cho ảnh 4x6)
+        let imageModule = undefined;
+        // if (normalizedData.anhDaiDien && fs.existsSync(normalizedData.anhDaiDien)) {
+        //     imageModule = new ImageModule({
+        //         centered: false,
+        //         getImage: (buffer: any) => buffer,
+        //         getSize: (img: any, token: any, part: any) => {
+        //             // Kích thước ảnh 4x6 cm quy đổi sang pixel (tương đối)
+        //             // Hoặc đọc kích thước thực từ ảnh
+        //             return [150, 200];
+        //         },
+        //     });
+        // }
+
+        // 4. Khởi tạo Docxtemplater
+        const doc = new Docxtemplater(zip, {
+            paragraphLoop: true,
+            linebreaks: true,
+            modules: imageModule ? [imageModule] : [],
+        });
+
+        // 5. Render dữ liệu
+        try {
+            doc.render(normalizedData);
+        } catch (error: any) {
+            if (error.properties && error.properties.errors instanceof Array) {
+                const errorMessages = error.properties.errors.map((e: any) => e.properties.explanation).join("\n");
+                throw new Error(`Lỗi render template: ${errorMessages}`);
+            }
+            throw error;
+        }
+
+        // 6. Lưu file
+        const buf = doc.getZip().generate({ type: 'nodebuffer' });
+        const outputPath = path.join(this.outputDir, `${fileName}.docx`);
+
+        await fs.ensureDir(this.outputDir);
+        fs.writeFileSync(outputPath, buf);
+
+        return outputPath;
+    }
+
+    /**
+     * Chuyển đổi file Word sang PDF sử dụng LibreOffice
+     */
+    async convertToPDF(docxPath: string): Promise<string> {
+        const outputDir = path.dirname(docxPath);
+
+        // Command có thể thay đổi tùy hệ điều hành (libreoffice hoặc soffice)
+        const command = process.platform === 'win32' ? 'soffice' : 'libreoffice';
+
+        try {
+            await execFileAsync(command, [
+                '--headless',
+                '--convert-to', 'pdf',
+                '--outdir', outputDir,
+                docxPath
+            ]);
+
+            const pdfPath = path.join(outputDir, path.basename(docxPath, '.docx') + '.pdf');
+
+            // Kiểm tra file PDF đã được tạo chưa
+            if (!fs.existsSync(pdfPath)) {
+                throw new Error("LibreOffice đã chạy nhưng không tạo ra file PDF.");
+            }
+
+            return pdfPath;
+        } catch (error: any) {
+            throw new Error(`Lỗi chuyển đổi sang PDF: ${error.message}. Đảm bảo đã cài đặt LibreOffice.`);
+        }
+    }
+
+    /**
+     * Hàm chính: Tạo cả Word và PDF
+     */
+    async generateLyLich2C(data: LyLich2CData, fileName: string): Promise<{ word: string, pdf: string }> {
+        try {
+            // Bước 1: Tạo Word
+            const wordPath = await this.generateWord(data, fileName);
+            console.log(`Đã tạo file Word: ${wordPath}`);
+
+            // Bước 2: Chuyển sang PDF
+            const pdfPath = await this.convertToPDF(wordPath);
+            console.log(`Đã tạo file PDF: ${pdfPath}`);
+
+            return {
+                word: wordPath,
+                pdf: pdfPath
+            };
+        } catch (error: any) {
+            console.error("Lỗi trong quá trình xuất lý lịch:", error.message);
+            throw error;
+        }
+    }
 }

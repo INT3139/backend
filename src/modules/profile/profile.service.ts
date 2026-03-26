@@ -16,6 +16,7 @@ import { updateProfileSchema } from "./profile.schema"
 import { educationSchema, familySchema, workHistorySchema, extraInfoSchema, healthSchema, positionSchema, researchWorkSchema } from "./profileSub.schema"
 
 export interface FullProfileRow extends ProfileRow {
+    avatarUrl?: string
     education?: any[]
     family?: any[]
     workHistory?: any[]
@@ -69,6 +70,7 @@ export interface CreateProfileDto {
     retireDate?: Date | string
     profileStatus?: string
     avatarDefault?: boolean
+    avatarUrl?: string
     note?: string
     origin?: string
     lastUpdatedBy?: ID
