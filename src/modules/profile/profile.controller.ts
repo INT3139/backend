@@ -129,8 +129,19 @@ export const updateProfile = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const { id } = req.params
-    const updated = await profileService.updateProfile(parseInt(id as string, 10), req.body, req.user!)
-    await logAction(req.userId!, 'update', 'profile', id as string, req.body, req)
+    const profileId = parseInt(id as string, 10)
+    
+    // Lấy dữ liệu cũ để phục vụ Audit Log
+    const oldValues = await profileService.getProfileById(profileId)
+
+    const updated = await profileService.updateProfile(profileId, req.body, req.user!)
+    
+    await logAction(req.userId!, 'update', 'profile', id as string, { 
+        oldValues, 
+        newValues: req.body,
+        tableName: 'profile_staff',
+        statusCode: 200
+    }, req)
 
     return success(res, updated)
 })

@@ -1,7 +1,7 @@
 import type { WorkflowInstance } from './engine'
 import { ID } from '@/types'
 
-type ApprovalHandler = (instance: WorkflowInstance, actorId: ID, tx?: any) => Promise<void>
+type ApprovalHandler = (instance: WorkflowInstance, actorId: ID, tx?: any, finalize?: boolean) => Promise<any>
 type RejectionHandler = (instance: WorkflowInstance, actorId: ID, tx?: any) => Promise<void>
 type RevisionHandler = (instance: WorkflowInstance, actorId: ID, tx?: any) => Promise<void>
 
@@ -27,10 +27,18 @@ export async function dispatchWorkflowResult(
     action?: string
 ): Promise<void> {
     if (instance.status === 'approved') {
-        await approvalHandlers.get(instance.resourceType)?.(instance, actorId, tx)
+        await approvalHandlers.get(instance.resourceType)?.(instance, actorId, tx, true)
     } else if (instance.status === 'rejected') {
         await rejectionHandlers.get(instance.resourceType)?.(instance, actorId, tx)
     } else if (action === 'request_revision') {
         await revisionHandlers.get(instance.resourceType)?.(instance, actorId, tx)
     }
+}
+
+export async function dispatchWorkflowPartialApproval(
+    instance: WorkflowInstance,
+    actorId: ID,
+    tx?: any
+): Promise<void> {
+    await approvalHandlers.get(instance.resourceType)?.(instance, actorId, tx, false)
 }

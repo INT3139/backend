@@ -132,10 +132,14 @@ export class ProfileService {
         }
 
         // Bổ sung dữ liệu đang chờ duyệt (nếu có)
-        if (profile && profile.profileStatus === 'pending') {
+        if (profile) {
             const activeWf = await profileRepo.findActiveWorkflow(id)
             if (activeWf) {
-                profile.pendingChanges = activeWf.metadata
+                profile.pendingChanges = activeWf.metadata.pending || {}
+                // Gửi thêm cả lịch sử đã xử lý lẻ nếu có
+                if (activeWf.metadata.processed) {
+                    (profile as any).processedChanges = activeWf.metadata.processed
+                }
             }
         }
         
@@ -358,22 +362,28 @@ export class ProfileService {
     /**
      * Áp dụng thay đổi từ Workflow sau khi được duyệt
      */
-    async applyChangesFromWorkflow(inst: WorkflowInstance, approvedBy: ID, tx?: any): Promise<any> {
-        if (inst.status !== 'approved') {
+    async applyChangesFromWorkflow(inst: WorkflowInstance, approvedBy: ID, tx?: any, finalize: boolean = true): Promise<any> {
+        if (inst.status !== 'approved' && !finalize) {
+            // Allow mock instances for partial approval
+        } else if (inst.status !== 'approved') {
             throw new ForbiddenError('Workflow must be approved first')
         }
 
         const profileId = inst.resourceId
         const metadata = inst.metadata as any
+        
+        // Nếu là finalize (hết workflow), ta duyệt qua metadata.pending (những gì còn lại chưa được duyệt lẻ)
+        // Nếu không (duyệt lẻ), metadata chính là mock instance chứa item cụ thể đã bóc tách ra
+        const itemsToProcess = finalize ? (metadata.pending || {}) : metadata
         const results: any = {}
 
-        // Duyệt qua tất cả các thay đổi trong Metadata (Cơ chế Batch/Append)
-        for (const [key, item] of Object.entries(metadata)) {
+        // Duyệt qua các thay đổi
+        for (const [key, item] of Object.entries(itemsToProcess)) {
             if (key === 'main') {
                 const validData = updateProfileSchema.parse(item)
                 results.main = await profileRepo.update(profileId, {
                     ...validData,
-                    profileStatus: 'approved',
+                    profileStatus: finalize ? 'approved' : 'pending',
                     lastUpdatedBy: approvedBy
                 }, tx)
             } else if (key.startsWith('sub_')) {
@@ -433,8 +443,10 @@ export class ProfileService {
             }
         }
 
-        // Luôn chuyển trạng thái hồ sơ về 'approved' sau khi xong tất cả
-        await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() }, tx)
+        // Chỉ chuyển trạng thái hồ sơ về 'approved' nếu là bước finalize (hết workflow)
+        if (finalize) {
+            await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() }, tx)
+        }
 
         try { await rDel(CacheKey.profileFull(profileId)) } catch (e) { console.error('Redis cache error:', e) }
         return results

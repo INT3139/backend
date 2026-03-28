@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { workflowEngine } from '@/core/workflow/engine'
 import { ballotService } from '@/core/workflow/ballot.service'
-import { dispatchWorkflowResult } from '@/core/workflow/workflow.dispatcher'
+import { dispatchWorkflowResult, dispatchWorkflowPartialApproval } from '@/core/workflow/workflow.dispatcher'
 import { requirePermission } from '@/core/middlewares/requirePermission'
 import { ValidationError, ForbiddenError } from '@/core/middlewares/errorHandler'
 import { ID } from '@/types'
@@ -290,54 +290,75 @@ router.patch(
             // 1. Lấy trạng thái hiện tại của workflow
             const inst = await workflowEngine.getStatus(+instanceId)
             const metadata = inst.metadata || {}
+            const pending = metadata.pending || {}
 
-            if (!metadata[key]) {
-                throw new ValidationError(`Không tìm thấy mục "${key}" trong metadata của workflow này`)
+            if (!pending[key]) {
+                throw new ValidationError(`Không tìm thấy mục "${key}" trong danh sách chờ (pending)`)
             }
+
+            const itemData = pending[key]
 
             // 2. Xử lý logic phê duyệt/áp dụng nếu approved = true
-            if (approved && inst.resourceType === 'profile') {
-                // Tạo mock instance chỉ chứa duy nhất key này để apply vào DB
+            if (approved) {
+                // Tạo mock instance chỉ chứa duy nhất item này để apply vào DB thông qua Dispatcher
                 const mockInst = {
                     ...inst,
-                    metadata: { [key]: metadata[key] },
+                    metadata: { [key]: itemData },
                     status: 'approved'
                 } as any
-                await profileService.applyChangesFromWorkflow(mockInst, actorId)
+                await dispatchWorkflowPartialApproval(mockInst, actorId)
             }
 
-            // 3. Cập nhật lại Metadata của Workflow (Xóa mục đã xử lý)
-            const newMetadata = { ...metadata }
-            delete newMetadata[key]
-            await workflowEngine.updateMetadata(+instanceId, newMetadata)
+            // 3. Cập nhật lại Metadata: Di chuyển từ pending sang processed
+            if (inst.resourceType === 'profile') {
+                await profileRepo.movePendingToProcessed(+instanceId, key, approved ? 'approved' : 'rejected', actorId)
+            } else {
+                // Cho các resource khác chưa hỗ trợ processed, ta vẫn xóa như cũ
+                const newMetadata = { ...metadata }
+                if (newMetadata.pending) delete newMetadata.pending[key]
+                await workflowEngine.updateMetadata(+instanceId, newMetadata)
+            }
+
+            // Lấy lại metadata mới để đếm số mục còn lại
+            const updatedInstRaw = await workflowEngine.getStatus(+instanceId)
+            const remainingCount = Object.keys(updatedInstRaw.metadata.pending || {}).length
 
             // 4. Quyết định chuyển trạng thái (Advance) hay chỉ ghi log
-            if (approved) {
-                // Chuyển bước quy trình (giống /advance)
+            if (remainingCount === 0) {
                 const updatedInst = await workflowEngine.advance(
                     +instanceId,
                     actorId,
-                    action || 'approve',
-                    comment || `Phê duyệt mục: ${key}`
+                    action || (approved ? 'approve' : 'forward'),
+                    comment || (approved ? `Phê duyệt mục cuối: ${key}` : `Loại bỏ mục cuối: ${key}`)
                 )
                 res.json({
-                    message: `Đã phê duyệt mục "${key}" và chuyển bước quy trình thành công.`,
+                    message: approved 
+                        ? `Đã phê duyệt mục "${key}" và hoàn tất quy trình.`
+                        : `Đã loại bỏ mục "${key}" và hoàn tất quy trình.`,
                     data: updatedInst,
-                    remainingItems: Object.keys(newMetadata).length
+                    remainingItems: 0
                 })
             } else {
-                // Chỉ xóa khỏi metadata và ghi log, không chuyển bước (stay at current step)
+                // Vẫn còn mục khác, ghi log chi tiết vào ballot_data để audit
                 await db.insert(wfStepLogs).values({
                     instanceId: +instanceId,
                     stepNumber: inst.currentStep,
-                    stepName: `Loại bỏ mục: ${key}`,
+                    stepName: `Xử lý lẻ: ${key}`,
                     actorId,
                     action: 'forward',
-                    comment: comment || `Admin đã loại bỏ mục "${key}" khỏi danh sách phê duyệt`,
+                    comment: comment || (approved ? `Đã phê duyệt mục: ${key}` : `Đã loại bỏ mục: ${key}`),
+                    ballotData: {
+                        key,
+                        item: itemData,
+                        result: approved ? 'approved' : 'rejected'
+                    }
                 })
+
                 res.json({
-                    message: `Đã loại bỏ mục "${key}" khỏi danh sách chờ. Quy trình giữ nguyên bước hiện tại.`,
-                    remainingItems: Object.keys(newMetadata).length
+                    message: approved
+                        ? `Đã phê duyệt mục "${key}". Quy trình giữ nguyên để xử lý ${remainingCount} mục còn lại.`
+                        : `Đã loại bỏ mục "${key}". Quy trình giữ nguyên để xử lý ${remainingCount} mục còn lại.`,
+                    remainingItems: remainingCount
                 })
             }
         } catch (e) { next(e) }

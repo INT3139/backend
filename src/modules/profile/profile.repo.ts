@@ -274,7 +274,7 @@ export class ProfileRepository {
 
     /**
      * Merge thêm dữ liệu vào metadata của workflow hiện có (Atomic Merge)
-     * Xử lý đặc biệt cho key 'main' và các key 'sub_' để tránh ghi đè toàn bộ thông tin
+     * Đưa tất cả vào trong khóa 'pending'
      */
     async appendWorkflowMetadata(workflowId: ID, newMetadata: any, tx?: any): Promise<void> {
         for (const [key, value] of Object.entries(newMetadata)) {
@@ -285,9 +285,10 @@ export class ProfileRepository {
                 await (tx || db).execute(sql`
                     UPDATE wf_instances 
                     SET metadata = jsonb_set(
-                        metadata, 
-                        '{main}', 
-                        coalesce(metadata->'main', '{}'::jsonb) || ${mainData}::jsonb
+                        coalesce(metadata, '{}'::jsonb), 
+                        '{pending, main}', 
+                        coalesce(metadata->'pending'->'main', '{}'::jsonb) || ${mainData}::jsonb,
+                        true
                     ),
                     updated_at = NOW()
                     WHERE id = ${workflowId}
@@ -298,28 +299,57 @@ export class ProfileRepository {
                 delete otherFields.data;
                 const otherFieldsJson = JSON.stringify(otherFields);
 
-                // Merge cả fields cha và fields bên trong 'data'
                 await (tx || db).execute(sql`
                     UPDATE wf_instances 
                     SET metadata = jsonb_set(
-                        metadata || jsonb_build_object(${key}::text, coalesce(metadata->(${key}::text), '{}'::jsonb) || ${otherFieldsJson}::jsonb),
-                        ARRAY[${key}::text, 'data'],
-                        coalesce(metadata->(${key}::text)->'data', '{}'::jsonb) || ${innerData}::jsonb
+                        jsonb_set(
+                            coalesce(metadata, '{"pending": {}}'::jsonb),
+                            ARRAY['pending', ${key}::text],
+                            coalesce(metadata->'pending'->(${key}::text), '{}'::jsonb) || ${otherFieldsJson}::jsonb,
+                            true
+                        ),
+                        ARRAY['pending', ${key}::text, 'data'],
+                        coalesce(metadata->'pending'->(${key}::text)->'data', '{}'::jsonb) || ${innerData}::jsonb,
+                        true
+                    ),
+                    updated_at = NOW()
+                    WHERE id = ${workflowId}
+                `);
+            } else {
+                await (tx || db).execute(sql`
+                    UPDATE wf_instances 
+                    SET metadata = jsonb_set(
+                        coalesce(metadata, '{}'::jsonb),
+                        ARRAY['pending', ${key}::text],
+                        ${JSON.stringify(item)}::jsonb,
+                        true
                     ),
                     updated_at = NOW()
                     WHERE id = ${workflowId}
                 `);
             }
- else {
-                // Các key khác thì merge shallow như cũ
-                await (tx || db).execute(sql`
-                    UPDATE wf_instances 
-                    SET metadata = metadata || jsonb_build_object(${key}::text, ${JSON.stringify(item)}::jsonb),
-                        updated_at = NOW()
-                    WHERE id = ${workflowId}
-                `);
-            }
         }
+    }
+
+    /**
+     * Di chuyển một item từ pending sang processed trong metadata
+     */
+    async movePendingToProcessed(workflowId: ID, key: string, status: 'approved' | 'rejected', actorId: ID, tx?: any): Promise<void> {
+        await (tx || db).execute(sql`
+            UPDATE wf_instances
+            SET metadata = jsonb_set(
+                metadata - ARRAY['pending', ${key}::text], -- Xóa khỏi pending
+                ARRAY['processed', ${key}::text],         -- Thêm vào processed
+                (metadata->'pending'->${key}::text) || jsonb_build_object(
+                    'status', ${status}::text,
+                    'actorId', ${actorId}::int,
+                    'actedAt', NOW()
+                ),
+                true
+            ),
+            updated_at = NOW()
+            WHERE id = ${workflowId}
+        `);
     }
 }
 
