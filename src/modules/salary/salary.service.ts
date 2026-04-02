@@ -2,7 +2,7 @@ import { salaryRepo, SalaryFilter, SalaryInfoRow, SalaryUpgradeProposalRow } fro
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
 import { permissionService } from "@/core/permissions/permission.service"
-import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
+import { ForbiddenError, NotFoundError, ValidationError } from "@/core/middlewares/errorHandler"
 import { db } from "@/configs/db"
 import { users, profileStaff } from "@/db/schema"
 import { eq } from "drizzle-orm"
@@ -11,6 +11,7 @@ import { profileRepo } from "../profile/profile.repo"
 import { workflowEngine, type WorkflowInstance } from "@/core/workflow/engine"
 import { WF } from "@/constants/workflowCodes"
 import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
+import { salaryWorkflowMetadataSchema } from "./salary.schema"
 
 export interface UpdateSalaryDto {
     occupation_group?: string
@@ -214,12 +215,26 @@ export class SalaryService {
         const proposal = await salaryRepo.findProposalById(inst.resourceId, tx)
         if (!proposal) throw new NotFoundError('Proposal not found')
 
-        // Apply salary changes using the proposed values and date from the proposal
+        // Validate proposal data using Zod schema
+        // This ensures proposed_grade is a valid number (prevents NaN)
+        let validatedProposal: any
+        try {
+            validatedProposal = salaryWorkflowMetadataSchema.parse({
+                profileId: proposal.profileId,
+                proposedGrade: proposal.proposedGrade,
+                proposedCoefficient: proposal.proposedCoefficient,
+                proposedNextDate: proposal.proposedNextDate
+            })
+        } catch (error: any) {
+            throw new ValidationError(`Invalid salary proposal data: ${error.message}`)
+        }
+
+        // Apply salary changes using the validated proposal values
         const updatedSalary = await salaryRepo.update(proposal.profileId, {
-            salaryGrade: proposal.proposedGrade,
-            salaryCoefficient: proposal.proposedCoefficient,
-            nextGradeDate: proposal.proposedNextDate,
-            effectiveDate: proposal.proposedNextDate
+            salaryGrade: validatedProposal.proposedGrade,
+            salaryCoefficient: validatedProposal.proposedCoefficient,
+            nextGradeDate: validatedProposal.proposedNextDate,
+            effectiveDate: validatedProposal.proposedNextDate
         }, tx)
 
         // Log to salary_logs
@@ -238,7 +253,7 @@ export class SalaryService {
 
         await salaryRepo.updateProposalStatus(proposal.id, 'approved', tx)
 
-        // Send email notification
+        // Send email notification with validated grade
         const dbClient = tx || db
         const userRows = await dbClient.select({ email: users.email, fullName: users.fullName })
             .from(users)
@@ -248,8 +263,7 @@ export class SalaryService {
 
         const targetUser = userRows[0]
         if (targetUser) {
-            const grade = typeof proposal.proposedGrade === 'string' ? parseInt(proposal.proposedGrade, 10) : (proposal.proposedGrade ?? 0)
-            emailService.sendSalaryApprovalEmail(targetUser.email, targetUser.fullName, grade).catch(err => {
+            emailService.sendSalaryApprovalEmail(targetUser.email, targetUser.fullName, validatedProposal.proposedGrade).catch(err => {
                 console.error('Failed to send salary approval email', err)
             })
         }

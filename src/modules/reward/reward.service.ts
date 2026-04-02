@@ -4,6 +4,10 @@ import { abacService } from "@/core/permissions/abac"
 import { permissionService } from "@/core/permissions/permission.service"
 import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
 import { profileRepo } from "../profile/profile.repo"
+import { workflowEngine, type WorkflowInstance } from "@/core/workflow/engine"
+import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
+import { WF } from "@/constants/workflowCodes"
+import { db } from "@/configs/db"
 
 export class RewardService {
     /**
@@ -32,11 +36,11 @@ export class RewardService {
     }
 
     /**
-     * Create commendation
+     * Create commendation - Initiates reward_ballot workflow
      */
     async createCommendation(data: Partial<CommendationRow>, user: AuthUser) {
         if (!data.profileId) throw new Error('profileId is required')
-        
+
         const profile = await profileRepo.findById(data.profileId)
         if (!profile) throw new NotFoundError('Profile not found')
 
@@ -47,17 +51,23 @@ export class RewardService {
             throw new ForbiddenError('You do not have permission to add reward for this profile')
         }
 
-        const reward = await rewardRepo.createCommendation(data)
-
-        // Register scope for ABAC
-        await abacService.registerScope({
+        // Initiate workflow instead of direct insert
+        const workflow = await workflowEngine.initiate({
+            definitionCode: WF.REWARD_BALLOT,
             resourceType: 'reward_commendation',
-            resourceId: reward.id,
-            ownerId: profile.userId,
-            unitId: profile.unitId
+            resourceId: 0,  // Will be assigned after approval
+            initiatedBy: user.id,
+            metadata: {
+                commendation: data,
+                profileId: data.profileId
+            }
         })
 
-        return reward
+        return {
+            message: 'Đề xuất khen thưởng đã được gửi và đang chờ phê duyệt.',
+            workflowId: workflow.id,
+            proposedData: data
+        }
     }
 
     /**
@@ -111,11 +121,11 @@ export class RewardService {
     }
 
     /**
-     * Create title
+     * Create title - Initiates reward_ballot workflow
      */
     async createTitle(data: Partial<TitleRow>, user: AuthUser) {
         if (!data.profileId) throw new Error('profileId is required')
-        
+
         const profile = await profileRepo.findById(data.profileId)
         if (!profile) throw new NotFoundError('Profile not found')
 
@@ -125,16 +135,23 @@ export class RewardService {
             throw new ForbiddenError('You do not have permission to add title for this profile')
         }
 
-        const title = await rewardRepo.createTitle(data)
-
-        await abacService.registerScope({
+        // Initiate workflow instead of direct insert
+        const workflow = await workflowEngine.initiate({
+            definitionCode: WF.REWARD_BALLOT,
             resourceType: 'reward_title',
-            resourceId: title.id,
-            ownerId: profile.userId,
-            unitId: profile.unitId
+            resourceId: 0,  // Will be assigned after approval
+            initiatedBy: user.id,
+            metadata: {
+                title: data,
+                profileId: data.profileId
+            }
         })
 
-        return title
+        return {
+            message: 'Đề xuất danh hiệu đã được gửi và đang chờ phê duyệt.',
+            workflowId: workflow.id,
+            proposedData: data
+        }
     }
 
     /**
@@ -245,7 +262,88 @@ export class RewardService {
 
         return await rewardRepo.deleteDiscipline(id)
     }
+
+    /**
+     * Apply changes from workflow after approval
+     */
+    async applyChangesFromWorkflow(inst: WorkflowInstance, approvedBy: ID, tx?: any): Promise<any> {
+        if (inst.status !== 'approved') {
+            throw new ForbiddenError('Workflow must be approved first')
+        }
+
+        const metadata = inst.metadata as any
+        const profileId = metadata.profileId
+
+        if (!profileId) {
+            throw new NotFoundError('Profile ID not found in workflow metadata')
+        }
+
+        const profile = await profileRepo.findById(profileId)
+        if (!profile) {
+            throw new NotFoundError('Profile not found')
+        }
+
+        const results: any = {}
+
+        // Handle commendation if present in metadata
+        if (metadata.commendation) {
+            const commendationData = {
+                ...metadata.commendation,
+                approvedBy,
+                approvedAt: new Date()
+            }
+            const reward = await rewardRepo.createCommendation(commendationData, tx)
+            await abacService.registerScope({
+                resourceType: 'reward_commendation',
+                resourceId: reward.id,
+                ownerId: profile.userId,
+                unitId: profile.unitId
+            })
+            results.commendation = reward
+        }
+
+        // Handle title if present in metadata
+        if (metadata.title) {
+            const titleData = {
+                ...metadata.title,
+                approvedBy,
+                approvedAt: new Date()
+            }
+            const title = await rewardRepo.createTitle(titleData, tx)
+            await abacService.registerScope({
+                resourceType: 'reward_title',
+                resourceId: title.id,
+                ownerId: profile.userId,
+                unitId: profile.unitId
+            })
+            results.title = title
+        }
+
+        return results
+    }
+
+    /**
+     * Handle rejection from workflow
+     */
+    async handleRejectionFromWorkflow(inst: WorkflowInstance, rejectedBy: ID, tx?: any): Promise<void> {
+        // Rejection means the proposed commendation/title was not approved
+        // No action needed as it was never inserted into the database
+        // Just log the rejection (already done by workflow engine)
+    }
 }
 
 export const rewardService = new RewardService()
+
+// Register workflow handlers for the dispatcher
+registerWorkflowHandler(
+    'reward_commendation',
+    (inst, actorId, tx) => rewardService.applyChangesFromWorkflow(inst, actorId, tx),
+    (inst, actorId, tx) => rewardService.handleRejectionFromWorkflow(inst, actorId, tx)
+)
+
+registerWorkflowHandler(
+    'reward_title',
+    (inst, actorId, tx) => rewardService.applyChangesFromWorkflow(inst, actorId, tx),
+    (inst, actorId, tx) => rewardService.handleRejectionFromWorkflow(inst, actorId, tx)
+)
 

@@ -213,6 +213,22 @@ export const exportProfile = asyncHandler(async (
 })
 
 /**
+ * DELETE /api/v1/profile/:id/avatar
+ */
+export const removeAvatar = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<Response> => {
+    const { id } = req.params
+    const profileId = parseInt(id as string, 10)
+    
+    await profileService.removeAvatar(profileId, req.userId!)
+    await logAction(req.userId!, 'delete', 'profile_avatar', profileId.toString(), undefined, req)
+
+    return success(res, { message: 'Đã gỡ ảnh đại diện thành công' })
+})
+
+/**
  * DELETE /api/v1/profile/:id
  */
 export const deleteProfile = asyncHandler(async (

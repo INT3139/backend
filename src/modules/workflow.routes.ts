@@ -8,6 +8,7 @@ import { ID } from '@/types'
 import { PERM } from "@/constants/permission"
 import { authenticate } from '@/core/middlewares/auth'
 import { profileService } from '@/modules/profile/profile.service'
+import { profileRepo } from '@/modules/profile/profile.repo'
 import { db } from '@/configs/db'
 import { wfStepLogs } from '@/db/schema/workflow'
 
@@ -137,7 +138,7 @@ router.post(
         try {
             const { action, comment } = req.body
 
-            const VALID_ACTIONS = ['approve', 'reject', 'request_revision', 'forward']
+            const VALID_ACTIONS = ['approve', 'ballot_submit', 'reject', 'request_revision', 'forward']
             if (!action || !VALID_ACTIONS.includes(action)) {
                 throw new ValidationError(`action phải là một trong: ${VALID_ACTIONS.join(', ')}`)
             }
@@ -298,22 +299,25 @@ router.patch(
 
             const itemData = pending[key]
 
-            // 2. Xử lý logic phê duyệt/áp dụng nếu approved = true
-            if (approved) {
-                // Tạo mock instance chỉ chứa duy nhất item này để apply vào DB thông qua Dispatcher
-                const mockInst = {
-                    ...inst,
-                    metadata: { [key]: itemData },
-                    status: 'approved'
-                } as any
-                await dispatchWorkflowPartialApproval(mockInst, actorId)
-            }
+            // 2. DEFERRED PROCESSING: Don't apply changes immediately for piecemeal approvals
+            // Instead, track approval/rejection in metadata
+            // Changes will only be applied when ALL items are processed or workflow is finalized
+            // This ensures atomicity: if workflow is rejected later, we can discard all queued changes
 
             // 3. Cập nhật lại Metadata: Di chuyển từ pending sang processed
+            // Mark as approved or rejected without applying to DB yet
             if (inst.resourceType === 'profile') {
                 await profileRepo.movePendingToProcessed(+instanceId, key, approved ? 'approved' : 'rejected', actorId)
             } else {
-                // Cho các resource khác chưa hỗ trợ processed, ta vẫn xóa như cũ
+                // For other resources, apply immediately (backward compatibility)
+                if (approved) {
+                    const mockInst = {
+                        ...inst,
+                        metadata: { [key]: itemData },
+                        status: 'approved'
+                    } as any
+                    await dispatchWorkflowPartialApproval(mockInst, actorId)
+                }
                 const newMetadata = { ...metadata }
                 if (newMetadata.pending) delete newMetadata.pending[key]
                 await workflowEngine.updateMetadata(+instanceId, newMetadata)
@@ -332,7 +336,7 @@ router.patch(
                     comment || (approved ? `Phê duyệt mục cuối: ${key}` : `Loại bỏ mục cuối: ${key}`)
                 )
                 res.json({
-                    message: approved 
+                    message: approved
                         ? `Đã phê duyệt mục "${key}" và hoàn tất quy trình.`
                         : `Đã loại bỏ mục "${key}" và hoàn tất quy trình.`,
                     data: updatedInst,

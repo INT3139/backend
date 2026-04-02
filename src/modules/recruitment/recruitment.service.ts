@@ -3,11 +3,14 @@ import { profileRepo } from "../profile/profile.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
 import { permissionService } from "@/core/permissions/permission.service"
-import { ForbiddenError, NotFoundError } from "@/core/middlewares/errorHandler"
+import { ForbiddenError, NotFoundError, ValidationError } from "@/core/middlewares/errorHandler"
 import { emailService } from "@/services/email.service"
 import { workflowEngine, type WorkflowInstance } from "@/core/workflow/engine"
 import { WF } from "@/constants/workflowCodes"
 import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
+import { db } from "@/configs/db"
+import { recruitmentContracts } from "@/db/schema/recruitment"
+import { eq } from "drizzle-orm"
 
 export interface CreateProposalDto {
     proposingUnit: ID
@@ -157,6 +160,71 @@ export class RecruitmentService {
      */
     async handleRejection(inst: WorkflowInstance, _rejectedBy: ID, tx?: any): Promise<void> {
         await recruitmentRepo.update(inst.resourceId, { status: 'rejected' }, tx)
+    }
+
+    /**
+     * Áp dụng thay đổi contract renewal sau khi workflow được phê duyệt
+     */
+    async applyContractRenewalFromWorkflow(inst: WorkflowInstance, _approvedBy: ID, tx?: any): Promise<any> {
+        if (inst.status !== 'approved') {
+            throw new ForbiddenError('Workflow must be approved first')
+        }
+
+        const metadata = inst.metadata as any
+        if (!metadata || !metadata.contractId || !metadata.newEndDate) {
+            throw new ValidationError('Contract renewal metadata missing: contractId and newEndDate required')
+        }
+
+        // Validate newEndDate is a valid date and in the future
+        const newEndDate = new Date(metadata.newEndDate)
+        if (isNaN(newEndDate.getTime())) {
+            throw new ValidationError('Invalid newEndDate format')
+        }
+
+        if (newEndDate <= new Date()) {
+            throw new ValidationError('New end date must be in the future')
+        }
+
+        // Update the contract with new end date
+        const dbClient = tx || db
+        const [updatedContract] = await dbClient
+            .update(recruitmentContracts)
+            .set({
+                endDate: newEndDate,
+                updatedAt: new Date()
+            })
+            .where(eq(recruitmentContracts.id, metadata.contractId))
+            .returning()
+
+        if (!updatedContract) {
+            throw new NotFoundError('Contract not found')
+        }
+
+        // Send notification email to the employee
+        const profile = await profileRepo.findById(updatedContract.profileId)
+        if (profile?.userId) {
+            const user = await (tx || db).select({ email: require('@/db/schema').users.email })
+                .from(require('@/db/schema').users)
+                .where(eq(require('@/db/schema').users.id, profile.userId))
+                .limit(1)
+
+            if (user[0]?.email) {
+                emailService.sendContractRenewalEmail(user[0].email, profile.fullName, newEndDate).catch(err => {
+                    console.error('Failed to send contract renewal email', err)
+                })
+            }
+        }
+
+        return { message: 'Hợp đồng đã được gia hạn thành công.', contract: updatedContract }
+    }
+
+    /**
+     * Xử lý khi contract renewal workflow bị từ chối
+     */
+    async handleContractRenewalRejection(inst: WorkflowInstance, _rejectedBy: ID, tx?: any): Promise<void> {
+        // Contract renewal rejection doesn't require any DB changes
+        // The contract remains with its original end date
+        // The rejection is logged in the workflow
     }
 
     // --- CANDIDATE METHODS ---
@@ -310,4 +378,10 @@ registerWorkflowHandler(
     'recruitment_proposal',
     (inst, actorId, tx) => recruitmentService.applyChangesFromWorkflow(inst, actorId, tx),
     (inst, actorId, tx) => recruitmentService.handleRejection(inst, actorId, tx)
+)
+
+registerWorkflowHandler(
+    'contract_renewal',
+    (inst, actorId, tx) => recruitmentService.applyContractRenewalFromWorkflow(inst, actorId, tx),
+    (inst, actorId, tx) => recruitmentService.handleContractRenewalRejection(inst, actorId, tx)
 )

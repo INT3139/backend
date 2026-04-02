@@ -691,6 +691,36 @@ router.get(
 
 /**
  * @openapi
+ * /profiles/{id}/avatar:
+ *   delete:
+ *     tags:
+ *       - Profile
+ *     summary: Remove profile avatar
+ *     description: Remove the current profile avatar and reset to default.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Successfully removed avatar
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.delete(
+    "/:id/avatar",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    controller.removeAvatar
+)
+
+/**
+ * @openapi
  * /profiles/{id}:
  *   delete:
  *     tags:

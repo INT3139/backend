@@ -35,3 +35,27 @@ export const createSalaryProposalSchema = z.object({
     proposed_next_date: z.string().transform(v => new Date(v)),
     upgrade_type: z.enum(['NBL thường xuyên', 'NBL trước hạn', 'NBL vượt bậc']).optional(),
 })
+
+/**
+ * Schema for salary proposal data stored in workflow metadata
+ * Ensures proposed_grade is a valid integer before parsing
+ */
+export const salaryWorkflowMetadataSchema = z.object({
+    profileId: z.number().int().positive(),
+    proposedGrade: z.union([
+        z.number().int().min(1),
+        z.string().regex(/^\d+$/, 'proposed_grade must be a numeric string').transform(v => {
+            const num = parseInt(v, 10)
+            if (isNaN(num)) throw new Error('proposed_grade must be a valid number')
+            return num
+        })
+    ]),
+    proposedCoefficient: z.union([
+        z.number().min(0),
+        z.string().regex(/^[\d.]+$/).transform(v => parseFloat(v))
+    ]),
+    proposedNextDate: z.union([
+        z.date(),
+        z.string().transform(v => new Date(v))
+    ]),
+})

@@ -2,6 +2,7 @@ import { db } from "@/configs/db"
 import { eq, sql } from "drizzle-orm"
 import { profileRepo, ProfileFilter, ProfileRow, ProfileListRow } from "./profile.repo"
 import { profileStaff } from "@/db/schema"
+import { wfInstances } from "@/db/schema/workflow"
 import { profileSubRepo } from "./profileSub.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
@@ -13,6 +14,7 @@ import { workflowEngine, type WorkflowInstance } from "@/core/workflow/engine"
 import { WF } from "@/constants/workflowCodes"
 import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
 import { updateProfileSchema } from "./profile.schema"
+import { storageService } from "@/services/storage.service"
 import { educationSchema, familySchema, workHistorySchema, extraInfoSchema, healthSchema, positionSchema, researchWorkSchema } from "./profileSub.schema"
 
 export interface FullProfileRow extends ProfileRow {
@@ -308,13 +310,31 @@ export class ProfileService {
      */
     async handleRejectionFromWorkflow(inst: WorkflowInstance, rejectedBy: ID, tx?: any): Promise<void> {
         const profileId = inst.resourceId
-        
-        // Nếu bị từ chối, ta chuyển profile về 'approved' (coi như vẫn dùng dữ liệu cũ)
-        // hoặc 'draft' tùy theo quy trình của bạn. Ở đây ta chuyển về 'approved' để profile vẫn active.
+
+        // FIX: With deferred processing, changes were never applied to DB
+        // So we just need to:
+        // 1. Discard any processed items (both approved and rejected)
+        // 2. Revert profile status to its previous state
+        // 3. Clear the workflow metadata
+
+        // Clear metadata to discard all pending/processed items
+        const metadata = inst.metadata as any
+        const clearedMetadata = {
+            ...(metadata || {})
+        }
+        delete clearedMetadata.pending
+        delete clearedMetadata.processed
+
         await profileRepo.update(profileId, {
-            profileStatus: 'approved',
+            profileStatus: 'approved',  // Revert to last stable state
             lastUpdatedBy: rejectedBy
         }, tx)
+
+        // Update workflow metadata to clear the pending/processed items
+        await (tx || db)
+            .update(wfInstances)
+            .set({ metadata: clearedMetadata })
+            .where(eq(wfInstances.id, inst.id))
 
         try { await rDel(CacheKey.profileFull(profileId)) } catch (e) { console.error('Redis cache error:', e) }
     }
@@ -371,10 +391,24 @@ export class ProfileService {
 
         const profileId = inst.resourceId
         const metadata = inst.metadata as any
-        
-        // Nếu là finalize (hết workflow), ta duyệt qua metadata.pending (những gì còn lại chưa được duyệt lẻ)
-        // Nếu không (duyệt lẻ), metadata chính là mock instance chứa item cụ thể đã bóc tách ra
-        const itemsToProcess = finalize ? (metadata.pending || {}) : metadata
+
+        // FIX: Handle both pending and processed items
+        // - metadata.pending: items not yet reviewed (for backward compatibility with direct approvals)
+        // - metadata.processed: items approved/rejected via piecemeal approval
+        //   Only apply items marked as 'approved' in processed
+        let itemsToProcess = finalize ? (metadata.pending || {}) : metadata
+
+        // Add approved items from processed (from piecemeal approvals)
+        if (finalize && metadata.processed) {
+            for (const [key, item] of Object.entries(metadata.processed)) {
+                const processedItem = item as any
+                if (processedItem.status === 'approved') {
+                    itemsToProcess[key] = processedItem
+                }
+                // Rejected items in processed are simply discarded (not applied)
+            }
+        }
+
         const results: any = {}
 
         // Duyệt qua các thay đổi
@@ -472,6 +506,31 @@ export class ProfileService {
 
         await rDel(CacheKey.profileFull(id))
         return updated
+    }
+
+    /**
+     * Gỡ ảnh đại diện, xóa tệp tin và dùng ảnh mặc định
+     */
+    async removeAvatar(id: ID, actorId: ID): Promise<void> {
+        const existing = await profileRepo.findById(id)
+        if (!existing) throw new NotFoundError('Profile not found')
+
+        // 1. Tìm tệp ảnh đại diện hiện tại
+        const attachments = await storageService.listAttachments('profile', id)
+        
+        // 2. Xóa các tệp ảnh này khỏi S3 và DB
+        for (const att of attachments) {
+            await storageService.deleteAttachment(att.id, actorId)
+        }
+
+        // 3. Cập nhật profile để dùng ảnh mặc định
+        await profileRepo.update(id, {
+            avatarDefault: true,
+            lastUpdatedBy: actorId
+        })
+
+        // 4. Clear cache
+        await rDel(CacheKey.profileFull(id))
     }
 
     /**

@@ -1,0 +1,209 @@
+[
+    {
+        "id": 48,
+        "code": "recruitment_approval",
+        "name": "Quy trình phê duyệt tuyển dụng",
+        "module": "recruitment",
+        "steps": [
+            {
+                "name": "Chuyên viên HCNS xem xét đề xuất",
+                "step": 1,
+                "role_id": 112,
+                "required": true,
+                "action_type": "forward"
+            },
+            {
+                "name": "Trưởng P.HCNS duyệt nội dung",
+                "step": 2,
+                "role_id": 111,
+                "required": true,
+                "action_type": "approve"
+            },
+            {
+                "name": "Ban giám hiệu ký phê duyệt",
+                "step": 3,
+                "role_id": 110,
+                "required": true,
+                "action_type": "approve"
+            }
+        ],
+        "is_active": true,
+        "created_at": "2026-03-25 20:11:24.848936+07"
+    },
+    {
+        "id": 49,
+        "code": "appointment_5step",
+        "name": "Quy trình bổ nhiệm cán bộ (5 bước)",
+        "module": "appointment",
+        "steps": [
+            {
+                "name": "Chuyên viên HCNS lập và trình hồ sơ",
+                "step": 1,
+                "role_id": 112,
+                "required": true,
+                "action_type": "forward"
+            },
+            {
+                "name": "Lấy phiếu tín nhiệm cấp khoa",
+                "step": 2,
+                "role_id": 116,
+                "required": true,
+                "action_type": "ballot_submit"
+            },
+            {
+                "name": "Trưởng P.HCNS tổng hợp kết quả phiếu",
+                "step": 3,
+                "role_id": 111,
+                "required": true,
+                "action_type": "forward"
+            },
+            {
+                "name": "Ban giám hiệu ký quyết định bổ nhiệm",
+                "step": 4,
+                "role_id": 110,
+                "required": true,
+                "action_type": "approve"
+            },
+            {
+                "name": "Chuyên viên HCNS ban hành và lưu hệ thống",
+                "step": 5,
+                "role_id": 112,
+                "required": true,
+                "action_type": "forward"
+            }
+        ],
+        "is_active": true,
+        "created_at": "2026-03-25 20:11:24.848936+07"
+    },
+    {
+        "id": 50,
+        "code": "reward_ballot",
+        "name": "Quy trình bình xét thi đua khen thưởng",
+        "module": "reward",
+        "steps": [
+            {
+                "name": "Cán bộ nộp phiếu tự đánh giá",
+                "step": 1,
+                "role_id": 118,
+                "required": true,
+                "action_type": "forward"
+            },
+            {
+                "name": "Bình xét cấp bộ môn",
+                "step": 2,
+                "role_id": 117,
+                "required": true,
+                "action_type": "ballot_submit"
+            },
+            {
+                "name": "Bình xét cấp khoa",
+                "step": 3,
+                "role_id": 116,
+                "required": true,
+                "action_type": "ballot_submit"
+            },
+            {
+                "name": "Chuyên viên thi đua tổng hợp và trình",
+                "step": 4,
+                "role_id": 115,
+                "required": true,
+                "action_type": "forward"
+            },
+            {
+                "name": "Trưởng P.HCNS chốt kết quả bình xét",
+                "step": 5,
+                "role_id": 111,
+                "required": true,
+                "action_type": "approve"
+            }
+        ],
+        "is_active": true,
+        "created_at": "2026-03-25 20:11:24.848936+07"
+    },
+    {
+        "id": 51,
+        "code": "salary_upgrade",
+        "name": "Quy trình đề xuất nâng bậc lương",
+        "module": "salary",
+        "steps": [
+            {
+                "name": "Chuyên viên lương lập đề xuất và trình",
+                "step": 1,
+                "role_id": 113,
+                "required": true,
+                "action_type": "forward"
+            },
+            {
+                "name": "Trưởng P.HCNS duyệt đề xuất",
+                "step": 2,
+                "role_id": 111,
+                "required": true,
+                "action_type": "approve"
+            },
+            {
+                "name": "Ban giám hiệu ký quyết định nâng bậc",
+                "step": 3,
+                "role_id": 110,
+                "required": true,
+                "action_type": "approve"
+            }
+        ],
+        "is_active": true,
+        "created_at": "2026-03-25 20:11:24.848936+07"
+    },
+    {
+        "id": 52,
+        "code": "contract_renewal",
+        "name": "Quy trình gia hạn hợp đồng lao động",
+        "module": "recruitment",
+        "steps": [
+            {
+                "name": "Chuyên viên HCNS soạn hồ sơ gia hạn",
+                "step": 1,
+                "role_id": 112,
+                "required": true,
+                "action_type": "forward"
+            },
+            {
+                "name": "Trưởng P.HCNS duyệt gia hạn",
+                "step": 2,
+                "role_id": 111,
+                "required": true,
+                "action_type": "approve"
+            },
+            {
+                "name": "Ban giám hiệu ký gia hạn",
+                "step": 3,
+                "role_id": 110,
+                "required": true,
+                "action_type": "approve"
+            }
+        ],
+        "is_active": true,
+        "created_at": "2026-03-25 20:11:24.848936+07"
+    },
+    {
+        "id": 53,
+        "code": "profile_update",
+        "name": "Quy trình cập nhật hồ sơ cán bộ",
+        "module": "profile",
+        "steps": [
+            {
+                "name": "Cán bộ khai báo / cập nhật thông tin",
+                "step": 1,
+                "role_id": 118,
+                "required": true,
+                "action_type": "forward"
+            },
+            {
+                "name": "Chuyên viên HCNS xét duyệt thay đổi",
+                "step": 2,
+                "role_id": 112,
+                "required": true,
+                "action_type": "approve"
+            }
+        ],
+        "is_active": true,
+        "created_at": "2026-03-25 20:11:24.848936+07"
+    }
+]

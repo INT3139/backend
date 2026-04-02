@@ -100,7 +100,7 @@ export class WorkflowEngine {
   async advance(
     instanceId: ID,
     actorId: ID,
-    action: 'approve' | 'reject' | 'request_revision' | 'forward',
+    action: 'approve' | 'ballot_submit' | 'reject' | 'request_revision' | 'forward',
     comment?: string,
   ): Promise<WorkflowInstance> {
     return db.transaction(async (tx) => {
@@ -148,6 +148,7 @@ export class WorkflowEngine {
       // Tính trạng thái mới
       const isReject = action === 'reject'
       const isRevision = action === 'request_revision'
+      const isBallot = action === 'ballot_submit'  // ballot_submit treated as forward
       const nextStep = inst.currentStep + 1
       const isLast = nextStep > steps.length
 
@@ -162,10 +163,10 @@ export class WorkflowEngine {
         newStatus = 'in_progress'
       }
 
-      const newCurrentStep = isReject || isLast 
-        ? inst.currentStep 
-        : isRevision 
-          ? 1 
+      const newCurrentStep = isReject || isLast
+        ? inst.currentStep
+        : isRevision
+          ? 1
           : nextStep
 
       const [updatedInst] = await tx
