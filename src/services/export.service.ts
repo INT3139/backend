@@ -19,6 +19,9 @@ export interface ProfileData2C {
     nickName: string | null
     ethnicity: string
     religion: string
+    nationality: string
+    emailVnu: string
+    emailPersonal: string
     idNumber: string
     idIssuedDate?: string
     idIssuedBy?: string
@@ -34,6 +37,7 @@ export interface ProfileData2C {
     foreignLangLevel?: string
     itLevel?: string
     academicDegree?: string
+    academicTitle?: string
     joinDate?: string
     staffType?: string
     education: any[]
@@ -41,6 +45,7 @@ export interface ProfileData2C {
     family: any[]
     salary?: any
     healthRecords?: any
+    extraInfo?: any
     rewards?: {
         commendations: any[]
         titles: any[]

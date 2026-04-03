@@ -112,8 +112,8 @@ describe('Salary Integration Tests', () => {
                 .put(`/api/v1/salary/info/${testProfile.id}`)
                 .set('Authorization', `Bearer ${authToken}`)
                 .send({
-                    salary_grade: 2,
-                    salary_coefficient: 2.67
+                    salaryGrade: 2,
+                    salaryCoefficient: 2.67
                 })
 
             expect(res.status).toBe(200)

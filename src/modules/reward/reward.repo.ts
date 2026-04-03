@@ -105,8 +105,8 @@ export class RewardRepo {
     /**
      * Create commendation
      */
-    async createCommendation(data: any): Promise<CommendationRow> {
-        const res = await db.insert(rewardCommendations)
+    async createCommendation(data: any, tx?: any): Promise<CommendationRow> {
+        const res = await (tx || db).insert(rewardCommendations)
             .values(data)
             .returning()
         return res[0]
@@ -115,8 +115,8 @@ export class RewardRepo {
     /**
      * Update commendation
      */
-    async updateCommendation(id: ID, data: any): Promise<CommendationRow | null> {
-        const res = await db.update(rewardCommendations)
+    async updateCommendation(id: ID, data: any, tx?: any): Promise<CommendationRow | null> {
+        const res = await (tx || db).update(rewardCommendations)
             .set(data)
             .where(eq(rewardCommendations.id, id))
             .returning()
@@ -126,8 +126,8 @@ export class RewardRepo {
     /**
      * Delete commendation
      */
-    async deleteCommendation(id: ID): Promise<boolean> {
-        await db.delete(rewardCommendations).where(eq(rewardCommendations.id, id))
+    async deleteCommendation(id: ID, tx?: any): Promise<boolean> {
+        await (tx || db).delete(rewardCommendations).where(eq(rewardCommendations.id, id))
         return true
     }
 
@@ -191,8 +191,8 @@ export class RewardRepo {
     /**
      * Create title
      */
-    async createTitle(data: any): Promise<TitleRow> {
-        const res = await db.insert(rewardTitles)
+    async createTitle(data: any, tx?: any): Promise<TitleRow> {
+        const res = await (tx || db).insert(rewardTitles)
             .values(data)
             .returning()
         return res[0]
@@ -201,8 +201,8 @@ export class RewardRepo {
     /**
      * Update title
      */
-    async updateTitle(id: ID, data: any): Promise<TitleRow | null> {
-        const res = await db.update(rewardTitles)
+    async updateTitle(id: ID, data: any, tx?: any): Promise<TitleRow | null> {
+        const res = await (tx || db).update(rewardTitles)
             .set(data)
             .where(eq(rewardTitles.id, id))
             .returning()
@@ -212,8 +212,8 @@ export class RewardRepo {
     /**
      * Delete title
      */
-    async deleteTitle(id: ID): Promise<boolean> {
-        await db.delete(rewardTitles).where(eq(rewardTitles.id, id))
+    async deleteTitle(id: ID, tx?: any): Promise<boolean> {
+        await (tx || db).delete(rewardTitles).where(eq(rewardTitles.id, id))
         return true
     }
 

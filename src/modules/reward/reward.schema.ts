@@ -1,40 +1,40 @@
 import { z } from 'zod'
 
 export const createCommendationSchema = z.object({
-    profile_id: z.number().int().positive(),
-    decision_number: z.string().optional(),
-    decision_date: z.string().optional().transform(v => v ? new Date(v) : undefined),
-    award_level: z.enum(['co_so', 'dhqg', 'bo', 'chinh_phu', 'nha_nuoc']),
-    award_name: z.string().min(1),
+    profileId: z.number().int().positive(),
+    decisionNumber: z.string().optional(),
+    decisionDate: z.string().optional().transform(v => v ? new Date(v) : undefined),
+    awardLevel: z.enum(['co_so', 'dhqg', 'bo', 'chinh_phu', 'nha_nuoc']),
+    awardName: z.string().min(1),
     content: z.string().optional(),
-    academic_year: z.string().regex(/^\d{4}-\d{4}$/).optional(),
-    is_highest_award: z.boolean().optional(),
+    academicYear: z.string().regex(/^\d{4}-\d{4}$/).optional(),
+    isHighestAward: z.boolean().optional(),
     status: z.enum(['pending', 'approved']).optional()
 })
 
 export const updateCommendationSchema = createCommendationSchema.partial()
 
 export const createTitleSchema = z.object({
-    profile_id: z.number().int().positive(),
-    title_name: z.string().min(1),
-    title_level: z.enum(['unit', 'university', 'ministry']),
-    awarded_year: z.string().min(4),
-    decision_number: z.string().optional(),
-    awarded_by: z.string().optional(),
-    is_highest: z.boolean().optional(),
+    profileId: z.number().int().positive(),
+    titleName: z.string().min(1),
+    titleLevel: z.enum(['unit', 'university', 'ministry']),
+    awardedYear: z.string().min(4),
+    decisionNumber: z.string().optional(),
+    awardedBy: z.string().optional(),
+    isHighest: z.boolean().optional(),
     status: z.enum(['pending', 'approved', 'revoked']).optional()
 })
 
 export const updateTitleSchema = createTitleSchema.partial()
 
 export const createDisciplineSchema = z.object({
-    profile_id: z.number().int().positive(),
-    discipline_type: z.string().min(1),
+    profileId: z.number().int().positive(),
+    disciplineType: z.string().min(1),
     reason: z.string().min(1),
-    decision_number: z.string().min(1),
-    unit_name: z.string().min(1),
-    issued_date: z.string().transform(v => new Date(v)),
-    issued_by: z.number().int().positive().optional().nullable(),
+    decisionNumber: z.string().min(1),
+    unitName: z.string().min(1),
+    issuedDate: z.string().transform(v => new Date(v)),
+    issuedBy: z.number().int().positive().optional().nullable(),
     status: z.string().optional()
 })
 

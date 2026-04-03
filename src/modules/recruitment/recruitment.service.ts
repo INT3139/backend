@@ -209,7 +209,7 @@ export class RecruitmentService {
                 .limit(1)
 
             if (user[0]?.email) {
-                emailService.sendContractRenewalEmail(user[0].email, profile.fullName, newEndDate).catch(err => {
+                emailService.sendContractRenewalEmail(user[0].email, profile.fullName, newEndDate).catch((err: Error) => {
                     console.error('Failed to send contract renewal email', err)
                 })
             }

@@ -79,11 +79,11 @@ describe('Workload Integration Tests', () => {
             await grantPermission(testUser.id, PERM.WORKLOAD.WRITE)
 
             const evidenceData = {
-                academic_year: '2025-2026',
-                evidence_type: 'teaching',
+                academicYear: '2025-2026',
+                evidenceType: 'teaching',
                 title: 'New Class',
-                hours_claimed: 30,
-                coef_applied: 1
+                hoursClaimed: 30,
+                coefApplied: 1
             }
 
             const res = await request(app)

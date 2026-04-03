@@ -124,10 +124,10 @@ export const createCommendation = asyncHandler(async (
     req: Request,
     res: Response
 ): Promise<Response> => {
-    const reward = await rewardService.createCommendation(req.body, req.user!)
-    await logAction(req.userId!, 'create', 'reward_commendation', reward.id.toString(), req.body, req)
+    const result = await rewardService.createCommendation(req.body, req.user!)
+    await logAction(req.userId!, 'create', 'reward_commendation', result.workflowId.toString(), req.body, req)
 
-    return created(res, reward)
+    return created(res, result)
 })
 
 /**
@@ -188,10 +188,10 @@ export const createTitle = asyncHandler(async (
     req: Request,
     res: Response
 ): Promise<Response> => {
-    const title = await rewardService.createTitle(req.body, req.user!)
-    await logAction(req.userId!, 'create', 'reward_title', title.id.toString(), req.body, req)
+    const result = await rewardService.createTitle(req.body, req.user!)
+    await logAction(req.userId!, 'create', 'reward_title', result.workflowId.toString(), req.body, req)
 
-    return created(res, title)
+    return created(res, result)
 })
 
 /**

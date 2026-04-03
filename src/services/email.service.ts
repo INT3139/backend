@@ -126,6 +126,24 @@ export class EmailService {
             html,
         });
     }
+
+    /**
+     * Send email when contract is renewed
+     */
+    async sendContractRenewalEmail(email: string, fullName: string, newEndDate: Date): Promise<void> {
+        const dateStr = newEndDate.toLocaleDateString('vi-VN');
+        const html = `
+            <h1>Thông báo gia hạn hợp đồng</h1>
+            <p>Chào ${fullName},</p>
+            <p>Hợp đồng lao động của bạn đã được gia hạn thành công đến ngày <strong>${dateStr}</strong>.</p>
+            <p>Vui lòng kiểm tra chi tiết trong hệ thống HRM.</p>
+        `;
+        await this.send({
+            to: email,
+            subject: 'Thông báo gia hạn hợp đồng - HRM VNU-UET',
+            html,
+        });
+    }
 }
 
 export const emailService = new EmailService();
