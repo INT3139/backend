@@ -230,7 +230,7 @@ export class ProfileService {
                 resourceType: 'profile',
                 resourceId: id,
                 initiatedBy: user.id,
-                metadata: changeData
+                metadata: { pending: changeData }
             }, tx)
 
             return {
@@ -295,7 +295,7 @@ export class ProfileService {
                 resourceType: 'profile',
                 resourceId: profileId,
                 initiatedBy: user.id,
-                metadata: changeData
+                metadata: { pending: changeData }
             }, tx)
 
             return {
