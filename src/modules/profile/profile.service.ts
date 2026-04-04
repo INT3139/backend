@@ -1,7 +1,7 @@
 import { db } from "@/configs/db"
 import { eq, sql } from "drizzle-orm"
 import { profileRepo, ProfileFilter, ProfileRow, ProfileListRow } from "./profile.repo"
-import { profileStaff } from "@/db/schema"
+import { profileStaff, profileFamilyRelations, profileWorkHistories, profileResearchWorks } from "@/db/schema"
 import { wfInstances } from "@/db/schema/workflow"
 import { profileSubRepo } from "./profileSub.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
@@ -15,7 +15,7 @@ import { WF } from "@/constants/workflowCodes"
 import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
 import { updateProfileSchema } from "./profile.schema"
 import { storageService } from "@/services/storage.service"
-import { educationSchema, familySchema, workHistorySchema, extraInfoSchema, healthSchema, positionSchema, researchWorkSchema } from "./profileSub.schema"
+import { educationSchema, familySchema, workHistorySchema, extraInfoSchema, healthSchema, positionSchema, createResearchWorkSchema, updateResearchWorkSchema } from "./profileSub.schema"
 
 export interface FullProfileRow extends ProfileRow {
     avatarUrl?: string
@@ -522,7 +522,7 @@ export class ProfileService {
                                 : await profileSubRepo.createPosition({ ...posData, profileId }, tx);
                             break;
                         case 'researchWork':
-                            const rwData = subId ? researchWorkSchema.partial().parse(data) : researchWorkSchema.parse(data);
+                            const rwData = subId ? updateResearchWorkSchema.parse(data) : createResearchWorkSchema.parse(data);
                             results[key] = subId 
                                 ? await profileSubRepo.updateResearchWork(subId, { ...rwData, status: 'approved', verifiedBy: approvedBy }, tx) 
                                 : await profileSubRepo.createResearchWork({ ...rwData, profileId, status: 'approved', verifiedBy: approvedBy }, tx);
@@ -630,7 +630,7 @@ export const profileService = new ProfileService()
 // Register workflow handlers for the dispatcher
 registerWorkflowHandler(
     'profile',
-    (inst, actorId, tx) => profileService.applyChangesFromWorkflow(inst, actorId, tx),
+    (inst, actorId, tx, finalize) => profileService.applyChangesFromWorkflow(inst, actorId, tx, finalize),
     (inst, actorId, tx) => profileService.handleRejectionFromWorkflow(inst, actorId, tx),
     (inst, actorId, tx) => profileService.handleRevisionFromWorkflow(inst, actorId, tx)
 )

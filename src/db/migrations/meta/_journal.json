@@ -36,6 +36,13 @@
       "when": 1774552145595,
       "tag": "0004_update_sys_admin_log",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775331393574,
+      "tag": "0005_mature_meltdown",
+      "breakpoints": true
     }
   ]
 }

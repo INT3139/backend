@@ -2013,7 +2013,7 @@ router.get(
 router.post(
     "/:id/research-works",
     requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
-    validateBody(subSchema.researchWorkSchema),
+    validateBody(subSchema.createResearchWorkSchema),
     controller.createResearchWork
 )
 
@@ -2071,7 +2071,7 @@ router.post(
 router.put(
     "/:id/research-works/:subId",
     requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
-    validateBody(subSchema.researchWorkSchema.partial()),
+    validateBody(subSchema.updateResearchWorkSchema),
     controller.updateResearchWork
 )
 

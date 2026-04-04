@@ -4,6 +4,7 @@ import { users } from './auth';
 import { organizationalUnits } from './core';
 import { statusEnum, academicDegreeEnum, academicTitleEnum, genderEnum, maritalStatusEnum, politicalTheoryEnum, researchWorkTypeEnum } from './enums';
 import { profileStaffSeq, profileWorkHistoriesSeq, profileEducationHistoriesSeq, profileExtraInfoSeq, profileFamilyRelationsSeq, profileHealthRecordsSeq, profilePositionsSeq, profileResearchWorksSeq } from './sequences';
+import type { ExtraByType, ResearchWorkType } from '@/modules/profile/profileSub.schema';
 
 export const profileStaff = pgTable('profile_staff', {
   id: integer('id').primaryKey().default(sql`nextval('profile_staff_id_seq')`).notNull(),
@@ -170,10 +171,10 @@ export const profileResearchWorks = pgTable('profile_research_works', {
   publishYear: integer('publish_year'),
   doi: text('doi'),
   academicYear: text('academic_year'),
-  status: text('status').default('pending'),
+  status: statusEnum('status').default('pending').notNull(),
   avatarDefault: boolean('avatar_default').default(true).notNull(),
   projectCode: text('project_code'),
-  extra: jsonb('extra').notNull().default({}),
+  extra: jsonb('extra').notNull().default({}).$type<ExtraByType[ResearchWorkType]>(),
   verifiedBy: integer('verified_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

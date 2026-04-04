@@ -320,6 +320,8 @@ export class ProfileSubRepo {
                 publishYear: data.publishYear,
                 doi: data.doi,
                 academicYear: data.academicYear,
+                projectCode: data.projectCode,
+                extra: data.extra || {},
                 status: data.status || 'pending',
                 avatarDefault: data.avatarDefault ?? true,
                 note: data.note,
