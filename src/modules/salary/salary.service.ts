@@ -183,8 +183,11 @@ export class SalaryService {
             resourceType: 'salary_upgrade',
             resourceId: proposal.id,
             initiatedBy: user.id,
-            metadata: { data: values }
+            metadata: { main: values } // Đổi từ 'data' thành 'main' để đồng nhất
         })
+
+        // Đồng bộ trạng thái hồ sơ chính sang pending
+        await profileRepo.update(data.profile_id, { profileStatus: 'pending' })
 
         return { message: 'Đề xuất nâng lương đã được tạo và đang chờ phê duyệt.', workflowId: workflow.id }
     }

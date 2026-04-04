@@ -137,10 +137,25 @@ export class ProfileService {
         if (profile) {
             const activeWf = await profileRepo.findActiveWorkflow(id)
             if (activeWf) {
-                profile.pendingChanges = activeWf.metadata.pending || {}
-                // Gửi thêm cả lịch sử đã xử lý lẻ nếu có
-                if (activeWf.metadata.processed) {
-                    (profile as any).processedChanges = activeWf.metadata.processed
+                const metadata = activeWf.metadata || {}
+                const pending: any = {}
+                const processed: any = {}
+
+                // Phân loại: item nào có 'status' là đã xử lý lẻ, còn lại là đang chờ
+                for (const [key, value] of Object.entries(metadata)) {
+                    if (key === 'main' || key.startsWith('sub_')) {
+                        const item = value as any
+                        if (item.status) {
+                            processed[key] = item
+                        } else {
+                            pending[key] = item
+                        }
+                    }
+                }
+
+                profile.pendingChanges = pending
+                if (Object.keys(processed).length > 0) {
+                    (profile as any).processedChanges = processed
                 }
             }
         }
@@ -274,6 +289,21 @@ export class ProfileService {
                 [changeKey]: { type, subId, data, action }
             }
 
+            // Nếu cập nhật bản ghi đã tồn tại (có subId), set status của nó về 'pending' trong DB
+            if (subId && (type === 'family' || type === 'workHistory' || type === 'researchWork')) {
+                const tableMap: any = {
+                    'family': profileFamilyRelations,
+                    'workHistory': profileWorkHistories,
+                    'researchWork': profileResearchWorks
+                }
+                const targetTable = tableMap[type]
+                if (targetTable) {
+                    await tx.update(targetTable)
+                        .set({ status: 'pending' as any })
+                        .where(eq(targetTable.id, subId as any))
+                }
+            }
+
             // Kiểm tra Workflow đang hoạt động
             const activeWf = await profileRepo.findActiveWorkflow(profileId, tx)
             if (activeWf) {
@@ -306,6 +336,23 @@ export class ProfileService {
     }
 
     /**
+     * Khôi phục trạng thái bản ghi con về 'approved' (dùng khi từ chối thay đổi lẻ)
+     */
+    async revertSubRecordStatus(type: string, subId: ID, tx?: any): Promise<void> {
+        const tableMap: any = {
+            'family': profileFamilyRelations,
+            'workHistory': profileWorkHistories,
+            'researchWork': profileResearchWorks
+        }
+        const targetTable = tableMap[type]
+        if (targetTable && subId) {
+            await (tx || db).update(targetTable)
+                .set({ status: 'approved' as any })
+                .where(eq(targetTable.id, subId as any))
+        }
+    }
+
+    /**
      * Xử lý khi Workflow bị từ chối
      */
     async handleRejectionFromWorkflow(inst: WorkflowInstance, rejectedBy: ID, tx?: any): Promise<void> {
@@ -322,15 +369,20 @@ export class ProfileService {
         const clearedMetadata = {
             ...(metadata || {})
         }
-        delete clearedMetadata.pending
-        delete clearedMetadata.processed
+        
+        // Remove update-related keys
+        for (const key of Object.keys(clearedMetadata)) {
+            if (key === 'main' || key.startsWith('sub_')) {
+                delete clearedMetadata[key]
+            }
+        }
 
         await profileRepo.update(profileId, {
             profileStatus: 'approved',  // Revert to last stable state
             lastUpdatedBy: rejectedBy
         }, tx)
 
-        // Update workflow metadata to clear the pending/processed items
+        // Update workflow metadata to clear the update items
         await (tx || db)
             .update(wfInstances)
             .set({ metadata: clearedMetadata })
@@ -392,21 +444,24 @@ export class ProfileService {
         const profileId = inst.resourceId
         const metadata = inst.metadata as any
 
-        // FIX: Handle both pending and processed items
-        // - metadata.pending: items not yet reviewed (for backward compatibility with direct approvals)
-        // - metadata.processed: items approved/rejected via piecemeal approval
-        //   Only apply items marked as 'approved' in processed
-        let itemsToProcess = finalize ? (metadata.pending || {}) : metadata
+        // Phân loại items để xử lý dựa trên cấu trúc phẳng
+        let itemsToProcess: any = {}
 
-        // Add approved items from processed (from piecemeal approvals)
-        if (finalize && metadata.processed) {
-            for (const [key, item] of Object.entries(metadata.processed)) {
-                const processedItem = item as any
-                if (processedItem.status === 'approved') {
-                    itemsToProcess[key] = processedItem
+        if (finalize) {
+            // Khi kết thúc workflow, ta xử lý tất cả:
+            // 1. Các item chưa được xử lý lẻ (không có status)
+            // 2. Các item đã được xử lý lẻ với kết quả là 'approved'
+            for (const [key, value] of Object.entries(metadata)) {
+                if (key === 'main' || key.startsWith('sub_')) {
+                    const item = value as any
+                    if (!item.status || item.status === 'approved') {
+                        itemsToProcess[key] = item
+                    }
                 }
-                // Rejected items in processed are simply discarded (not applied)
             }
+        } else {
+            // Trường hợp phê duyệt từng bước (nếu có dùng metadata thô)
+            itemsToProcess = metadata
         }
 
         const results: any = {}

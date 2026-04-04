@@ -638,8 +638,56 @@ router.post(
  *         description: Profile not found
  *       500:
  *         description: Internal server error
+ *   patch:
+ *     tags:
+ *       - Profile
+ *     summary: Partial update profile
+ *     description: Update specific fields of an existing staff profile.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Profile ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateProfile'
+ *     responses:
+ *       200:
+ *         description: Successfully updated profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/CreateProfile'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Profile not found
+ *       500:
+ *         description: Internal server error
  */
 router.put(
+    "/:id",
+    requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
+    validateBody(schema.updateProfileSchema),
+    controller.updateProfile
+)
+
+router.patch(
     "/:id",
     requireSelfOrPermission(PERM.PROFILE.WRITE, 'profile', r => +r.params.id, getOwner),
     validateBody(schema.updateProfileSchema),

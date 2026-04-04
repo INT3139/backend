@@ -274,7 +274,7 @@ export class ProfileRepository {
 
     /**
      * Merge thêm dữ liệu vào metadata của workflow hiện có (Atomic Merge)
-     * Đưa tất cả vào trong khóa 'pending'
+     * Dữ liệu được đưa trực tiếp vào root của metadata (phẳng)
      */
     async appendWorkflowMetadata(workflowId: ID, newMetadata: any, tx?: any): Promise<void> {
         for (const [key, value] of Object.entries(newMetadata)) {
@@ -284,11 +284,8 @@ export class ProfileRepository {
                 const mainData = JSON.stringify(item);
                 await (tx || db).execute(sql`
                     UPDATE wf_instances 
-                    SET metadata = jsonb_set(
-                        coalesce(metadata, '{}'::jsonb), 
-                        '{pending, main}', 
-                        coalesce(metadata->'pending'->'main', '{}'::jsonb) || ${mainData}::jsonb,
-                        true
+                    SET metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'main', coalesce(metadata->'main', '{}'::jsonb) || ${mainData}::jsonb
                     ),
                     updated_at = NOW()
                     WHERE id = ${workflowId}
@@ -302,14 +299,10 @@ export class ProfileRepository {
                 await (tx || db).execute(sql`
                     UPDATE wf_instances 
                     SET metadata = jsonb_set(
-                        jsonb_set(
-                            coalesce(metadata, '{"pending": {}}'::jsonb),
-                            ARRAY['pending', ${key}::text],
-                            coalesce(metadata->'pending'->(${key}::text), '{}'::jsonb) || ${otherFieldsJson}::jsonb,
-                            true
-                        ),
-                        ARRAY['pending', ${key}::text, 'data'],
-                        coalesce(metadata->'pending'->(${key}::text)->'data', '{}'::jsonb) || ${innerData}::jsonb,
+                        coalesce(metadata, '{}'::jsonb),
+                        ARRAY[${key}::text],
+                        (coalesce(metadata->${key}::text, '{}'::jsonb) || ${otherFieldsJson}::jsonb) || 
+                        jsonb_build_object('data', coalesce(metadata->${key}::text->'data', '{}'::jsonb) || ${innerData}::jsonb),
                         true
                     ),
                     updated_at = NOW()
@@ -318,11 +311,8 @@ export class ProfileRepository {
             } else {
                 await (tx || db).execute(sql`
                     UPDATE wf_instances 
-                    SET metadata = jsonb_set(
-                        coalesce(metadata, '{}'::jsonb),
-                        ARRAY['pending', ${key}::text],
-                        ${JSON.stringify(item)}::jsonb,
-                        true
+                    SET metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object(
+                        ${key}::text, ${JSON.stringify(item)}::jsonb
                     ),
                     updated_at = NOW()
                     WHERE id = ${workflowId}
@@ -332,15 +322,16 @@ export class ProfileRepository {
     }
 
     /**
-     * Di chuyển một item từ pending sang processed trong metadata
+     * Di chuyển một item từ trạng thái chưa xử lý sang đã xử lý trong metadata
+     * (Bổ sung actorId và actedAt vào chính object đó)
      */
     async movePendingToProcessed(workflowId: ID, key: string, status: 'approved' | 'rejected', actorId: ID, tx?: any): Promise<void> {
         await (tx || db).execute(sql`
             UPDATE wf_instances
             SET metadata = jsonb_set(
-                metadata - ARRAY['pending', ${key}::text], -- Xóa khỏi pending
-                ARRAY['processed', ${key}::text],         -- Thêm vào processed
-                (metadata->'pending'->${key}::text) || jsonb_build_object(
+                metadata,
+                ARRAY[${key}::text],
+                (metadata->${key}::text) || jsonb_build_object(
                     'status', ${status}::text,
                     'actorId', ${actorId}::int,
                     'actedAt', NOW()

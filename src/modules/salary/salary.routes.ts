@@ -19,19 +19,94 @@ import * as schema from "./salary.schema"
  *           type: integer
  *         profileId:
  *           type: integer
+ *         occupationGroup:
+ *           type: string
+ *         occupationTitle:
+ *           type: string
+ *         occupationCode:
+ *           type: string
  *         salaryGrade:
  *           type: integer
  *         salaryCoefficient:
  *           type: number
+ *         isOverGrade:
+ *           type: boolean
  *         effectiveDate:
  *           type: string
  *           format: date
- *         nextDate:
+ *         decisionNumber:
+ *           type: string
+ *         positionAllowance:
+ *           type: number
+ *         responsibilityAllowance:
+ *           type: number
+ *         teacherIncentivePct:
+ *           type: number
+ *         regionalAllowance:
+ *           type: number
+ *         otherAllowance:
+ *           type: number
+ *         harmfulAllowance:
+ *           type: number
+ *         seniorityAllowancePct:
+ *           type: number
+ *         enjoymentRatePct:
+ *           type: number
+ *         actualCoefficient:
+ *           type: number
+ *         nextGradeDate:
+ *           type: string
+ *           format: date
+ *         nextSeniorityDate:
  *           type: string
  *           format: date
  *         updatedAt:
  *           type: string
  *           format: date-time
+ *     UpdateSalary:
+ *       type: object
+ *       properties:
+ *         occupationGroup:
+ *           type: string
+ *         occupationTitle:
+ *           type: string
+ *         occupationCode:
+ *           type: string
+ *         salaryGrade:
+ *           type: integer
+ *         salaryCoefficient:
+ *           type: number
+ *         isOverGrade:
+ *           type: boolean
+ *         effectiveDate:
+ *           type: string
+ *           format: date
+ *         decisionNumber:
+ *           type: string
+ *         positionAllowance:
+ *           type: number
+ *         responsibilityAllowance:
+ *           type: number
+ *         teacherIncentivePct:
+ *           type: number
+ *         regionalAllowance:
+ *           type: number
+ *         otherAllowance:
+ *           type: number
+ *         harmfulAllowance:
+ *           type: number
+ *         seniorityAllowancePct:
+ *           type: number
+ *         enjoymentRatePct:
+ *           type: number
+ *         actualCoefficient:
+ *           type: number
+ *         nextGradeDate:
+ *           type: string
+ *           format: date
+ *         nextSeniorityDate:
+ *           type: string
+ *           format: date
  *     SalaryUpgradeProposal:
  *       type: object
  *       properties:
@@ -144,15 +219,7 @@ router.get(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               salaryGrade:
- *                 type: integer
- *               salaryCoefficient:
- *                 type: number
- *               effectiveDate:
- *                 type: string
- *                 format: date
+ *             $ref: '#/components/schemas/UpdateSalary'
  *     responses:
  *       200:
  *         description: Salary info updated successfully

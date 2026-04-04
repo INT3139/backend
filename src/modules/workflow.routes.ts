@@ -291,23 +291,39 @@ router.patch(
             // 1. Lấy trạng thái hiện tại của workflow
             const inst = await workflowEngine.getStatus(+instanceId)
             const metadata = inst.metadata || {}
-            const pending = metadata.pending || {}
 
-            if (!pending[key]) {
-                throw new ValidationError(`Không tìm thấy mục "${key}" trong danh sách chờ (pending)`)
+            // Trong cấu trúc phẳng, item chưa xử lý là item không có trường 'status'
+            const itemData = metadata[key]
+            if (!itemData || (itemData as any).status) {
+                throw new ValidationError(`Mục "${key}" không tồn tại hoặc đã được xử lý trước đó.`)
             }
 
-            const itemData = pending[key]
-
-            // 2. DEFERRED PROCESSING: Don't apply changes immediately for piecemeal approvals
-            // Instead, track approval/rejection in metadata
-            // Changes will only be applied when ALL items are processed or workflow is finalized
-            // This ensures atomicity: if workflow is rejected later, we can discard all queued changes
-
-            // 3. Cập nhật lại Metadata: Di chuyển từ pending sang processed
-            // Mark as approved or rejected without applying to DB yet
-            if (inst.resourceType === 'profile') {
-                await profileRepo.movePendingToProcessed(+instanceId, key, approved ? 'approved' : 'rejected', actorId)
+            // 2. DEFERRED PROCESSING: Track approval/rejection in metadata directly
+            // Mark as approved or rejected without applying to DB yet. 
+            // Changes applied only when finalize or all processed.
+            if (inst.resourceType === 'profile' || inst.resourceType === 'salary_upgrade') {
+                if (inst.resourceType === 'profile') {
+                    await profileRepo.movePendingToProcessed(+instanceId, key, approved ? 'approved' : 'rejected', actorId)
+                    
+                    // Nếu bị từ chối lẻ, ta cần đưa bản ghi con trong DB quay lại trạng thái 'approved'
+                    if (!approved && key.startsWith('sub_')) {
+                        const item = metadata[key] as any
+                        if (item && item.subId) {
+                            await profileService.revertSubRecordStatus(item.type, item.subId)
+                        }
+                    }
+                } else {
+                    // Xử lý cho salary_upgrade
+                    const { salaryRepo } = await import('@/modules/salary/salary.repo')
+                    await salaryRepo.updateProposalStatus(inst.resourceId, approved ? 'approved' : 'rejected')
+                    
+                    // Cập nhật status vào chính metadata để thống nhất logic đếm
+                    const newMetadata = {
+                        ...metadata,
+                        [key]: { ...(metadata[key] as any), status: approved ? 'approved' : 'rejected' }
+                    }
+                    await workflowEngine.updateMetadata(+instanceId, newMetadata)
+                }
             } else {
                 // For other resources, apply immediately (backward compatibility)
                 if (approved) {
@@ -319,15 +335,22 @@ router.patch(
                     await dispatchWorkflowPartialApproval(mockInst, actorId)
                 }
                 const newMetadata = { ...metadata }
-                if (newMetadata.pending) delete newMetadata.pending[key]
+                delete newMetadata[key]
                 await workflowEngine.updateMetadata(+instanceId, newMetadata)
             }
 
-            // Lấy lại metadata mới để đếm số mục còn lại
+            // Lấy lại metadata mới để đếm số mục chưa xử lý còn lại
             const updatedInstRaw = await workflowEngine.getStatus(+instanceId)
-            const remainingCount = Object.keys(updatedInstRaw.metadata.pending || {}).length
+            const updatedMetadata = updatedInstRaw.metadata || {}
+            
+            let remainingCount = 0
+            for (const [mKey, mVal] of Object.entries(updatedMetadata)) {
+                if ((mKey === 'main' || mKey.startsWith('sub_')) && !(mVal as any).status) {
+                    remainingCount++
+                }
+            }
 
-            // 4. Quyết định chuyển trạng thái (Advance) hay chỉ ghi log
+            // 3. Ghi log chi tiết và quyết định chuyển trạng thái
             if (remainingCount === 0) {
                 const updatedInst = await workflowEngine.advance(
                     +instanceId,
@@ -343,18 +366,20 @@ router.patch(
                     remainingItems: 0
                 })
             } else {
-                // Vẫn còn mục khác, ghi log chi tiết vào ballot_data để audit
+                // Vẫn còn mục khác, ghi log vào wf_step_logs như một "lá phiếu" (ballot) cho mục lẻ này
                 await db.insert(wfStepLogs).values({
                     instanceId: +instanceId,
                     stepNumber: inst.currentStep,
-                    stepName: `Xử lý lẻ: ${key}`,
+                    stepName: `Phê duyệt lẻ: ${key}`,
                     actorId,
-                    action: 'forward',
-                    comment: comment || (approved ? `Đã phê duyệt mục: ${key}` : `Đã loại bỏ mục: ${key}`),
+                    action: 'ballot_submit', // Dùng action bỏ phiếu để thống nhất với BallotService
+                    comment: comment || (approved ? `Đồng ý mục: ${key}` : `Từ chối mục: ${key}`),
                     ballotData: {
-                        key,
-                        item: itemData,
-                        result: approved ? 'approved' : 'rejected'
+                        vote: approved ? 'approve' : 'reject', // Trường vote chuẩn theo BallotService
+                        itemKey: key,
+                        resource: itemData.type || 'main',
+                        action: itemData.action || 'update',
+                        data: itemData.data || itemData
                     }
                 })
 
