@@ -7,7 +7,7 @@ export const createProposalSchema = z.object({
     requiredExpYears: z.number().int().min(0).optional(),
     quota: z.number().int().min(1).optional(),
     reason: z.string().optional(),
-    academicYear: z.string().regex(/^\d{4}-\d{4}$/),
+    academicYear: z.string().regex(/^(\d{4}|\d{4}-\d{4})$/),
     status: z.enum(['draft', 'submitted', 'processing', 'approved', 'rejected']).optional()
 })
 

@@ -1,7 +1,7 @@
 import request from 'supertest'
 import { createApp } from '@/app'
 import { db } from '@/configs/db'
-import { users, profileStaff, organizationalUnits } from '@/db/schema'
+import { users, profileStaff, organizationalUnits, rewardCommendations } from '@/db/schema'
 import { issueTokenPair } from '@/core/auth/jwt'
 import { TestDbHelper } from '../helpers/testHelpers'
 import { grantPermission } from '../helpers/permHelpers'
@@ -92,6 +92,72 @@ describe('Reward Integration Tests', () => {
             expect(res.body.success).toBe(true)
             expect(res.body.data.proposedData.profileId).toBe(testProfile.id)
             expect(res.body.data).toHaveProperty('workflowId')
+        })
+
+        it('should succeed even with null values for optional fields', async () => {
+            await grantPermission(testUser.id, PERM.REWARD.WRITE)
+
+            const res = await request(app)
+                .post('/api/v1/reward/commendations')
+                .set('Authorization', `Bearer ${authToken}`)
+                .send({
+                    profileId: testProfile.id,
+                    awardLevel: 'co_so',
+                    awardName: 'Test Reward',
+                    decisionNumber: null,
+                    decisionDate: null,
+                    academicYear: null,
+                    content: null
+                })
+
+            expect(res.status).toBe(201)
+            expect(res.body.success).toBe(true)
+        })
+
+        it('should succeed with YYYY format for academicYear', async () => {
+            await grantPermission(testUser.id, PERM.REWARD.WRITE)
+
+            const res = await request(app)
+                .post('/api/v1/reward/commendations')
+                .set('Authorization', `Bearer ${authToken}`)
+                .send({
+                    profileId: testProfile.id,
+                    awardLevel: 'co_so',
+                    awardName: 'Test Reward YYYY',
+                    academicYear: '2025'
+                })
+
+            expect(res.status).toBe(201)
+            expect(res.body.success).toBe(true)
+        })
+    })
+
+    describe('PUT /api/v1/reward/commendations/:id', () => {
+        it('should succeed with null values for optional fields during update', async () => {
+            await grantPermission(testUser.id, PERM.REWARD.WRITE)
+
+            // Direct insert into DB to bypass workflow for testing update if needed, 
+            // or just use the created one if update is direct.
+            // Based on routes, PUT /commendations/:id is direct controller.updateCommendation
+            
+            const [commendation] = await db.insert(rewardCommendations).values({
+                profileId: testProfile.id,
+                awardLevel: 'co_so',
+                awardName: 'Initial Reward',
+                decisionNumber: '123'
+            }).returning()
+
+            const res = await request(app)
+                .put(`/api/v1/reward/commendations/${commendation.id}`)
+                .set('Authorization', `Bearer ${authToken}`)
+                .send({
+                    decisionNumber: null,
+                    content: null
+                })
+
+            expect(res.status).toBe(200)
+            expect(res.body.success).toBe(true)
+            expect(res.body.data.decisionNumber).toBeNull()
         })
     })
 

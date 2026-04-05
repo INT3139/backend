@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express'
+import { eq } from 'drizzle-orm'
 import { workflowEngine } from '@/core/workflow/engine'
 import { ballotService } from '@/core/workflow/ballot.service'
 import { dispatchWorkflowResult, dispatchWorkflowPartialApproval } from '@/core/workflow/workflow.dispatcher'
@@ -247,7 +248,7 @@ async function handleMetadataItemAction(
         const actorId = req.userId as ID
 
         // 1. Lấy trạng thái hiện tại của workflow (Bỏ qua cache để đảm bảo đếm chính xác)
-        const inst = await workflowEngine.getStatus(+instanceId, false)
+        const inst = await workflowEngine.getStatus(+instanceId)
         const metadata = inst.metadata || {}
 
         // Kiểm tra xem mục này có tồn tại không
@@ -308,7 +309,7 @@ async function handleMetadataItemAction(
 
         // Đếm số mục chưa xử lý còn lại
         // Lấy lại metadata MỚI NHẤT từ DB sau khi đã movePendingToProcessed
-        const freshInst = await workflowEngine.getStatus(+instanceId, false)
+        const freshInst = await workflowEngine.getStatus(+instanceId)
         const freshMetadata = freshInst.metadata || {}
         
         let remainingCount = 0
