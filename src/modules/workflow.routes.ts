@@ -250,28 +250,42 @@ async function handleMetadataItemAction(
         const inst = await workflowEngine.getStatus(+instanceId, false)
         const metadata = inst.metadata || {}
 
-        // Kiểm tra xem mục này có tồn tại và chưa xử lý không
+        // Kiểm tra xem mục này có tồn tại không
         const itemData = metadata[key]
-        if (!itemData || (itemData as any).status) {
-            throw new ValidationError(`Mục "${key}" không tồn tại hoặc đã được xử lý trước đó.`)
+        if (!itemData) {
+            throw new ValidationError(`Mục "${key}" không tồn tại.`)
         }
 
-        // 2. Xử lý tức thì (Immediate Processing) cho Profile và Salary Upgrade
+        // 2. CHỈ CẬP NHẬT METADATA (Không push vào DB chính lúc này để đảm bảo an toàn)
         if (inst.resourceType === 'profile' || inst.resourceType === 'salary_upgrade') {
             if (inst.resourceType === 'profile') {
-                await profileRepo.movePendingToProcessed(+instanceId, key, approved ? 'approved' : 'rejected', actorId)
+                // Đánh dấu là đã xử lý trong metadata, nhưng applied = false
+                await profileRepo.movePendingToProcessed(+instanceId, key, approved ? 'approved' : 'rejected', actorId, false)
                 
-                if (approved) {
-                    const mockInst = {
-                        ...inst,
-                        metadata: { [key]: itemData },
-                        status: 'approved'
-                    } as any
-                    await dispatchWorkflowPartialApproval(mockInst, actorId)
-                } else if (key.startsWith('sub_')) {
+                // XÓA CACHE để đảm bảo lần đếm sau chính xác
+                const { CacheKey: CK } = await import('@/core/cache/cacheKey')
+                const { rDel: RD } = await import('@/configs/redis')
+                await RD(CK.workflowInstance(+instanceId))
+
+                // Xử lý logic đặc biệt cho bản ghi con (Sub-records)
+                if (key.startsWith('sub_')) {
                     const item = metadata[key] as any
                     if (item && item.subId) {
-                        await profileService.revertSubRecordStatus(item.type, item.subId)
+                        if (approved) {
+                            // Nếu "Đổi ý" từ Hủy -> Duyệt: Đưa bản ghi con quay lại trạng thái 'pending' để đợi finalize
+                            const tableMap: any = {
+                                'family': (await import('@/db/schema')).profileFamilyRelations,
+                                'workHistory': (await import('@/db/schema')).profileWorkHistories,
+                                'researchWork': (await import('@/db/schema')).profileResearchWorks
+                            }
+                            const targetTable = tableMap[item.type]
+                            if (targetTable) {
+                                await db.update(targetTable).set({ status: 'pending' as any }).where(eq(targetTable.id, item.subId))
+                            }
+                        } else {
+                            // Nếu là Hủy (approved = false): Revert status bản ghi con về 'approved' để giải phóng nó
+                            await profileService.revertSubRecordStatus(item.type, item.subId)
+                        }
                     }
                 }
             } else {
@@ -286,33 +300,25 @@ async function handleMetadataItemAction(
                 await workflowEngine.updateMetadata(+instanceId, newMetadata)
             }
         } else {
-            if (approved) {
-                const mockInst = {
-                    ...inst,
-                    metadata: { [key]: itemData },
-                    status: 'approved'
-                } as any
-                await dispatchWorkflowPartialApproval(mockInst, actorId)
-            }
+            // Các loại tài nguyên khác: Giữ nguyên logic cũ (nếu cần cập nhật ngay) hoặc có thể chuyển sang deferred sau
             const newMetadata = { ...metadata }
             delete newMetadata[key]
             await workflowEngine.updateMetadata(+instanceId, newMetadata)
         }
 
         // Đếm số mục chưa xử lý còn lại
-        // Một mục được coi là "cần xử lý" nếu key là 'main' hoặc bắt đầu bằng 'sub_'
-        // Một mục được coi là "đã xử lý" nếu nó có trường 'status'
-        let remainingCount = 0
-        const entries = Object.entries(metadata)
+        // Lấy lại metadata MỚI NHẤT từ DB sau khi đã movePendingToProcessed
+        const freshInst = await workflowEngine.getStatus(+instanceId, false)
+        const freshMetadata = freshInst.metadata || {}
         
-        for (const [mKey, mVal] of entries) {
+        let remainingCount = 0
+        for (const [mKey, mVal] of Object.entries(freshMetadata)) {
             const isTargetItem = mKey === 'main' || mKey.startsWith('sub_')
             if (isTargetItem) {
-                const isAlreadyProcessed = !!(mVal as any).status
-                const isCurrentItem = mKey === key
-                
-                // Nếu mục này chưa xử lý và KHÔNG PHẢI là mục chúng ta đang làm ngay lúc này
-                if (!isAlreadyProcessed && !isCurrentItem) {
+                const item = mVal as any
+                // Một mục được coi là "chưa xử lý" nếu nó KHÔNG có trường 'status'
+                // Hoặc status của nó vẫn đang là 'pending' (ở cấp ngoài cùng của item)
+                if (!item.status || item.status === 'pending') {
                     remainingCount++
                 }
             }

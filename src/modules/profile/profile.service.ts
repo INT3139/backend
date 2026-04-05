@@ -357,32 +357,32 @@ export class ProfileService {
      */
     async handleRejectionFromWorkflow(inst: WorkflowInstance, rejectedBy: ID, tx?: any): Promise<void> {
         const profileId = inst.resourceId
+        const metadata = inst.metadata as any || {}
 
-        // FIX: With deferred processing, changes were never applied to DB
-        // So we just need to:
-        // 1. Discard any processed items (both approved and rejected)
-        // 2. Revert profile status to its previous state
-        // 3. Clear the workflow metadata
-
-        // Clear metadata to discard all pending/processed items
-        const metadata = inst.metadata as any
-        const clearedMetadata = {
-            ...(metadata || {})
+        // 1. Revert status cho tất cả các bản ghi con (sub-records) đang chờ duyệt
+        for (const [key, value] of Object.entries(metadata)) {
+            if (key.startsWith('sub_')) {
+                const item = value as any
+                if (item && item.subId && item.type) {
+                    await this.revertSubRecordStatus(item.type, item.subId, tx)
+                }
+            }
         }
-        
-        // Remove update-related keys
+
+        // 2. Đưa trạng thái hồ sơ chính quay lại 'approved'
+        await profileRepo.update(profileId, {
+            profileStatus: 'approved',  // Revert to last stable state
+            lastUpdatedBy: rejectedBy
+        }, tx)
+
+        // 3. Xóa các mục update trong metadata để tránh rác
+        const clearedMetadata = { ...metadata }
         for (const key of Object.keys(clearedMetadata)) {
             if (key === 'main' || key.startsWith('sub_')) {
                 delete clearedMetadata[key]
             }
         }
 
-        await profileRepo.update(profileId, {
-            profileStatus: 'approved',  // Revert to last stable state
-            lastUpdatedBy: rejectedBy
-        }, tx)
-
-        // Update workflow metadata to clear the update items
         await (tx || db)
             .update(wfInstances)
             .set({ metadata: clearedMetadata })
@@ -450,11 +450,11 @@ export class ProfileService {
         if (finalize) {
             // Khi kết thúc workflow, ta xử lý tất cả:
             // 1. Các item chưa được xử lý lẻ (không có status)
-            // 2. Các item đã được xử lý lẻ với kết quả là 'approved'
+            // 2. Các item đã được xử lý lẻ với kết quả là 'approved' nhưng CHƯA ghi vào DB (applied !== true)
             for (const [key, value] of Object.entries(metadata)) {
                 if (key === 'main' || key.startsWith('sub_')) {
                     const item = value as any
-                    if (!item.status || item.status === 'approved') {
+                    if ((!item.status || item.status === 'approved') && !item.applied) {
                         itemsToProcess[key] = item
                     }
                 }
@@ -492,8 +492,8 @@ export class ProfileService {
                         case 'education':
                             const eduData = subId ? educationSchema.partial().parse(data) : educationSchema.parse(data);
                             results[key] = subId 
-                                ? await profileSubRepo.updateEducation(subId, eduData, tx) 
-                                : await profileSubRepo.createEducation({ ...eduData, profileId } as any, tx);
+                                ? await profileSubRepo.updateEducation(subId, { ...eduData, status: 'approved' } as any, tx) 
+                                : await profileSubRepo.createEducation({ ...eduData, profileId, status: 'approved' } as any, tx);
                             break;
                         case 'family':
                             const famData = subId ? familySchema.partial().parse(data) : familySchema.parse(data);
@@ -518,8 +518,8 @@ export class ProfileService {
                         case 'position':
                             const posData = subId ? positionSchema.partial().parse(data) : positionSchema.parse(data);
                             results[key] = subId 
-                                ? await profileSubRepo.updatePosition(subId, posData, tx) 
-                                : await profileSubRepo.createPosition({ ...posData, profileId }, tx);
+                                ? await profileSubRepo.updatePosition(subId, { ...posData, status: 'approved' } as any, tx) 
+                                : await profileSubRepo.createPosition({ ...posData, profileId, status: 'approved' } as any, tx);
                             break;
                         case 'researchWork':
                             const rwData = subId ? updateResearchWorkSchema.parse(data) : createResearchWorkSchema.parse(data);

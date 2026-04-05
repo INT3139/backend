@@ -323,9 +323,9 @@ export class ProfileRepository {
 
     /**
      * Di chuyển một item từ trạng thái chưa xử lý sang đã xử lý trong metadata
-     * (Bổ sung actorId và actedAt vào chính object đó)
+     * (Bổ sung actorId, actedAt và applied vào chính object đó)
      */
-    async movePendingToProcessed(workflowId: ID, key: string, status: 'approved' | 'rejected', actorId: ID, tx?: any): Promise<void> {
+    async movePendingToProcessed(workflowId: ID, key: string, status: 'approved' | 'rejected', actorId: ID, applied: boolean = false, tx?: any): Promise<void> {
         await (tx || db).execute(sql`
             UPDATE wf_instances
             SET metadata = jsonb_set(
@@ -334,7 +334,8 @@ export class ProfileRepository {
                 (metadata->${key}::text) || jsonb_build_object(
                     'status', ${status}::text,
                     'actorId', ${actorId}::int,
-                    'actedAt', NOW()
+                    'actedAt', NOW(),
+                    'applied', ${applied}::boolean
                 ),
                 true
             ),
