@@ -151,12 +151,20 @@ export class AbacService {
     async getUnitIds(scopes: UserScope[]): Promise<ID[] | "all"> {
         if (scopes.some((s) => s.scopeType === "school")) return "all";
 
-        const ids = scopes
+        const rootIds = scopes
             .filter((s) => s.scopeType === "faculty" || s.scopeType === "department")
             .map((s) => s.unitId)
             .filter((id): id is ID => id !== null);
 
-        return [...new Set(ids)];
+        if (rootIds.length === 0) return [];
+
+        const allIds = new Set<ID>();
+        for (const rootId of rootIds) {
+            const descendants = await this.getDescendantUnitIds(rootId);
+            descendants.forEach((id) => allIds.add(id));
+        }
+
+        return [...allIds];
     }
 
     /**
