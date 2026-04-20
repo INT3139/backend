@@ -26,6 +26,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1006.0",
     "@aws-sdk/s3-request-presigner": "^3.1006.0",
+    "@ts-rest/core": "^3.52.1",
     "@types/fs-extra": "^11.0.4",
     "@types/pizzip": "^3.1.2",
     "bcrypt": "^6.0.0",

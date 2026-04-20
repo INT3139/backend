@@ -51,6 +51,8 @@ export class RewardService {
             throw new ForbiddenError('You do not have permission to add reward for this profile')
         }
 
+        console.log(scopes, unitIds);
+
         // Initiate workflow instead of direct insert
         const workflow = await workflowEngine.initiate({
             definitionCode: WF.REWARD_BALLOT,
@@ -76,7 +78,7 @@ export class RewardService {
     async updateCommendation(id: ID, data: Partial<CommendationRow>, user: AuthUser) {
         const scopes = await permissionService.getScopes(user.id)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_commendation', id)
-        
+
         if (!canAccess) {
             throw new ForbiddenError('Access denied to this reward record')
         }
@@ -94,7 +96,7 @@ export class RewardService {
     async deleteCommendation(id: ID, user: AuthUser) {
         const scopes = await permissionService.getScopes(user.id)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_commendation', id)
-        
+
         if (!canAccess) {
             throw new ForbiddenError('Access denied to this reward record')
         }
@@ -160,7 +162,7 @@ export class RewardService {
     async updateTitle(id: ID, data: Partial<TitleRow>, user: AuthUser) {
         const scopes = await permissionService.getScopes(user.id)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_title', id)
-        
+
         if (!canAccess) {
             throw new ForbiddenError('Access denied to this reward record')
         }
@@ -178,7 +180,7 @@ export class RewardService {
     async deleteTitle(id: ID, user: AuthUser) {
         const scopes = await permissionService.getScopes(user.id)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_title', id)
-        
+
         if (!canAccess) {
             throw new ForbiddenError('Access denied to this reward record')
         }
@@ -209,7 +211,7 @@ export class RewardService {
      */
     async createDiscipline(data: Partial<DisciplineRow>, user: AuthUser) {
         if (!data.profileId) throw new Error('profileId is required')
-        
+
         const profile = await profileRepo.findById(data.profileId)
         if (!profile) throw new NotFoundError('Profile not found')
 
@@ -237,7 +239,7 @@ export class RewardService {
     async updateDiscipline(id: ID, data: Partial<DisciplineRow>, user: AuthUser) {
         const scopes = await permissionService.getScopes(user.id)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_discipline', id)
-        
+
         if (!canAccess) {
             throw new ForbiddenError('Access denied to this reward record')
         }
@@ -255,7 +257,7 @@ export class RewardService {
     async deleteDiscipline(id: ID, user: AuthUser) {
         const scopes = await permissionService.getScopes(user.id)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_discipline', id)
-        
+
         if (!canAccess) {
             throw new ForbiddenError('Access denied to this reward record')
         }
