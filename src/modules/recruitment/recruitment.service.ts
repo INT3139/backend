@@ -46,7 +46,7 @@ export class RecruitmentService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
@@ -110,7 +110,7 @@ export class RecruitmentService {
             throw new ForbiddenError('Cannot update proposal in current status')
         }
 
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canUpdate = await abacService.canAccess(
             user.id,
             scopes,
@@ -238,7 +238,7 @@ export class RecruitmentService {
             throw new NotFoundError('Proposal not found')
         }
 
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canRead = await abacService.canAccess(
             user.id,
             scopes,
@@ -274,7 +274,7 @@ export class RecruitmentService {
             throw new NotFoundError('Proposal not found')
         }
 
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canWrite = await abacService.canAccess(
             user.id,
             scopes,
@@ -299,7 +299,7 @@ export class RecruitmentService {
         }
 
         // Check ABAC access to the parent proposal
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canAccess = await abacService.canAccess(
             user.id,
             scopes,
@@ -335,7 +335,7 @@ export class RecruitmentService {
         }
 
         // Check ABAC access to the parent proposal
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canAccess = await abacService.canAccess(
             user.id,
             scopes,

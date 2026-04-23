@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express'
 import { db } from '@/configs/db'
-import { users } from '@/db/schema/auth'
+import { users, roles, userRoles } from '@/db/schema/auth'
 import { eq, and, isNull } from 'drizzle-orm'
 import { verifyToken } from '../auth/jwt'
 import { UnauthorizedError } from './errorHandler'
+import { AuthUser } from '@/types'
 
 export async function authenticate(req: Request, _: Response, next: NextFunction): Promise<void> {
   try {
@@ -25,7 +26,17 @@ export async function authenticate(req: Request, _: Response, next: NextFunction
 
     if (!row || !row.isActive) throw new UnauthorizedError('Account inactive')
         
-    req.user   = { id: row.id, username: row.username, email: row.email, fullName: row.fullName, unitId: row.unitId }
+    const user: AuthUser = { 
+        id: row.id, 
+        username: row.username, 
+        email: row.email, 
+        fullName: row.fullName, 
+        unitId: row.unitId,
+        port: payload.port,
+        activeRoles: payload.activeRoles
+    }
+
+    req.user   = user
     req.userId = row.id
     next()
   } catch (err) {

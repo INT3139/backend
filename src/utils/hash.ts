@@ -7,6 +7,11 @@ export const hashPassword = async (p: string): Promise<string> => {
 
 export const comparePassword = async (p: string, h: string): Promise<boolean> => {
   try {
+    // Nếu hash có độ dài 32 ký tự, khả năng cao là MD5
+    if (h.length === 32) {
+      return hashMd5(p) === h;
+    }
+    // Ngược lại dùng bcrypt
     return await bcrypt.compare(p, h);
   } catch (error) {
     console.error("Lỗi khi so sánh password:", error);

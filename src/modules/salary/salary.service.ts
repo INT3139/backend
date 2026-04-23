@@ -74,7 +74,7 @@ export class SalaryService {
         const profile = await profileRepo.findById(profileId)
         if (!profile) throw new NotFoundError('Profile not found')
 
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
         if (unitIds !== 'all' && (profile.unitId === null || !unitIds.includes(profile.unitId))) {
             throw new ForbiddenError('You do not have permission to update salary info for this profile')
@@ -130,7 +130,7 @@ export class SalaryService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
@@ -148,7 +148,7 @@ export class SalaryService {
         const profile = await profileRepo.findById(data.profile_id)
         if (!profile) throw new NotFoundError('Profile not found')
 
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
         if (unitIds !== 'all' && (profile.unitId === null || !unitIds.includes(profile.unitId))) {
             throw new ForbiddenError('You do not have permission to propose salary upgrade for this profile')

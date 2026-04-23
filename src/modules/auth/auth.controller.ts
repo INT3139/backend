@@ -14,8 +14,8 @@ export const loginCtrl = asyncHandler(async (
     req: Request,
     res: Response
 ): Promise<Response> => {
-    const { username, password } = req.body;
-    const result = await login(username, password);
+    const { username, password, port } = req.body;
+    const result = await login(username, password, port);
     return success(res, result);
 })
 
@@ -45,16 +45,13 @@ export const changePasswordCtrl = asyncHandler(async (
     return success(res, { message: "Password changed successfully" });
 })
 
-/**
- * Lấy danh sách permissions và scopes của user hiện tại
- */
 export const getPermissionsCtrl = asyncHandler(async (
     req: AuthRequest,
     res: Response
 ): Promise<Response> => {
-    const userId = req.userId!;
-    const permissions = await permissionService.getRawPermissions(userId);
-    const scopes = await permissionService.getScopes(userId);
+    const user = req.user!;
+    const permissions = await permissionService.getRawPermissions(user);
+    const scopes = await permissionService.getScopes(user);
     
     return success(res, { permissions, scopes });
 })

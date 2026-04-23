@@ -14,7 +14,7 @@ export const WorkflowInstanceSchema = z.object({
   currentStep: z.number().int(),
   status: z.enum(['active', 'completed', 'cancelled']),
   initiatorId: z.number().int(),
-  metadata: z.record(z.any()).nullable(),
+  metadata: z.record(z.string(), z.any()).nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -58,7 +58,7 @@ export const workflowContract = c.router({
     method: 'PATCH',
     path: '/:id/metadata',
     pathParams: z.object({ id: z.coerce.number() }),
-    body: z.object({ metadata: z.record(z.any()) }),
+    body: z.object({ metadata: z.record(z.string(), z.any()) }),
     responses: { 200: ApiMessageResponse },
     summary: 'Update workflow metadata',
   },

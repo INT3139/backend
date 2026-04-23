@@ -6,7 +6,7 @@ import { validateFileSize, validateMimeType } from '@/utils/file'
 import { NotFoundError, ForbiddenError } from '@/core/middlewares/errorHandler'
 import { abacService } from '@/core/permissions/abac'
 import { permissionService } from '@/core/permissions/permission.service'
-import { ID } from '@/types'
+import { ID, AuthUser } from '@/types'
 
 const ALLOWED = [
   'application/pdf',
@@ -56,7 +56,7 @@ export class StorageService {
       .orderBy(desc(sysAttachments.uploadedAt))
   }
 
-  async getDownloadUrl(id: ID, requesterId: ID): Promise<string> {
+  async getDownloadUrl(id: ID, requester: ID | AuthUser): Promise<string> {
     const [att] = await db.select({
       storageKey: sysAttachments.storageKey,
       resourceType: sysAttachments.resourceType,
@@ -65,7 +65,8 @@ export class StorageService {
 
     if (!att) throw new NotFoundError('Attachment')
 
-    const scopes = await permissionService.getScopes(requesterId)
+    const requesterId = typeof requester === 'number' ? requester : requester.id
+    const scopes = await permissionService.getScopes(requester)
     const canAccess = await abacService.canAccess(requesterId, scopes, att.resourceType, att.resourceId)
     if (!canAccess) throw new ForbiddenError()
 
@@ -84,15 +85,16 @@ export class StorageService {
       .where(eq(sysAttachments.id, id))
   }
 
-  async deleteAttachment(id: ID, actorId: ID): Promise<void> {
+  async deleteAttachment(id: ID, actor: ID | AuthUser): Promise<void> {
     const [att] = await db.select().from(sysAttachments).where(and(eq(sysAttachments.id, id), isNull(sysAttachments.deletedAt)))
     if (!att) throw new NotFoundError('Attachment')
 
+    const actorId = typeof actor === 'number' ? actor : actor.id
     // Check permissions: Owner or has hrm.attachment.delete + ABAC access
     const isOwner = att.uploadedBy === actorId
     if (!isOwner) {
-      const hasPerm = await permissionService.hasPermission(actorId, 'hrm.attachment.delete')
-      const scopes = await permissionService.getScopes(actorId)
+      const hasPerm = await permissionService.hasPermission(actor, 'hrm.attachment.delete')
+      const scopes = await permissionService.getScopes(actor)
       const hasScope = await abacService.canAccess(actorId, scopes, att.resourceType, att.resourceId)
       if (!hasPerm || !hasScope) throw new ForbiddenError()
     }

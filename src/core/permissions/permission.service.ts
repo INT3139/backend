@@ -1,6 +1,6 @@
 import { db } from "@/configs/db";
-import { userRoles, rolePermissions } from "@/db/schema/auth";
-import { eq, and, isNull } from "drizzle-orm";
+import { userRoles, rolePermissions, roles } from "@/db/schema/auth";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 import {
     rSadd,
     rIsMember,
@@ -9,29 +9,23 @@ import {
     rSetJson,
     rDel,
     rExists,
+    rDelPattern,
 } from "@/configs/redis";
 import { expandAll } from "./wildcardExpand";
 import { CacheKey, CacheTTL } from "../cache/cacheKey";
-import { ID, UserScope } from "@/types";
+import { AuthUser, ID, UserScope } from "@/types";
 
 export class PermissionService {
     /**
-     * Load tất cả permissions + scopes của user vào Redis cache.
-     * Gọi sau khi login hoặc khi cache miss.
-     *
-     * Fix: KHÔNG innerJoin bảng permissions trong query này.
-     * role_permissions.permission_code chứa wildcard patterns ('hrm.*', 'hrm.profile.*', ...)
-     * không có row nào trong bảng permissions có code = 'hrm.*',
-     * nên innerJoin sẽ luôn trả về 0 rows → mọi user bị 403.
-     *
-     * Đúng flow:
-     *   1. Lấy raw patterns từ role_permissions (không join permissions)
-     *   2. Expand wildcards → exact permission codes
-     *   3. Cache expanded codes vào Redis set
+     * Load permissions + scopes of user into Redis cache.
      */
-    async loadForUser(userId: ID): Promise<void> {
-        // Bước 1: lấy raw patterns + scopes, không join permissions table
-        const rows = await db
+    async loadForUser(user: ID | AuthUser): Promise<void> {
+        const userId = typeof user === 'number' ? user : user.id;
+        const port = typeof user === 'number' ? undefined : user.port;
+        const activeRoles = typeof user === 'number' ? undefined : user.activeRoles;
+
+        // Base query
+        let query = db
             .select({
                 permCode: rolePermissions.permissionCode,
                 scopeType: userRoles.scopeType,
@@ -39,9 +33,26 @@ export class PermissionService {
             })
             .from(userRoles)
             .innerJoin(rolePermissions, eq(rolePermissions.roleId, userRoles.roleId))
-            .where(
+            .$dynamic();
+
+        // Filter by active roles if provided (Port-based security)
+        if (activeRoles && activeRoles.length > 0) {
+            query = query
+                .innerJoin(roles, eq(userRoles.roleId, roles.id))
+                .where(
+                    and(
+                        eq(userRoles.userId, userId),
+                        isNull(userRoles.expiresAt),
+                        inArray(roles.code, activeRoles)
+                    )
+                );
+        } else {
+            query = query.where(
                 and(eq(userRoles.userId, userId), isNull(userRoles.expiresAt))
             );
+        }
+
+        const rows = await query;
 
         // Bước 2: expand wildcard patterns thành exact codes
         const rawPatterns = [...new Set(rows.map((r) => r.permCode))];
@@ -62,25 +73,27 @@ export class PermissionService {
         }
 
         // Cache permission codes (Redis Set)
-        const codesKey = CacheKey.permCodes(userId);
+        const codesKey = CacheKey.permCodes(userId, port);
         await rDel(codesKey);
         if (expandedCodes.length > 0) {
             await rSadd(codesKey, expandedCodes, CacheTTL.PERM_CODES);
         }
 
         // Cache scopes (Redis JSON)
-        const scopesKey = CacheKey.permScopes(userId);
+        const scopesKey = CacheKey.permScopes(userId, port);
         await rSetJson(scopesKey, scopes, CacheTTL.PERM_SCOPES);
     }
 
     /**
      * Check xem user có permission cụ thể không.
-     * Cache miss → tự load.
      */
-    async hasPermission(userId: ID, permissionCode: string): Promise<boolean> {
-        const key = CacheKey.permCodes(userId);
+    async hasPermission(user: ID | AuthUser, permissionCode: string): Promise<boolean> {
+        const userId = typeof user === 'number' ? user : user.id;
+        const port = typeof user === 'number' ? undefined : user.port;
+
+        const key = CacheKey.permCodes(userId, port);
         if (!(await rExists(key))) {
-            await this.loadForUser(userId);
+            await this.loadForUser(user);
         }
         return rIsMember(key, permissionCode);
     }
@@ -89,12 +102,11 @@ export class PermissionService {
      * Check user có bất kỳ permission nào trong danh sách không.
      */
     async hasAnyPermission(
-        userId: ID,
+        user: ID | AuthUser,
         permissionCodes: string[]
     ): Promise<boolean> {
-        // Dùng Promise.all thay vì vòng lặp await tuần tự để giảm latency
         const results = await Promise.all(
-            permissionCodes.map((c) => this.hasPermission(userId, c))
+            permissionCodes.map((c) => this.hasPermission(user, c))
         );
         return results.some(Boolean);
     }
@@ -103,11 +115,11 @@ export class PermissionService {
      * Check user có tất cả permissions trong danh sách không.
      */
     async hasAllPermissions(
-        userId: ID,
+        user: ID | AuthUser,
         permissionCodes: string[]
     ): Promise<boolean> {
         const results = await Promise.all(
-            permissionCodes.map((c) => this.hasPermission(userId, c))
+            permissionCodes.map((c) => this.hasPermission(user, c))
         );
         return results.every(Boolean);
     }
@@ -115,17 +127,20 @@ export class PermissionService {
     /**
      * Lấy scopes của user từ cache.
      */
-    async getScopes(userId: ID): Promise<UserScope[]> {
-        const key = CacheKey.permScopes(userId);
+    async getScopes(user: ID | AuthUser): Promise<UserScope[]> {
+        const userId = typeof user === 'number' ? user : user.id;
+        const port = typeof user === 'number' ? undefined : user.port;
+
+        const key = CacheKey.permScopes(userId, port);
         const cached = await rGetJson<UserScope[]>(key);
         if (cached) return cached;
-        await this.loadForUser(userId);
+        await this.loadForUser(user);
         return (await rGetJson<UserScope[]>(key)) ?? [];
     }
 
     /** Alias for getScopes */
-    async getScopesForUser(userId: ID): Promise<UserScope[]> {
-        return this.getScopes(userId);
+    async getScopesForUser(user: ID | AuthUser): Promise<UserScope[]> {
+        return this.getScopes(user);
     }
 
     /**
@@ -133,10 +148,7 @@ export class PermissionService {
      * Gọi khi có thay đổi role/permission assignment.
      */
     async invalidate(userId: ID): Promise<void> {
-        await Promise.all([
-            rDel(CacheKey.permCodes(userId)),
-            rDel(CacheKey.permScopes(userId)),
-        ]);
+        await rDelPattern(`perm:*:${userId}*`);
     }
 
     async ensureRoleHasPerm(roleId: ID, permissionCode: string): Promise<void> {
@@ -189,10 +201,13 @@ export class PermissionService {
     }
 
     /** Lấy permissions raw của user — dùng cho debugging */
-    async getRawPermissions(userId: ID): Promise<string[]> {
-        const key = CacheKey.permCodes(userId);
+    async getRawPermissions(user: ID | AuthUser): Promise<string[]> {
+        const userId = typeof user === 'number' ? user : user.id;
+        const port = typeof user === 'number' ? undefined : user.port;
+
+        const key = CacheKey.permCodes(userId, port);
         if (!(await rExists(key))) {
-            await this.loadForUser(userId);
+            await this.loadForUser(user);
         }
         return rSmembers(key);
     }

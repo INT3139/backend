@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { ForbiddenError, UnauthorizedError } from "./errorHandler";
 import { permissionService } from "../permissions/permission.service";
 import { abacService } from "../permissions/abac";
-import { ID } from "@/types";
+import { AuthUser, ID } from "@/types";
 
 /**
  * Guard kết hợp RBAC + ABAC:
@@ -18,15 +18,16 @@ export const requireResource =
   (perm: string, type: string, getId: (r: Request) => ID) =>
     async (req: Request, _: Response, next: NextFunction) => {
       try {
-        if (!req.userId) throw new UnauthorizedError();
-        const userId = req.userId as number;
+        if (!req.user) throw new UnauthorizedError();
+        const user = req.user as AuthUser;
+        const userId = user.id;
 
         // Bước 1: RBAC — có permission không
-        if (!(await permissionService.hasPermission(userId, perm)))
+        if (!(await permissionService.hasPermission(user, perm)))
           throw new ForbiddenError(`Missing: ${perm}`);
 
         // Bước 2: ABAC — scope có cover resource này không
-        const scopes = await permissionService.getScopesForUser(userId);
+        const scopes = await permissionService.getScopesForUser(user);
         if (!(await abacService.canAccess(userId, scopes, type, getId(req))))
           throw new ForbiddenError("Access denied");
 
@@ -62,20 +63,21 @@ export const requireSelfOrPermission =
   ) =>
     async (req: Request, _: Response, next: NextFunction) => {
       try {
-        if (!req.userId) throw new UnauthorizedError();
-        const userId = req.userId as number;
+        if (!req.user) throw new UnauthorizedError();
+        const user = req.user as AuthUser;
+        const userId = user.id;
 
         // Self-access: chính chủ → pass, không cần check gì thêm
         const ownerId = await getOwner(req);
         if (userId === ownerId) return next();
 
         // Người khác: RBAC check
-        if (!(await permissionService.hasPermission(userId, perm)))
+        if (!(await permissionService.hasPermission(user, perm)))
           throw new ForbiddenError(`Missing: ${perm}`);
 
         // Người khác: ABAC scope check
         // Fix: phiên bản cũ bỏ qua bước này → scope bypass
-        const scopes = await permissionService.getScopesForUser(userId);
+        const scopes = await permissionService.getScopesForUser(user);
         if (!(await abacService.canAccess(userId, scopes, resourceType, getId(req))))
           throw new ForbiddenError("Access denied");
 

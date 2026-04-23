@@ -88,9 +88,9 @@ export class ProfileService {
     async getProfiles(
         filter: ProfileFilter,
         pagination: PaginationQuery,
-        userId: ID
+        user: AuthUser
     ) {
-        const scopes = await permissionService.getScopes(userId)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
@@ -210,7 +210,7 @@ export class ProfileService {
 
             const isSelf = existing.userId === user.id
             if (!isSelf) {
-                const scopes = await permissionService.getScopes(user.id)
+                const scopes = await permissionService.getScopes(user)
                 const canUpdate = await abacService.canAccess(user.id, scopes, 'profile', id)
                 if (!canUpdate) {
                     throw new ForbiddenError('You do not have permission to update this profile')
@@ -408,7 +408,7 @@ export class ProfileService {
             throw new NotFoundError('Profile not found')
         }
 
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canDelete = await abacService.canAccess(
             user.id,
             scopes,

@@ -40,7 +40,7 @@ export const AuditLogSchema = z.object({
   resourceId: z.string().nullable(),
   eventTime: z.date(),
   clientIp: z.string().nullable(),
-  details: z.record(z.any()).nullable(),
+  details: z.record(z.string(), z.any()).nullable(),
 });
 
 export const SchedulerJobSchema = z.object({

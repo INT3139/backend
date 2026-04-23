@@ -1,8 +1,8 @@
 import { ID } from "@/types";
 
 export const CacheKey = {
-  permCodes:               (u: ID | string)          => `perm:codes:${u}`,
-  permScopes:              (u: ID | string)          => `perm:scopes:${u}`,
+  permCodes:               (u: ID | string, p?: string) => `perm:codes:${u}${p ? `:${p}` : ''}`,
+  permScopes:              (u: ID | string, p?: string) => `perm:scopes:${u}${p ? `:${p}` : ''}`,
   permCatalog:             ()                   => `perm:catalog`,
   profileFull:             (id: ID | string)         => `profile:full:${id}`,
   staffListByUnit:         (id: ID | string)         => `staff:list:unit:${id}`,

@@ -30,10 +30,10 @@ export const ProfileSchema = z.object({
   passportIssuedBy: z.string().optional(),
   insuranceNumber: z.string().optional(),
   insuranceJoinedAt: z.date().optional(),
-  addrHometown: z.record(z.any()).optional(),
-  addrBirthplace: z.record(z.any()).optional(),
-  addrPermanent: z.record(z.any()).optional(),
-  addrCurrent: z.record(z.any()).optional(),
+  addrHometown: z.record(z.string(), z.any()).optional(),
+  addrBirthplace: z.record(z.string(), z.any()).optional(),
+  addrPermanent: z.record(z.string(), z.any()).optional(),
+  addrCurrent: z.record(z.string(), z.any()).optional(),
   academicDegree: z.string().optional(),
   academicTitle: z.string().optional(),
   eduLevelGeneral: z.string().optional(),
@@ -144,7 +144,7 @@ export const ResearchWorkSchema = z.discriminatedUnion('workType', [
   ResearchWorkBaseSchema.extend({ workType: z.literal('journal_paper'), extra: z.object({}).strict() }),
   ResearchWorkBaseSchema.extend({ workType: z.literal('conference_paper'), extra: z.object({}).strict() }),
   ResearchWorkBaseSchema.extend({ workType: z.literal('book_chapter'), extra: z.object({ book_title: z.string(), editors: z.string().optional(), pages: z.string().optional() }) }),
-  ResearchWorkBaseSchema.extend({ workType: z.literal('other'), extra: z.record(z.any()) }),
+  ResearchWorkBaseSchema.extend({ workType: z.literal('other'), extra: z.record(z.string(), z.any()) }),
 ]);
 
 // --- CONTRACT ---
@@ -211,6 +211,7 @@ export const profileContract = c.router({
     method: 'POST',
     path: '/:id/approve',
     pathParams: z.object({ id: z.coerce.number() }),
+    body: z.any().optional(),
     responses: { 200: ApiMessageResponse },
     summary: 'Approve profile',
   },

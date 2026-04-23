@@ -53,6 +53,9 @@ export interface AuthUser {
   email: string
   fullName: string
   unitId: ID | null
+  role?: string
+  port?: string
+  activeRoles?: string[]
 }
 
 export interface UserScope {

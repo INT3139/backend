@@ -25,7 +25,7 @@ export class RewardService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
@@ -45,7 +45,7 @@ export class RewardService {
         if (!profile) throw new NotFoundError('Profile not found')
 
         // Check if user has scope over this profile
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
         if (unitIds !== 'all' && (profile.unitId === null || !unitIds.includes(profile.unitId))) {
             throw new ForbiddenError('You do not have permission to add reward for this profile')
@@ -76,7 +76,7 @@ export class RewardService {
      * Update commendation
      */
     async updateCommendation(id: ID, data: Partial<CommendationRow>, user: AuthUser) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_commendation', id)
 
         if (!canAccess) {
@@ -94,7 +94,7 @@ export class RewardService {
      * Delete commendation
      */
     async deleteCommendation(id: ID, user: AuthUser) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_commendation', id)
 
         if (!canAccess) {
@@ -112,7 +112,7 @@ export class RewardService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
@@ -131,7 +131,7 @@ export class RewardService {
         const profile = await profileRepo.findById(data.profileId)
         if (!profile) throw new NotFoundError('Profile not found')
 
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
         if (unitIds !== 'all' && (profile.unitId === null || !unitIds.includes(profile.unitId))) {
             throw new ForbiddenError('You do not have permission to add title for this profile')
@@ -160,7 +160,7 @@ export class RewardService {
      * Update title
      */
     async updateTitle(id: ID, data: Partial<TitleRow>, user: AuthUser) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_title', id)
 
         if (!canAccess) {
@@ -178,7 +178,7 @@ export class RewardService {
      * Delete title
      */
     async deleteTitle(id: ID, user: AuthUser) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_title', id)
 
         if (!canAccess) {
@@ -196,7 +196,7 @@ export class RewardService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
@@ -215,7 +215,7 @@ export class RewardService {
         const profile = await profileRepo.findById(data.profileId)
         if (!profile) throw new NotFoundError('Profile not found')
 
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
         if (unitIds !== 'all' && (profile.unitId === null || !unitIds.includes(profile.unitId))) {
             throw new ForbiddenError('You do not have permission to add disciplinary record for this profile')
@@ -237,7 +237,7 @@ export class RewardService {
      * Update disciplinary record
      */
     async updateDiscipline(id: ID, data: Partial<DisciplineRow>, user: AuthUser) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_discipline', id)
 
         if (!canAccess) {
@@ -255,7 +255,7 @@ export class RewardService {
      * Delete disciplinary record
      */
     async deleteDiscipline(id: ID, user: AuthUser) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const canAccess = await abacService.canAccess(user.id, scopes, 'reward_discipline', id)
 
         if (!canAccess) {

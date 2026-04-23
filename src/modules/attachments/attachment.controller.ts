@@ -39,7 +39,7 @@ export const downloadAttachment = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
-    const url = await storageService.getDownloadUrl(id, req.userId!)
+    const url = await storageService.getDownloadUrl(id, req.user!)
     
     return success(res, { url })
 })
@@ -52,7 +52,7 @@ export const deleteAttachment = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const id = parseInt(req.params.id as string, 10)
-    await storageService.deleteAttachment(id, req.userId!)
+    await storageService.deleteAttachment(id, req.user!)
     await logAction(req.userId!, 'delete', 'attachment', id.toString(), undefined, req)
 
     return success(res, { message: 'Attachment deleted' })

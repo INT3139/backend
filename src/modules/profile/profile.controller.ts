@@ -32,10 +32,11 @@ export const getMyProfile = asyncHandler(async (
     const profile = await profileService.getProfileByUserId(userId)
 
     if (profile) {
+        const user = req.user!
         const [hasRewardPerm, hasSalaryPerm, hasRecruitmentPerm] = await Promise.all([  
-            permissionService.hasPermission(userId, PERM.REWARD.SELF_READ),
-            permissionService.hasPermission(userId, PERM.SALARY.SELF_READ),
-            permissionService.hasPermission(userId, PERM.RECRUITMENT.SELF_READ)
+            permissionService.hasPermission(user, PERM.REWARD.SELF_READ),
+            permissionService.hasPermission(user, PERM.SALARY.SELF_READ),
+            permissionService.hasPermission(user, PERM.RECRUITMENT.SELF_READ)
         ])
 
         const extraData = await Promise.all([
@@ -76,7 +77,7 @@ export const getProfiles = asyncHandler(async (
         limit: parseInt(limit as string, 10)
     }
 
-    const result = await profileService.getProfiles(filter, pagination, req.userId!)
+    const result = await profileService.getProfiles(filter, pagination, req.user!)
     await logAction(req.userId!, 'read', 'profile_list', undefined, { filter, pagination }, req)
 
     return success(res, result)

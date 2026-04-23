@@ -68,7 +68,7 @@ export class WorkloadService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {
@@ -100,7 +100,7 @@ export class WorkloadService {
         pagination: PaginationQuery,
         user: AuthUser
     ) {
-        const scopes = await permissionService.getScopes(user.id)
+        const scopes = await permissionService.getScopes(user)
         const unitIds = await abacService.getUnitIds(scopes)
 
         if (unitIds !== 'all') {

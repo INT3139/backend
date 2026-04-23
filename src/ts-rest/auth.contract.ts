@@ -9,6 +9,7 @@ const c = initContract();
 export const LoginRequestSchema = z.object({
   username: z.string().min(1, 'Tên đăng nhập không được để trống'),
   password: z.string().min(1, 'Mật khẩu không được để trống'),
+  port: z.enum(['admin', 'cv', 'main'], { message: 'Port không được để trống' }),
 });
 
 export const LoginResponseSchema = z.object({
@@ -18,6 +19,18 @@ export const LoginResponseSchema = z.object({
     id: z.number(),
     username: z.string(),
     fullName: z.string(),
+    role: z.string().optional(),
+  }),
+});
+
+export const RefreshTokenResponseSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  user: z.object({
+    id: z.number(),
+    username: z.string(),
+    fullName: z.string(),
+    role: z.string().optional(),
   }),
 });
 
@@ -59,7 +72,7 @@ export const authContract = c.router({
     path: '/refresh',
     body: RefreshTokenRequestSchema,
     responses: { 
-      200: createApiResponse(z.object({ accessToken: z.string() })),
+      200: createApiResponse(RefreshTokenResponseSchema),
       401: z.object({ success: z.literal(false), message: z.string() }),
     },
     summary: 'Refresh token',

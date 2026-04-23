@@ -13,11 +13,17 @@ import { authenticate } from "@/core/middlewares/auth"
  *       required:
  *         - username
  *         - password
+ *         - port
  *       properties:
  *         username:
  *           type: string
+ *           example: hungpn
  *         password:
  *           type: string
+ *           example: "123456"
+ *         port:
+ *           type: string
+ *           enum: [admin, cv, main]
  *     LoginResponse:
  *       type: object
  *       properties:
@@ -34,6 +40,23 @@ import { authenticate } from "@/core/middlewares/auth"
  *               type: string
  *             fullName:
  *               type: string
+ *             role:
+ *               type: string
+ *             port:
+ *               type: string
+ *             activeRoles:
+ *               type: array
+ *               items:
+ *                 type: string
+ *     RefreshTokenResponse:
+ *       type: object
+ *       properties:
+ *         accessToken:
+ *           type: string
+ *         refreshToken:
+ *           type: string
+ *         user:
+ *           $ref: '#/components/schemas/LoginResponse/properties/user'
  *     RefreshTokenRequest:
  *       type: object
  *       required:
@@ -62,6 +85,12 @@ import { authenticate } from "@/core/middlewares/auth"
  *           type: array
  *           items:
  *             type: object
+ *             properties:
+ *               scopeType:
+ *                 type: string
+ *               unitId:
+ *                 type: integer
+ *                 nullable: true
  */
 
 const router = Router()
@@ -72,8 +101,8 @@ const router = Router()
  *   post:
  *     tags:
  *       - Auth
- *     summary: Login user
- *     description: Authenticate user with username and password to receive JWT tokens.
+ *     summary: Đăng nhập hệ thống
+ *     description: Xác thực người dùng bằng username, password và port (admin, cv, main).
  *     requestBody:
  *       required: true
  *       content:
@@ -82,7 +111,7 @@ const router = Router()
  *             $ref: '#/components/schemas/LoginRequest'
  *     responses:
  *       200:
- *         description: Login successful
+ *         description: Đăng nhập thành công
  *         content:
  *           application/json:
  *             schema:
@@ -92,9 +121,11 @@ const router = Router()
  *                     data:
  *                       $ref: '#/components/schemas/LoginResponse'
  *       401:
- *         description: Invalid credentials
+ *         description: Sai thông tin đăng nhập
+ *       403:
+ *         description: Không có quyền truy cập cổng này
  *       500:
- *         description: Internal server error
+ *         description: Lỗi hệ thống
  */
 router.post("/login", validateBody(schema.loginSchema), controller.loginCtrl)
 
@@ -104,8 +135,8 @@ router.post("/login", validateBody(schema.loginSchema), controller.loginCtrl)
  *   post:
  *     tags:
  *       - Auth
- *     summary: Refresh token
- *     description: Obtain a new access token using a valid refresh token.
+ *     summary: Làm mới access token
+ *     description: Sử dụng refresh token để lấy access token mới và thông tin user context.
  *     requestBody:
  *       required: true
  *       content:
@@ -114,7 +145,7 @@ router.post("/login", validateBody(schema.loginSchema), controller.loginCtrl)
  *             $ref: '#/components/schemas/RefreshTokenRequest'
  *     responses:
  *       200:
- *         description: Token refreshed successfully
+ *         description: Refresh thành công
  *         content:
  *           application/json:
  *             schema:
@@ -122,12 +153,9 @@ router.post("/login", validateBody(schema.loginSchema), controller.loginCtrl)
  *                 - $ref: '#/components/schemas/ApiResponse'
  *                 - properties:
  *                     data:
- *                       type: object
- *                       properties:
- *                         accessToken:
- *                           type: string
+ *                       $ref: '#/components/schemas/RefreshTokenResponse'
  *       401:
- *         description: Invalid or expired refresh token
+ *         description: Refresh token không hợp lệ hoặc hết hạn
  */
 router.post("/refresh", validateBody(schema.refreshSchema), controller.refreshTokenCtrl)
 
@@ -137,13 +165,13 @@ router.post("/refresh", validateBody(schema.refreshSchema), controller.refreshTo
  *   post:
  *     tags:
  *       - Auth
- *     summary: Logout user
- *     description: Invalidate the current session/tokens.
+ *     summary: Đăng xuất
+ *     description: Hủy phiên làm việc hiện tại.
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Logout successful
+ *         description: Đăng xuất thành công
  *         content:
  *           application/json:
  *             schema:
@@ -157,8 +185,8 @@ router.post("/logout", authenticate, controller.logoutCtrl)
  *   post:
  *     tags:
  *       - Auth
- *     summary: Change password
- *     description: Update password for the currently authenticated user.
+ *     summary: Đổi mật khẩu
+ *     description: Cập nhật mật khẩu mới cho user đang đăng nhập.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -169,13 +197,13 @@ router.post("/logout", authenticate, controller.logoutCtrl)
  *             $ref: '#/components/schemas/ChangePasswordRequest'
  *     responses:
  *       200:
- *         description: Password changed successfully
+ *         description: Đổi mật khẩu thành công
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ApiResponse'
  *       400:
- *         description: Invalid input or old password incorrect
+ *         description: Dữ liệu không hợp lệ hoặc mật khẩu cũ sai
  */
 router.post("/change-password", authenticate, validateBody(schema.changePasswordSchema), controller.changePasswordCtrl)
 
@@ -185,13 +213,13 @@ router.post("/change-password", authenticate, validateBody(schema.changePassword
  *   get:
  *     tags:
  *       - Auth
- *     summary: Get user permissions and scopes
- *     description: Retrieve all assigned permissions and their respective scopes for the current user.
+ *     summary: Lấy danh sách quyền và scope
+ *     description: Trả về toàn bộ permissions và các scopes tương ứng dựa trên cổng (port) đang truy cập.
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Successfully retrieved permissions
+ *         description: Lấy dữ liệu thành công
  *         content:
  *           application/json:
  *             schema:

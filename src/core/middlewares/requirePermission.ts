@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { ForbiddenError, UnauthorizedError } from "./errorHandler";
 import { permissionService } from "../permissions/permission.service";
+import { AuthUser } from "@/types";
 
 /**
  * Guard: yêu cầu user có đúng 1 permission code.
@@ -9,8 +10,8 @@ export const requirePermission =
   (code: string) =>
     async (req: Request, _: Response, next: NextFunction) => {
       try {
-        if (!req.userId) throw new UnauthorizedError();
-        if (!(await permissionService.hasPermission(req.userId as number, code)))
+        if (!req.user) throw new UnauthorizedError();
+        if (!(await permissionService.hasPermission(req.user as AuthUser, code)))
           throw new ForbiddenError(`Missing: ${code}`);
         next();
       } catch (e) {
@@ -26,10 +27,10 @@ export const requireAnyPermission =
   (...codes: string[]) =>
     async (req: Request, _: Response, next: NextFunction) => {
       try {
-        if (!req.userId) throw new UnauthorizedError();
+        if (!req.user) throw new UnauthorizedError();
         const results = await Promise.all(
           codes.map((c) =>
-            permissionService.hasPermission(req.userId as number, c)
+            permissionService.hasPermission(req.user as AuthUser, c)
           )
         );
         if (!results.some(Boolean))
@@ -47,10 +48,10 @@ export const requireAllPermissions =
   (...codes: string[]) =>
     async (req: Request, _: Response, next: NextFunction) => {
       try {
-        if (!req.userId) throw new UnauthorizedError();
+        if (!req.user) throw new UnauthorizedError();
         const results = await Promise.all(
           codes.map((c) =>
-            permissionService.hasPermission(req.userId as number, c)
+            permissionService.hasPermission(req.user as AuthUser, c)
           )
         );
         if (!results.every(Boolean))
