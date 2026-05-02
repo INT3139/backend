@@ -2,6 +2,7 @@ import { startNotificationWorker } from './notificationWorker.job'
 import { startSalaryGradeDueJob } from './salaryGradeDue.job'
 import { appointmentExpiryJob } from './appointmentExpiry.job'
 import { contractExpiryJob } from './contractExpiry.job'
+import { workflowExpiryJob } from './workflowExpiry.job'
 import cron from 'node-cron'
 import { logger } from '@/configs/logger'
 
@@ -58,6 +59,7 @@ export const startJobs = () => {
     schedulerService.register('expiry-jobs', '0 1 * * *', async () => {
         await appointmentExpiryJob()
         await contractExpiryJob()
+        await workflowExpiryJob()
         logger.info('Expiry jobs completed')
     })
 }
