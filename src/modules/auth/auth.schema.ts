@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const loginSchema = z.object({
     username: z.string().min(1, 'Username is required'),
     password: z.string().min(1, 'Password is required'),
-    port: z.enum(['admin', 'cv', 'main'], { required_error: 'Port is required' })
+    port: z.enum(['admin', 'cv', 'main'], { message: 'Port is required' })
 })
 
 export const changePasswordSchema = z.object({

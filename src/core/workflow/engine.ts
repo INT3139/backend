@@ -57,6 +57,9 @@ export class WorkflowEngine {
     const def = await this.getDefinition(p.definitionCode)
     const steps = def.steps as StepDef[]
 
+    // Default dueAt to 4 weeks from now if not provided
+    const defaultDueAt = new Date(Date.now() + 28 * 24 * 60 * 60 * 1000)
+
     const [inst] = await (tx || db)
       .insert(wfInstances)
       .values({
@@ -67,7 +70,7 @@ export class WorkflowEngine {
         status: 'in_progress',
         currentStep: 1,
         metadata: p.metadata ?? {},
-        dueAt: p.dueAt ?? null,
+        dueAt: p.dueAt ?? defaultDueAt,
       })
       .returning()
 
