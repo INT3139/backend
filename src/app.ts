@@ -20,6 +20,7 @@ import { rewardRoutes } from './modules/reward/reward.routes'
 import { workloadRoutes } from './modules/workload/workload.routes'
 import { attachmentRoutes } from './modules/attachments/attachment.routes'
 import { workflowRoutes } from './modules/workflow.routes'
+import { notificationRoutes } from './modules/notifications/notification.routes'
 
 const API_PREFIX = '/api/v1'
 
@@ -56,6 +57,7 @@ export function createApp(): Application {
     app.use(`${API_PREFIX}/workload`, workloadRoutes)
     app.use(`${API_PREFIX}/attachments`, attachmentRoutes)
     app.use(`${API_PREFIX}/workflow`, workflowRoutes)
+    app.use(`${API_PREFIX}/notifications`, notificationRoutes)
 
     // Error handler MUST be last
     app.use(errorHandler);

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { logger } from '@/configs/logger'
 import { db } from '@/configs/db'
 import { sysAuditLogs } from '@/db/schema/system'
+import { calculateDiff } from '@/utils/diff'
 
 export function auditContext(req: Request, res: Response, next: NextFunction): void {
   // Capture request metadata for later logging
@@ -15,27 +16,6 @@ export function auditContext(req: Request, res: Response, next: NextFunction): v
   
   if (req.userId) (res.locals as any).actorId = req.userId
   next()
-}
-
-/**
- * Helper to calculate difference between two objects
- */
-function calculateDiff(oldVal: any, newVal: any): Record<string, any> | null {
-  if (!oldVal || !newVal) return null
-  const diff: Record<string, any> = {}
-  let hasChange = false
-
-  const allKeys = new Set([...Object.keys(oldVal), ...Object.keys(newVal)])
-  for (const key of allKeys) {
-    if (JSON.stringify(oldVal[key]) !== JSON.stringify(newVal[key])) {
-      diff[key] = {
-        from: oldVal[key],
-        to: newVal[key]
-      }
-      hasChange = true
-    }
-  }
-  return hasChange ? diff : null
 }
 
 export async function logAction(

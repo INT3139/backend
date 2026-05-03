@@ -1,8 +1,8 @@
 import { db } from "@/configs/db"
-import { eq, sql } from "drizzle-orm"
+import { eq, sql, desc } from "drizzle-orm"
 import { profileRepo, ProfileFilter, ProfileRow, ProfileListRow } from "./profile.repo"
 import { profileStaff, profileFamilyRelations, profileWorkHistories, profileResearchWorks } from "@/db/schema"
-import { wfInstances } from "@/db/schema/workflow"
+import { wfInstances, wfStepLogs } from "@/db/schema/workflow"
 import { profileSubRepo } from "./profileSub.repo"
 import { ID, PaginationQuery, AuthUser } from "@/types"
 import { abacService } from "@/core/permissions/abac"
@@ -16,6 +16,8 @@ import { registerWorkflowHandler } from "@/core/workflow/workflow.dispatcher"
 import { updateProfileSchema } from "./profile.schema"
 import { storageService } from "@/services/storage.service"
 import { educationSchema, familySchema, workHistorySchema, extraInfoSchema, healthSchema, positionSchema, createResearchWorkSchema, updateResearchWorkSchema } from "./profileSub.schema"
+import { notificationService } from "@/services/notification.service"
+import { calculateDiff } from "@/utils/diff"
 
 export interface FullProfileRow extends ProfileRow {
     avatarUrl?: string
@@ -388,6 +390,26 @@ export class ProfileService {
             .set({ metadata: clearedMetadata })
             .where(eq(wfInstances.id, inst.id))
 
+        // 4. Gửi thông báo từ chối
+        const [lastLog] = await (tx || db)
+            .select()
+            .from(wfStepLogs)
+            .where(eq(wfStepLogs.instanceId, inst.id))
+            .orderBy(desc(wfStepLogs.actedAt))
+            .limit(1)
+
+        await notificationService.enqueue({
+            templateCode: 'workflow_rejected',
+            recipientId: inst.initiatedBy,
+            resourceType: 'profile',
+            resourceId: inst.resourceId,
+            payload: {
+                reason: lastLog?.comment || 'Không có lý do cụ thể',
+                instanceId: inst.id,
+                resourceType: 'Hồ sơ'
+            }
+        })
+
         try { await rDel(CacheKey.profileFull(profileId)) } catch (e) { console.error('Redis cache error:', e) }
     }
 
@@ -534,6 +556,23 @@ export class ProfileService {
 
         // Chỉ chuyển trạng thái hồ sơ về 'approved' nếu là bước finalize (hết workflow)
         if (finalize) {
+            const currentProfile = await profileRepo.findById(profileId)
+            const diff = calculateDiff(currentProfile, metadata.main?.data || metadata.main)
+
+            if (diff) {
+                await notificationService.enqueue({
+                    templateCode: 'workflow_approved',
+                    recipientId: inst.initiatedBy,
+                    resourceType: 'profile',
+                    resourceId: profileId,
+                    payload: {
+                        diff,
+                        instanceId: inst.id,
+                        resourceType: 'Hồ sơ'
+                    }
+                })
+            }
+
             await profileRepo.update(profileId, { profileStatus: 'approved', updatedAt: new Date() }, tx)
         }
 

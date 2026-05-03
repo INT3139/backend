@@ -14,6 +14,7 @@ export interface WorkflowInstance {
   definitionId: ID
   resourceType: string
   resourceId: ID
+  initiatedBy: ID
   status: WorkflowStatus
   currentStep: number
   metadata: any
