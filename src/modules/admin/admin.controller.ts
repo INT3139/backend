@@ -101,6 +101,33 @@ export const createRole = asyncHandler(async (
 })
 
 /**
+ * GET /api/v1/admin/roles/:id/permissions
+ */
+export const getRolePermissions = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    const id = parseInt(req.params.id as string, 10)
+    const result = await adminService.getRolePermissions(id)
+    return success(res, result)
+})
+
+/**
+ * PUT /api/v1/admin/roles/:id/permissions
+ */
+export const updateRolePermissions = asyncHandler(async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    const id = parseInt(req.params.id as string, 10)
+    const { permissions } = req.body
+    await adminService.updateRolePermissions(id, permissions)
+    await logAction(req.userId!, 'update', 'role_permissions', id.toString(), req.body, req)
+
+    return success(res, { message: 'Role permissions updated successfully' })
+})
+
+/**
  * POST /api/v1/admin/users/:id/roles
  */
 export const assignRole = asyncHandler(async (

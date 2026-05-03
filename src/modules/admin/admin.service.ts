@@ -67,7 +67,7 @@ export class AdminService {
     /**
      * Get roles
      */
-    async getRoles(): Promise<RoleRow[]> {
+    async getRoles(): Promise<(RoleRow & { userCount: number; permissionCount: number })[]> {
         return await adminRepo.findAllRoles()
     }
 
@@ -76,6 +76,28 @@ export class AdminService {
      */
     async createRole(data: Partial<RoleRow>) {
         return await adminRepo.createRole(data)
+    }
+
+    /**
+     * Get permissions for a role
+     */
+    async getRolePermissions(roleId: ID): Promise<string[]> {
+        return await adminRepo.getRolePermissions(roleId)
+    }
+
+    /**
+     * Update permissions for a role
+     */
+    async updateRolePermissions(roleId: ID, permissionCodes: string[]) {
+        const res = await adminRepo.updateRolePermissions(roleId, permissionCodes)
+        
+        // Invalidate cache for all users having this role
+        const userIds = await adminRepo.getUsersWithRole(roleId)
+        for (const userId of userIds) {
+            await permissionService.invalidate(userId)
+        }
+        
+        return res
     }
 
     /**

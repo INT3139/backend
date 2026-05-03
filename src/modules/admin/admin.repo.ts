@@ -1,6 +1,6 @@
 import { db } from "@/configs/db"
 import { ID, PaginationQuery, PaginatedResult } from "@/types"
-import { users, roles, organizationalUnits, sysAuditLogs, userRoles, permissions } from "@/db/schema"
+import { users, roles, organizationalUnits, sysAuditLogs, userRoles, permissions, rolePermissions } from "@/db/schema"
 import { eq, and, sql, count, desc, asc, isNull, gte, lte } from "drizzle-orm"
 import ExcelJS from "exceljs"
 
@@ -63,13 +63,24 @@ export class AdminRepo {
     }
 
     /**
-     * Get all roles
+     * Get all roles with user and permission counts
      */
-    async findAllRoles(): Promise<RoleRow[]> {
-        return await db.select()
+    async findAllRoles(): Promise<(RoleRow & { userCount: number; permissionCount: number })[]> {
+        const rows = await db.select({
+            id: roles.id,
+            code: roles.code,
+            name: roles.name,
+            description: roles.description,
+            createdAt: roles.createdAt,
+            deletedAt: roles.deletedAt,
+            userCount: sql<number>`(SELECT count(*) FROM ${userRoles} WHERE ${userRoles.roleId} = ${roles.id})::int`,
+            permissionCount: sql<number>`(SELECT count(*) FROM ${rolePermissions} WHERE ${rolePermissions.roleId} = ${roles.id})::int`
+        })
             .from(roles)
-            .where(sql`${roles.deletedAt} IS NULL`)
+            .where(isNull(roles.deletedAt))
             .orderBy(roles.code)
+
+        return rows
     }
 
     /**
@@ -217,6 +228,41 @@ export class AdminRepo {
     async createPermission(data: { code: string; description: string }) {
         const res = await db.insert(permissions).values(data).returning()
         return res[0]
+    }
+
+    /**
+     * Get permissions for a role
+     */
+    async getRolePermissions(roleId: ID): Promise<string[]> {
+        const rows = await db.select({ permissionCode: rolePermissions.permissionCode })
+            .from(rolePermissions)
+            .where(eq(rolePermissions.roleId, roleId))
+        return rows.map(r => r.permissionCode)
+    }
+
+    /**
+     * Update permissions for a role
+     */
+    async updateRolePermissions(roleId: ID, permissionCodes: string[]) {
+        await db.transaction(async (tx) => {
+            await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId))
+            if (permissionCodes.length > 0) {
+                await tx.insert(rolePermissions).values(
+                    permissionCodes.map(code => ({ roleId, permissionCode: code }))
+                )
+            }
+        })
+        return true
+    }
+
+    /**
+     * Get all users assigned to a specific role
+     */
+    async getUsersWithRole(roleId: ID): Promise<ID[]> {
+        const rows = await db.select({ userId: userRoles.userId })
+            .from(userRoles)
+            .where(eq(userRoles.roleId, roleId))
+        return rows.map(r => r.userId)
     }
 
     /**

@@ -18,6 +18,10 @@ export const createRoleSchema = z.object({
     description: z.string().optional()
 })
 
+export const updateRolePermissionsSchema = z.object({
+    permissions: z.array(z.string()).min(1, 'At least one permission is required')
+})
+
 export const assignRoleSchema = z.object({
     roleId: z.number().int().positive(),
     scopeType: z.enum(['school', 'faculty', 'department', 'self']).optional(),

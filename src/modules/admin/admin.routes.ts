@@ -42,6 +42,10 @@ import * as schema from "./admin.schema"
  *           type: string
  *         description:
  *           type: string
+ *         userCount:
+ *           type: integer
+ *         permissionCount:
+ *           type: integer
  *     Unit:
  *       type: object
  *       properties:
@@ -408,6 +412,82 @@ router.post(
     requirePermission(PERM.SYSTEM.ROLE_MANAGE),
     validateBody(schema.createRoleSchema),
     controller.createRole
+)
+
+/**
+ * @openapi
+ * /admin/roles/{id}/permissions:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get permissions for a role
+ *     description: Retrieve a list of permission codes assigned to a specific role.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved role permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ */
+router.get(
+    "/roles/:id/permissions",
+    requirePermission(PERM.SYSTEM.PERM_MANAGE),
+    controller.getRolePermissions
+)
+
+/**
+ * @openapi
+ * /admin/roles/{id}/permissions:
+ *   put:
+ *     tags:
+ *       - Admin
+ *     summary: Update permissions for a role
+ *     description: Replace the current set of permissions for a role with a new list of permission codes.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - permissions
+ *             properties:
+ *               permissions:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Role permissions updated successfully
+ */
+router.put(
+    "/roles/:id/permissions",
+    requirePermission(PERM.SYSTEM.PERM_MANAGE),
+    validateBody(schema.updateRolePermissionsSchema),
+    controller.updateRolePermissions
 )
 
 /**
