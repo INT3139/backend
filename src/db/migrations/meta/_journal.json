@@ -43,6 +43,13 @@
       "when": 1775331393574,
       "tag": "0005_mature_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777892595625,
+      "tag": "0006_soft_karma",
+      "breakpoints": true
     }
   ]
 }

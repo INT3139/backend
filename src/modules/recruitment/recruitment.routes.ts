@@ -198,6 +198,84 @@ router.post(
 
 /**
  * @openapi
+ * /recruitment/contracts/proposals:
+ *   post:
+ *     tags:
+ *       - Recruitment
+ *     summary: Create new contract proposal
+ *     description: Initiate a workflow for a new recruitment contract.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fullName
+ *               - email
+ *               - unitId
+ *             properties:
+ *               fullName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               unitId:
+ *                 type: integer
+ *               contractType:
+ *                 type: string
+ *               startDate:
+ *                 type: string
+ *                 format: date
+ *     responses:
+ *       201:
+ *         description: Proposal initiated successfully
+ */
+router.post(
+    "/contracts/proposals",
+    requirePermission(PERM.CONTRACT.WRITE),
+    controller.createContractProposal
+)
+
+/**
+ * @openapi
+ * /recruitment/contracts/proposals/{instanceId}/recall:
+ *   post:
+ *     tags:
+ *       - Recruitment
+ *     summary: Recall a contract proposal
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: instanceId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Proposal recalled successfully
+ */
+router.post(
+    "/contracts/proposals/:instanceId/recall",
+    requirePermission(PERM.CONTRACT.WRITE),
+    controller.recallContractProposal
+)
+
+/**
+ * @openapi
  * /recruitment/proposals/{id}:
  *   put:
  *     tags:

@@ -42,7 +42,7 @@ export const appointmentStatusEnum = pgEnum('appointment_status', ['active', 'ex
 
 export const workflowStatusEnum = pgEnum('workflow_status', ['pending', 'in_progress', 'approved', 'rejected', 'cancelled']);
 
-export const workflowActionEnum = pgEnum('workflow_action', ['approve', 'reject', 'request_revision', 'ballot_submit', 'forward']);
+export const workflowActionEnum = pgEnum('workflow_action', ['approve', 'reject', 'request_revision', 'ballot_submit', 'forward', 'recall']);
 
 export const attachmentCategoryEnum = pgEnum('attachment_category', ['evidence', 'decision', 'ballot_minutes', 'cv', 'contract_doc', 'other']);
 

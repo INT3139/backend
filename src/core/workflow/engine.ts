@@ -4,7 +4,7 @@ import { userRoles as userRolesTable } from '@/db/schema/auth'
 import { eq, and, asc, sql } from 'drizzle-orm'
 import { cacheService } from '../cache/cache.service'
 import { CacheKey, CacheTTL } from '../cache/cacheKey'
-import { ID, WorkflowStatus, WorkflowInitPayload } from '@/types'
+import { ID, WorkflowStatus, WorkflowInitPayload, WorkflowAction } from '@/types'
 import { NotFoundError, ForbiddenError } from '../middlewares/errorHandler'
 import { permissionService } from '../permissions/permission.service'
 import { dispatchWorkflowResult } from './workflow.dispatcher'
@@ -104,8 +104,9 @@ export class WorkflowEngine {
   async advance(
     instanceId: ID,
     actorId: ID,
-    action: 'approve' | 'ballot_submit' | 'reject' | 'request_revision' | 'forward',
+    action: WorkflowAction,
     comment?: string,
+    targetStep?: number,
   ): Promise<WorkflowInstance> {
     return db.transaction(async (tx) => {
       // Lock row để tránh concurrent advance
@@ -152,6 +153,7 @@ export class WorkflowEngine {
       // Tính trạng thái mới
       const isReject = action === 'reject'
       const isRevision = action === 'request_revision'
+      const isRecall = action === 'recall'
       const isBallot = action === 'ballot_submit'  // ballot_submit treated as forward
       const nextStep = inst.currentStep + 1
       const isLast = nextStep > steps.length
@@ -159,18 +161,20 @@ export class WorkflowEngine {
       let newStatus: WorkflowStatus = inst.status
       if (isReject) {
         newStatus = 'rejected'
+      } else if (isRecall) {
+        newStatus = 'cancelled'
       } else if (isRevision) {
-        newStatus = 'in_progress' // Vẫn in_progress nhưng quay về bước 1
-      } else if (isLast) {
+        newStatus = 'in_progress' // Vẫn in_progress nhưng quay về bước chỉ định
+      } else if (isLast && (action === 'approve' || action === 'forward' || action === 'ballot_submit')) {
         newStatus = 'approved'
       } else {
         newStatus = 'in_progress'
       }
 
-      const newCurrentStep = isReject || isLast
+      const newCurrentStep = (isReject || isRecall || (isLast && !isRevision))
         ? inst.currentStep
         : isRevision
-          ? 1
+          ? (targetStep ?? 1)
           : nextStep
 
       const [updatedInst] = await tx
@@ -178,7 +182,7 @@ export class WorkflowEngine {
         .set({
           currentStep: newCurrentStep,
           status: newStatus,
-          completedAt: (newStatus === 'approved' || newStatus === 'rejected') ? new Date() : null,
+          completedAt: (newStatus === 'approved' || newStatus === 'rejected' || newStatus === 'cancelled') ? new Date() : null,
         })
         .where(eq(wfInstances.id, inst.id))
         .returning()
@@ -299,6 +303,23 @@ export class WorkflowEngine {
     })
 
     await cacheService.invalidateWorkflowInstance(id)
+  }
+
+  async recall(id: ID, actorId: ID, reason: string): Promise<void> {
+    const [inst] = await db.select().from(wfInstances).where(eq(wfInstances.id, id))
+    if (!inst) throw new NotFoundError('Workflow instance')
+    
+    if (inst.initiatedBy !== actorId) {
+      throw new ForbiddenError('Chỉ người khởi tạo mới có thể rút lại đề xuất')
+    }
+    if (inst.status !== 'in_progress') {
+      throw new ForbiddenError('Chỉ có thể rút lại workflow đang trong quá trình xử lý')
+    }
+    if (inst.currentStep !== 2) {
+      throw new ForbiddenError('Không thể rút lại vì đề xuất đã được cấp trên xử lý')
+    }
+
+    await this.advance(id, actorId, 'recall', reason)
   }
 
   async updateMetadata(instanceId: ID, metadata: any): Promise<void> {

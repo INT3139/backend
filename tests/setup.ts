@@ -1,10 +1,4 @@
-import { pool, db } from '@/configs/db';
-import { redis } from '@/configs/redis';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import path from 'path';
-
 process.env.NODE_ENV = 'test';
-// Use the credentials from .env but point to 'yumeio_test' database
 process.env.DATABASE_URL = 'postgresql://postgres:03082005@localhost:5432/yumeio_test';
 process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long-!!!';
@@ -19,6 +13,11 @@ process.env.SMTP_HOST = 'localhost';
 process.env.SMTP_PORT = '587';
 process.env.SMTP_USER = 'test';
 process.env.SMTP_PASS = 'test';
+
+import { pool, db } from '@/configs/db';
+import { redis } from '@/configs/redis';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import path from 'path';
 
 // Simple in-memory mock for Redis
 const redisStore = new Map<string, any>();

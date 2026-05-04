@@ -44,7 +44,7 @@ export class TestDbHelper {
             'recruitment_contract_extensions',
             'recruitment_info',
             'appointment_records',
-            'wf_tasks',
+            'wf_step_logs',
             'wf_instances',
             'wf_definitions',
             'profile_work_histories',

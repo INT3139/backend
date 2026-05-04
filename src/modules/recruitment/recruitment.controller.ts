@@ -1,5 +1,6 @@
 import { Request, Response } from "express"
 import { recruitmentService } from "./recruitment.service"
+import { contractProposalService } from "./contractProposal.service"
 import { workflowEngine } from "@/core/workflow/engine"
 import { success, created } from "@/utils/response"
 import { AuthUser, ID } from "@/types"
@@ -131,14 +132,65 @@ export const processTask = asyncHandler(async (
     res: Response
 ): Promise<Response> => {
     const { instanceId } = req.params
-    const { action, comment } = req.body
-    const result = await recruitmentService.completeWorkflowTask(
-        parseInt(instanceId as string, 10),
-        req.userId!,
-        action,
-        comment
-    )
+    const { action, comment, targetStep } = req.body
+    
+    let result;
+    if (action === 'recall') {
+        result = await workflowEngine.recall(
+            parseInt(instanceId as string, 10),
+            req.userId!,
+            comment
+        )
+    } else {
+        result = await workflowEngine.advance(
+            parseInt(instanceId as string, 10),
+            req.userId!,
+            action,
+            comment,
+            targetStep
+        )
+    }
+    
     return success(res, result)
+})
+
+// --- NEW CONTRACT PROPOSAL CONTROLLERS ---
+
+/**
+ * POST /api/v1/recruitment/contracts/proposals
+ * Khởi tạo đề xuất ký hợp đồng mới
+ */
+export const createContractProposal = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<Response> => {
+    const result = await contractProposalService.initiateProposal(req.body, req.user!)
+
+    await logAction(req.userId!, 'create', 'new_contract_proposal', result.id.toString(), req.body, req)
+
+    return created(res, { message: 'Đề xuất ký hợp đồng mới đã được khởi tạo.', workflowId: result.id })
+})
+
+/**
+ * POST /api/v1/recruitment/contracts/proposals/:instanceId/recall
+ * Rút lại đề xuất
+ */
+export const recallContractProposal = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<Response> => {
+    const { instanceId } = req.params
+    const { reason } = req.body
+    
+    await contractProposalService.recallProposal(
+        parseInt(instanceId as string, 10),
+        req.user!,
+        reason
+    )
+
+    await logAction(req.userId!, 'cancel', 'new_contract_proposal', instanceId.toString(), { reason }, req)
+
+    return success(res, { message: 'Đề xuất đã được rút lại thành công.' })
 })
 
 // --- CANDIDATE CONTROLLERS ---
