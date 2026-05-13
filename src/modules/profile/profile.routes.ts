@@ -402,6 +402,35 @@ router.get("/me/export", requirePermission(PERM.PROFILE.READ), controller.export
 
 /**
  * @openapi
+ * /profiles/me/export-scientific:
+ *   get:
+ *     tags:
+ *       - Profile
+ *     summary: Export current user profile to scientific curriculum vitae (Word format)
+ *     description: |
+ *       Generates and downloads a Word document (.docx) for the authenticated user's scientific curriculum vitae.
+ *       Includes personal information, academic background, positions, research works, and related rewards.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully generated scientific curriculum vitae document.
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: Unauthorized - Token missing or invalid.
+ *       404:
+ *         description: Profile not found for the current user.
+ *       500:
+ *         description: Internal server error during document generation.
+ */
+router.get("/me/export-scientific", requirePermission(PERM.PROFILE.READ), controller.exportMyScientificProfile)
+
+/**
+ * @openapi
  * /profiles/search:
  *   get:
  *     tags:
@@ -735,6 +764,49 @@ router.get(
     "/:id/export",
     requirePermission(PERM.PROFILE.EXPORT),
     controller.exportProfile
+)
+
+/**
+ * @openapi
+ * /profiles/{id}/export-scientific:
+ *   get:
+ *     tags:
+ *       - Profile
+ *     summary: Export any profile to scientific curriculum vitae (Admin/HR only)
+ *     description: |
+ *       Generates and downloads a Word document (.docx) for the scientific curriculum vitae of a specific profile.
+ *       Includes academic history, positions, research works, and related rewards.
+ *       Requires `PROFILE.EXPORT` permission.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Internal database ID of the profile to export.
+ *     responses:
+ *       200:
+ *         description: Successfully generated scientific curriculum vitae document.
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: Unauthorized.
+ *       403:
+ *         description: Forbidden - Missing required permission (hrm.profile.export).
+ *       404:
+ *         description: Profile not found.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get(
+    "/:id/export-scientific",
+    requirePermission(PERM.PROFILE.EXPORT),
+    controller.exportScientificProfile
 )
 
 /**

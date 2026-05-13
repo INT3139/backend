@@ -1,7 +1,7 @@
 import { db } from "@/configs/db"
 import { ID, EducationHistoryInput, FamilyRelationInput, HealthRecordInput } from "@/types"
 import { profileEducationHistories, profileFamilyRelations, profileWorkHistories, profileExtraInfo, profileHealthRecords, profilePositions, profileResearchWorks } from "@/db/schema"
-import { eq, desc, and, count } from "drizzle-orm"
+import { eq, desc, and, count, isNull } from "drizzle-orm"
 
 export class ProfileSubRepo {
     // --- EDUCATION ---
@@ -256,11 +256,11 @@ export class ProfileSubRepo {
                 count: count()
             })
             .from(profileResearchWorks)
-            .where(eq(profileResearchWorks.profileId, profileId))
+            .where(and(eq(profileResearchWorks.profileId, profileId), isNull(profileResearchWorks.deletedAt)))
             .groupBy(profileResearchWorks.workType);
 
         // 2. Build conditions for the main data query
-        const conditions = [eq(profileResearchWorks.profileId, profileId)];
+        const conditions = [eq(profileResearchWorks.profileId, profileId), isNull(profileResearchWorks.deletedAt)];
         if (workType) {
             conditions.push(eq(profileResearchWorks.workType, workType as any));
         }

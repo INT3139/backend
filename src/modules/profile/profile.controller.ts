@@ -1,14 +1,11 @@
 import { Request, Response } from "express"
-import path from "path"
-import fs from "fs"
 import { profileService } from "./profile.service"
 import { profileSubRepo } from "./profileSub.repo"
 import { success, created } from "@/utils/response"
 import { AuthUser, ID } from "@/types"
 import { logAction } from "@/core/middlewares/auditContext"
 import { asyncHandler } from "@/core/middlewares/errorHandler"
-import { exportService } from "@/services/export.service"
-import { storageService } from "@/services/storage.service"
+import { profileExportService } from "@/services/profile-export.service"
 import { workflowEngine } from "@/core/workflow/engine"
 import { rewardService } from "../reward/reward.service"
 import { salaryService } from "../salary/salary.service"
@@ -147,35 +144,46 @@ export const updateProfile = asyncHandler(async (
     return success(res, updated)
 })
 
-/**
- * Helper function to handle the 2C export logic
- * Syncs data fetching with getMyProfile logic
- */
-const handle2CExport = async (profile: any, req: AuthRequest, res: Response) => {
-    try {
-        const userId = profile.userId
-        const [salary, rewards] = await Promise.all([
-            salaryService.getSalaryByUserId(userId),
-            rewardService.getRewardsByUserId(userId)
-        ])
+const loadProfileExportData = async (profile: any) => {
+    const [salary, rewards] = await Promise.all([
+        salaryService.getSalaryByUserId(profile.userId),
+        rewardService.getRewardsByUserId(profile.userId)
+    ])
 
-        const profileData = {
-            ...profile,
-            salary,
-            rewards
-        }
-
-        const docxBuf = await exportService.exportCurriculumVitae(profileData, profile.id)
-
-        res.setHeader('Content-Disposition', `attachment; filename="LyLich_2C_${profile.id}.docx"`)
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-        res.send(docxBuf)
-
-        await logAction(req.userId!, 'export', 'profile', profile.id.toString(), undefined, req)
-    } catch (error: any) {
-        console.error('Export error:', error)
-        res.status(500).json({ success: false, error: { message: 'Failed to generate export document' } })
+    return {
+        ...profile,
+        salary,
+        rewards
     }
+}
+
+const sendProfileExport = async (
+    profile: any,
+    kind: "2c" | "scientific",
+    req: AuthRequest,
+    res: Response
+) => {
+    const profileData = await loadProfileExportData(profile)
+    const buffer = kind === "2c"
+        ? await profileExportService.export2C(profileData)
+        : await profileExportService.exportScientific(profileData)
+
+    const fileName = kind === "2c"
+        ? `LyLich_2C_${profile.id}.docx`
+        : `LyLichKhoaHoc_${profile.id}.docx`
+
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.send(buffer)
+
+    await logAction(
+        req.userId!,
+        'export',
+        kind === "2c" ? 'profile' : 'profile_scientific',
+        profile.id.toString(),
+        undefined,
+        req
+    )
 }
 
 /**
@@ -186,12 +194,12 @@ export const exportMyProfile = asyncHandler(async (
     res: Response
 ): Promise<void> => {
     // Luôn lấy data mới nhất, không dùng cache để đảm bảo xuất file chính xác
-    const profile = await profileService.getProfileByUserId(req.userId!)
+    const profile = await profileService.getProfileByUserId(req.userId!, { skipCache: true })
     if (!profile) {
         res.status(404).json({ success: false, error: { message: 'Profile not found' } })
         return
     }
-    await handle2CExport(profile, req, res)
+    await sendProfileExport(profile, "2c", req, res)
 })
 
 /**
@@ -203,14 +211,43 @@ export const exportProfile = asyncHandler(async (
 ): Promise<void> => {
     const { id } = req.params
     const profileId = parseInt(id as string, 10)
-    const profile = await profileService.getProfileById(profileId, req.user!)
+    const profile = await profileService.getProfileById(profileId, req.user!, { skipCache: true })
 
     if (!profile) {
         res.status(404).json({ success: false, error: { message: 'Profile not found' } })
         return
     }
 
-    await handle2CExport(profile, req, res)
+    await sendProfileExport(profile, "2c", req, res)
+})
+
+export const exportMyScientificProfile = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    const profile = await profileService.getProfileByUserId(req.userId!, { skipCache: true })
+    if (!profile) {
+        res.status(404).json({ success: false, error: { message: 'Profile not found' } })
+        return
+    }
+
+    await sendProfileExport(profile, "scientific", req, res)
+})
+
+export const exportScientificProfile = asyncHandler(async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    const { id } = req.params
+    const profileId = parseInt(id as string, 10)
+    const profile = await profileService.getProfileById(profileId, req.user!, { skipCache: true })
+
+    if (!profile) {
+        res.status(404).json({ success: false, error: { message: 'Profile not found' } })
+        return
+    }
+
+    await sendProfileExport(profile, "scientific", req, res)
 })
 
 /**

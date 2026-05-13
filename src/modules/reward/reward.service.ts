@@ -55,7 +55,7 @@ export class RewardService {
 
         // Initiate workflow instead of direct insert
         const workflow = await workflowEngine.initiate({
-            definitionCode: WF.REWARD_BALLOT,
+            definitionCode: WF.REWARD_APPROVED,
             resourceType: 'reward_commendation',
             resourceId: 0,  // Will be assigned after approval
             initiatedBy: user.id,
@@ -139,7 +139,7 @@ export class RewardService {
 
         // Initiate workflow instead of direct insert
         const workflow = await workflowEngine.initiate({
-            definitionCode: WF.REWARD_BALLOT,
+            definitionCode: WF.REWARD_APPROVED,
             resourceType: 'reward_title',
             resourceId: 0,  // Will be assigned after approval
             initiatedBy: user.id,

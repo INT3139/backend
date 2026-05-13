@@ -105,11 +105,13 @@ export class ProfileService {
     /**
      * Get profile by ID với cache
      */
-    async getProfileById(id: ID, _user?: AuthUser): Promise<FullProfileRow | null> {
+    async getProfileById(id: ID, _user?: AuthUser, options?: { skipCache?: boolean }): Promise<FullProfileRow | null> {
         const cacheKey = CacheKey.profileFull(id)
-        const cached = await rGetJson<FullProfileRow>(cacheKey)
-        if (cached) {
-            return cached
+        if (!options?.skipCache) {
+            const cached = await rGetJson<FullProfileRow>(cacheKey)
+            if (cached) {
+                return cached
+            }
         }
 
         const profile = await profileRepo.findById(id) as FullProfileRow
@@ -168,10 +170,10 @@ export class ProfileService {
     /**
      * Get profile của user hiện tại
      */
-    async getProfileByUserId(userId: ID): Promise<FullProfileRow | null> {
+    async getProfileByUserId(userId: ID, options?: { skipCache?: boolean }): Promise<FullProfileRow | null> {
         const main = await profileRepo.findByUserId(userId)
         if (!main) return null
-        return await this.getProfileById(main.id)
+        return await this.getProfileById(main.id, undefined, options)
     }
 
     /**

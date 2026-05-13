@@ -1,13 +1,18 @@
 import request from 'supertest'
 import { createApp } from '@/app'
 import { db } from '@/configs/db'
-import { users, profileStaff, organizationalUnits, rewardCommendations, salaryInfo, recruitmentInfo, recruitmentContracts } from '@/db/schema'
+import { users, profileStaff, organizationalUnits, rewardCommendations, salaryInfo, recruitmentInfo, recruitmentContracts, profileResearchWorks } from '@/db/schema'
 import { issueTokenPair } from '@/core/auth/jwt'
 import { TestDbHelper } from '../helpers/testHelpers'
 import { grantPermission } from '../helpers/permHelpers'
 import { PERM } from '@/constants/permission'
 
 const app = createApp()
+const binaryParser = (_res: any, callback: (err: Error | null, body: Buffer) => void) => {
+    const chunks: Buffer[] = []
+    _res.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+    _res.on('end', () => callback(null, Buffer.concat(chunks)))
+}
 
 describe('Profile Integration Tests', () => {
     let authToken: string
@@ -152,6 +157,62 @@ describe('Profile Integration Tests', () => {
             expect(res.body.data.rewards).toBeNull()
             expect(res.body.data.salary).toBeNull()
             expect(res.body.data.recruitment).toBeNull()
+        })
+
+        it('should export 2C profile as docx', async () => {
+            await db.insert(profileStaff).values({
+                userId: testUser.id,
+                unitId: testUnit.id,
+                emailVnu: 'test@vnu.edu.vn',
+                staffType: 'lecturer',
+                employmentStatus: 'active',
+                gender: 'Nam' as any
+            })
+
+            const res = await request(app)
+                .get('/api/v1/profiles/me/export')
+                .set('Authorization', `Bearer ${authToken}`)
+                .buffer(true)
+                .parse(binaryParser)
+
+            expect(res.status).toBe(200)
+            expect(res.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+            expect(res.headers['content-disposition']).toContain('LyLich_2C_')
+            expect(Buffer.isBuffer(res.body)).toBe(true)
+            expect((res.body as Buffer).subarray(0, 2).toString()).toBe('PK')
+        })
+
+        it('should export scientific profile as docx', async () => {
+            const [profile] = await db.insert(profileStaff).values({
+                userId: testUser.id,
+                unitId: testUnit.id,
+                emailVnu: 'test@vnu.edu.vn',
+                staffType: 'lecturer',
+                employmentStatus: 'active',
+                gender: 'Nam' as any
+            }).returning()
+
+            await db.insert(profileResearchWorks).values({
+                profileId: profile.id,
+                workType: 'journal_paper' as any,
+                title: 'Scientific export paper',
+                publishYear: 2025,
+                journalName: 'UET Journal',
+                indexing: 'Scopus',
+                extra: {}
+            })
+
+            const res = await request(app)
+                .get('/api/v1/profiles/me/export-scientific')
+                .set('Authorization', `Bearer ${authToken}`)
+                .buffer(true)
+                .parse(binaryParser)
+
+            expect(res.status).toBe(200)
+            expect(res.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+            expect(res.headers['content-disposition']).toContain('LyLichKhoaHoc_')
+            expect(Buffer.isBuffer(res.body)).toBe(true)
+            expect((res.body as Buffer).subarray(0, 2).toString()).toBe('PK')
         })
     })
 

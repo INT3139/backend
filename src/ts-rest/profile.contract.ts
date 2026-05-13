@@ -156,6 +156,18 @@ export const profileContract = c.router({
     responses: { 200: createApiResponse(ProfileSchema) },
     summary: 'Get current user profile',
   },
+  exportMyProfile2C: {
+    method: 'GET',
+    path: '/me/export',
+    responses: { 200: z.any() },
+    summary: 'Export current user profile to 2C curriculum vitae',
+  },
+  exportMyScientificProfile: {
+    method: 'GET',
+    path: '/me/export-scientific',
+    responses: { 200: z.any() },
+    summary: 'Export current user profile to scientific curriculum vitae',
+  },
   getProfiles: {
     method: 'GET',
     path: '/',
@@ -169,6 +181,20 @@ export const profileContract = c.router({
     pathParams: z.object({ id: z.coerce.number() }),
     responses: { 200: createApiResponse(ProfileSchema) },
     summary: 'Get profile by ID',
+  },
+  exportProfile2C: {
+    method: 'GET',
+    path: '/:id/export',
+    pathParams: z.object({ id: z.coerce.number() }),
+    responses: { 200: z.any() },
+    summary: 'Export any profile to 2C curriculum vitae',
+  },
+  exportScientificProfile: {
+    method: 'GET',
+    path: '/:id/export-scientific',
+    pathParams: z.object({ id: z.coerce.number() }),
+    responses: { 200: z.any() },
+    summary: 'Export any profile to scientific curriculum vitae',
   },
   createProfile: {
     method: 'POST',
