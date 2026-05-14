@@ -13,7 +13,7 @@
     "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only server.ts",
     "build": "tsc && tsc-alias",
     "start": "node dist/server.js",
-    "seed": "psql $DATABASE_URL -f src/db/seeds/00_roles.sql -f src/db/seeds/01_permissions.sql -f src/db/seeds/02_role_permission.sql -f src/db/seeds/03_org_unit.sql -f src/db/seeds/04_user_temp.sql -f src/db/seeds/05_profile_hungpn.sql -f src/db/seeds/06_wf_definitions.sql -f src/db/seeds/07_hungpn_llkh.sql -f src/db/seeds/08_research_work.sql -f src/db/seeds/09_notification_templates.sql -f src/db/seeds/10_new_contract_workflow.sql -f src/db/seeds/11_reward_approved_workflow.sql -f src/db/seeds/12_unit_accounts.sql",
+    "seed": "psql $DATABASE_URL -f src/db/seeds/00_roles.sql -f src/db/seeds/01_permissions.sql -f src/db/seeds/02_role_permission.sql -f src/db/seeds/03_org_unit.sql -f src/db/seeds/04_user_temp.sql -f src/db/seeds/05_profile_hungpn.sql -f src/db/seeds/06_wf_definitions.sql -f src/db/seeds/07_hungpn_llkh.sql -f src/db/seeds/08_research_work.sql -f src/db/seeds/09_notification_templates.sql -f src/db/seeds/10_new_contract_workflow.sql -f src/db/seeds/11_reward_approved_workflow.sql -f src/db/seeds/12_unit_accounts.sql -f src/db/seeds/13_resource_scopes_backfill.sql",
     "test": "jest --runInBand",
     "test:cov": "jest --coverage",
     "test:watch": "jest --watch",
