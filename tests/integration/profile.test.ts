@@ -1,4 +1,5 @@
 import request from 'supertest'
+import JSZip from 'jszip'
 import { createApp } from '@/app'
 import { db } from '@/configs/db'
 import { users, profileStaff, organizationalUnits, rewardCommendations, salaryInfo, recruitmentInfo, recruitmentContracts, profileResearchWorks } from '@/db/schema'
@@ -12,6 +13,11 @@ const binaryParser = (_res: any, callback: (err: Error | null, body: Buffer) => 
     const chunks: Buffer[] = []
     _res.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
     _res.on('end', () => callback(null, Buffer.concat(chunks)))
+}
+
+const readDocumentXml = async (buffer: Buffer): Promise<string> => {
+    const zip = await JSZip.loadAsync(buffer)
+    return zip.file('word/document.xml')?.async('string') || ''
 }
 
 describe('Profile Integration Tests', () => {
@@ -180,6 +186,9 @@ describe('Profile Integration Tests', () => {
             expect(res.headers['content-disposition']).toContain('LyLich_2C_')
             expect(Buffer.isBuffer(res.body)).toBe(true)
             expect((res.body as Buffer).subarray(0, 2).toString()).toBe('PK')
+            const documentXml = await readDocumentXml(res.body as Buffer)
+            expect(documentXml).toContain('AUTO DATA WRAP')
+            expect(documentXml).toContain('Profile User')
         })
 
         it('should export scientific profile as docx', async () => {
@@ -213,6 +222,9 @@ describe('Profile Integration Tests', () => {
             expect(res.headers['content-disposition']).toContain('LyLichKhoaHoc_')
             expect(Buffer.isBuffer(res.body)).toBe(true)
             expect((res.body as Buffer).subarray(0, 2).toString()).toBe('PK')
+            const documentXml = await readDocumentXml(res.body as Buffer)
+            expect(documentXml).toContain('AUTO DATA WRAP')
+            expect(documentXml).toContain('Scientific export paper')
         })
     })
 

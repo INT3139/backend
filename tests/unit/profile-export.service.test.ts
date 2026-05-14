@@ -142,10 +142,10 @@ describe("ProfileExportService", () => {
     const documentXml = await readDocumentXml(buffer)
 
     expect(buffer.subarray(0, 2).toString()).toBe("PK")
-    expect(documentXml).toContain("SO YEU LY LICH 2C/TCTW")
-    expect(documentXml).toContain("NGUYEN VAN A")
-    expect(documentXml).toContain("Qua trinh cong tac")
+    expect(documentXml).toContain("AUTO DATA WRAP")
+    expect(documentXml).toContain("Nguyen Van A")
     expect(documentXml).toContain("Bang khen cap co so")
+    expect(documentXml).not.toContain("{fullName}")
   })
 
   it("generates a scientific CV document with research details", async () => {
@@ -153,9 +153,9 @@ describe("ProfileExportService", () => {
     const documentXml = await readDocumentXml(buffer)
 
     expect(buffer.subarray(0, 2).toString()).toBe("PK")
-    expect(documentXml).toContain("LY LICH KHOA HOC")
-    expect(documentXml).toContain("Tong quan cong bo va san pham khoa hoc")
+    expect(documentXml).toContain("AUTO DATA WRAP")
     expect(documentXml).toContain("A study on AI for education")
     expect(documentXml).toContain("National education platform")
+    expect(documentXml).not.toContain("{researchBlock}")
   })
 })

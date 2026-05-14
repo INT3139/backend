@@ -1,6 +1,9 @@
+import fs from "fs"
+import path from "path"
 import dayjs from "dayjs"
+import PizZip from "pizzip"
+import Docxtemplater from "docxtemplater"
 import type { FullProfileRow } from "@/modules/profile/profile.service"
-import { SimpleDocxBuilder } from "@/services/simple-docx"
 
 type RewardBundle = {
   commendations?: any[]
@@ -59,7 +62,46 @@ const RESEARCH_TYPE_LABELS: Record<string, string> = {
 
 export class ProfileExportService {
   async export2C(profile: ExportProfile): Promise<Buffer> {
-    const builder = new SimpleDocxBuilder(`Ly lich 2C ${profile.id}`)
+    const templatePath = this.resolveTemplatePath("2C.template.docx")
+    return this.renderTemplate(templatePath, this.buildTemplateData(profile))
+  }
+
+  async exportScientific(profile: ExportProfile): Promise<Buffer> {
+    const templatePath = this.resolveTemplatePath("Ly_lich_khoa_hoc.template.docx")
+    return this.renderTemplate(templatePath, this.buildTemplateData(profile))
+  }
+
+  private renderTemplate(templatePath: string, data: Record<string, string>): Buffer {
+    const content = fs.readFileSync(templatePath, "binary")
+    const zip = new PizZip(content)
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+    })
+
+    doc.render(data)
+    return doc.getZip().generate({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+    })
+  }
+
+  private resolveTemplatePath(fileName: string): string {
+    const candidates = [
+      path.resolve(process.cwd(), "src/public/export", fileName),
+      path.resolve(process.cwd(), "dist/src/public/export", fileName),
+    ]
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        return candidate
+      }
+    }
+
+    throw new Error(`Template file not found: ${fileName}`)
+  }
+
+  private buildTemplateData(profile: ExportProfile): Record<string, string> {
     const researchWorks = this.normalizeResearchWorks(profile.researchWorks?.data)
     const workHistory = this.normalizeList(profile.workHistory)
     const education = this.normalizeList(profile.education)
@@ -67,270 +109,93 @@ export class ProfileExportService {
     const positions = this.normalizeList(profile.positions)
     const salaryHistoryRows = this.buildSalarySummaryRows(profile)
     const rewardRows = this.buildRewardRows(profile.rewards ?? null)
+    const researchSummaryRows = this.buildResearchSummaryRows(researchWorks)
 
-    builder
-      .addTitle("SO YEU LY LICH 2C/TCTW")
-      .addParagraph(`Ho so nhan su: ${profile.id}`, { bold: true })
-      .addParagraph(`Ngay xuat: ${this.formatDate(new Date())}`)
-      .addSpacer()
-      .addHeading("1. Thong tin chung")
-      .addTable(
-        [
-          ["Ho va ten", this.value(profile.user?.fullName).toUpperCase(), "Gioi tinh", this.mapValue(profile.gender, GENDER_LABELS)],
-          ["Ngay sinh", this.formatDate(profile.dateOfBirth), "So dinh danh", this.value(profile.idNumber)],
-          ["Noi sinh", this.formatAddress(profile.addrBirthplace), "Que quan", this.formatAddress(profile.addrHometown)],
-          ["Dan toc", this.value(profile.ethnicity), "Ton giao", this.value(profile.religion)],
-          ["Quoc tich", this.value(profile.nationality, "Viet Nam"), "Tinh trang hon nhan", this.mapValue(profile.maritalStatus, MARITAL_STATUS_LABELS)],
-          ["Email VNU", this.value(profile.emailVnu), "Email ca nhan", this.value(profile.emailPersonal)],
-          ["Dien thoai co quan", this.value(profile.phoneWork), "Dien thoai nha", this.value(profile.phoneHome)],
-          ["Ho khau thuong tru", this.formatAddress(profile.addrPermanent), "Noi o hien tai", this.formatAddress(profile.addrCurrent)],
-          ["Ngay vao truong", this.formatDate(profile.joinDate), "Loai nhan su", this.value(profile.staffType)],
-          ["Trang thai cong tac", this.value(profile.employmentStatus), "Trang thai ho so", this.value(profile.profileStatus)],
-        ],
-        { widths: [2200, 3300, 2200, 3300] },
-      )
-      .addHeading("2. Trinh do va chuyen mon")
-      .addTable(
-        [
-          ["Hoc vi", this.mapValue(profile.academicDegree, DEGREE_LABELS), "Hoc ham", this.mapValue(profile.academicTitle, TITLE_LABELS)],
-          ["Hoc van pho thong", this.value(profile.eduLevelGeneral), "Ly luan chinh tri", this.value(profile.politicalTheory)],
-          ["Quan ly nha nuoc", this.value(profile.stateManagement), "Ngoai ngu", this.value(profile.foreignLangLevel)],
-          ["Tin hoc", this.value(profile.itLevel), "Bi danh", this.value(profile.nickName)],
-        ],
-        { widths: [2200, 3300, 2200, 3300] },
-      )
-
-    builder.addHeading("3. Qua trinh dao tao")
-    if (education.length === 0) {
-      builder.addParagraph("Khong co du lieu dao tao.")
-    } else {
-      builder.addTable(
-        [
-          ["Thoi gian", "Loai", "Co so dao tao", "Chuyen nganh/Noi dung", "Van bang/Ket qua"],
-          ...education.map((item: any) => [
-            this.formatPeriod(item.fromDate, item.toDate, item.isStudying),
-            this.value(item.eduType),
-            this.value(item.institution),
-            this.firstNonEmpty(item.major, item.field, item.trainingForm),
-            this.firstNonEmpty(item.degreeLevel, item.certName, item.langName),
-          ]),
-        ],
-        { widths: [1700, 1600, 2500, 2500, 1700] },
-      )
+    return {
+      profileId: this.value(profile.id),
+      exportDate: this.formatDate(new Date()),
+      fullName: this.value(profile.user?.fullName),
+      gender: this.mapValue(profile.gender, GENDER_LABELS),
+      dateOfBirth: this.formatDate(profile.dateOfBirth),
+      idNumber: this.value(profile.idNumber),
+      birthplace: this.formatAddress(profile.addrBirthplace),
+      hometown: this.formatAddress(profile.addrHometown),
+      ethnicity: this.value(profile.ethnicity),
+      religion: this.value(profile.religion),
+      nationality: this.value(profile.nationality, "Viet Nam"),
+      maritalStatus: this.mapValue(profile.maritalStatus, MARITAL_STATUS_LABELS),
+      emailVnu: this.value(profile.emailVnu),
+      emailPersonal: this.value(profile.emailPersonal),
+      phoneWork: this.value(profile.phoneWork),
+      phoneHome: this.value(profile.phoneHome),
+      addrPermanent: this.formatAddress(profile.addrPermanent),
+      addrCurrent: this.formatAddress(profile.addrCurrent),
+      joinDate: this.formatDate(profile.joinDate),
+      staffType: this.value(profile.staffType),
+      employmentStatus: this.value(profile.employmentStatus),
+      profileStatus: this.value(profile.profileStatus),
+      academicDegree: this.mapValue(profile.academicDegree, DEGREE_LABELS),
+      academicTitle: this.mapValue(profile.academicTitle, TITLE_LABELS),
+      eduLevelGeneral: this.value(profile.eduLevelGeneral),
+      politicalTheory: this.value(profile.politicalTheory),
+      stateManagement: this.value(profile.stateManagement),
+      foreignLangLevel: this.value(profile.foreignLangLevel),
+      itLevel: this.value(profile.itLevel),
+      nickName: this.value(profile.nickName),
+      educationBlock: this.joinLines(
+        education.map((item: any, index) =>
+          `${index + 1}. ${this.formatPeriod(item.fromDate, item.toDate, item.isStudying)} | ${this.firstNonEmpty(item.major, item.field, item.trainingForm)} | ${this.firstNonEmpty(item.degreeLevel, item.certName, item.langName)} | ${this.value(item.institution)}`
+        ),
+      ),
+      workHistoryBlock: this.joinLines(
+        workHistory.map((item: any, index) =>
+          `${index + 1}. ${this.formatPeriod(item.fromDate, item.toDate)} | ${this.value(item.unitName)} | ${this.value(item.positionName)} | ${this.firstNonEmpty(item.activityType, item.historyType)}`
+        ),
+      ),
+      positionsBlock: this.joinLines(
+        positions.map((item: any, index) =>
+          `${index + 1}. ${this.formatPeriod(item.startDate, item.endDate)} | ${this.value(item.positionName)} | ${this.value(item.positionType)} | ${item.isPrimary ? "Chinh" : this.value(item.decisionRef)}`
+        ),
+      ),
+      familyBlock: this.joinLines(
+        family.map((item: any, index) =>
+          `${index + 1}. ${item.side === "spouse" ? "Ben vo/chong" : "Ban than"} | ${this.value(item.relationship)} | ${this.value(item.fullName)} | ${this.value(item.birthYear)} | ${this.value(item.description)}`
+        ),
+      ),
+      salaryBlock: this.joinLines([
+        `Ngach/chuc danh: ${this.value(profile.salary?.occupationTitle)} | Ma ngach: ${this.value(profile.salary?.occupationCode)}`,
+        `Bac luong: ${this.value(profile.salary?.salaryGrade)} | He so: ${this.value(profile.salary?.salaryCoefficient)}`,
+        `Ngay huong: ${this.formatDate(profile.salary?.effectiveDate)} | Ngay nang bac tiep: ${this.formatDate(profile.salary?.nextGradeDate)}`,
+      ]),
+      healthBlock: this.joinLines([
+        `Suc khoe: ${this.value(profile.healthRecords?.healthStatus)} | Nhom mau: ${this.value(profile.healthRecords?.bloodType)}`,
+        `Chieu cao: ${this.withUnit(profile.healthRecords?.heightCm, "cm")} | Can nang: ${this.withUnit(profile.healthRecords?.weightKg, "kg")}`,
+      ]),
+      extraInfoBlock: this.joinLines([
+        `Tien luong/nam: ${this.formatMoney(profile.extraInfo?.incomeSalary)} | Thu nhap khac/nam: ${this.formatMoney(profile.extraInfo?.incomeOtherSources)}`,
+        `Nha duoc cap/thue: ${this.value(profile.extraInfo?.houseTypeGranted)} | Nha tu mua/xay: ${this.value(profile.extraInfo?.houseTypeOwned)}`,
+        `Dat duoc cap: ${this.withUnit(profile.extraInfo?.landGrantedM2, "m2")} | Dat tu mua: ${this.withUnit(profile.extraInfo?.landPurchasedM2, "m2")}`,
+      ]),
+      rewardBlock: this.joinLines(
+        rewardRows.map((row, index) => `${index + 1}. ${row[0]} | ${row[1]} | ${row[2]}`),
+      ),
+      researchSummaryBlock: this.joinLines(
+        researchSummaryRows.map((row) => `${row[0]}: ${row[1]}`),
+      ),
+      researchBlock: this.joinLines(
+        researchWorks.map((item, index) =>
+          `${index + 1}. ${this.mapValue(item.workType, RESEARCH_TYPE_LABELS)} | ${this.value(item.title)} | ${this.value(item.publishYear)} | ${this.buildResearchExtra(item)}`
+        ),
+      ),
+      salaryHistoryBlock: this.joinLines(
+        salaryHistoryRows.map((row, index) => `${index + 1}. ${row.join(" | ")}`),
+      ),
     }
-
-    builder.addHeading("4. Qua trinh cong tac")
-    if (workHistory.length === 0) {
-      builder.addParagraph("Khong co du lieu qua trinh cong tac.")
-    } else {
-      builder.addTable(
-        [
-          ["Thoi gian", "Don vi", "Chuc danh", "Loai hoat dong"],
-          ...workHistory.map((item: any) => [
-            this.formatPeriod(item.fromDate, item.toDate),
-            this.value(item.unitName),
-            this.value(item.positionName),
-            this.firstNonEmpty(item.activityType, item.historyType),
-          ]),
-        ],
-        { widths: [1800, 3200, 2200, 2200] },
-      )
-    }
-
-    builder.addHeading("5. Chuc vu dam nhiem")
-    if (positions.length === 0) {
-      builder.addParagraph("Khong co du lieu chuc vu.")
-    } else {
-      builder.addTable(
-        [
-          ["Thoi gian", "Chuc vu", "Loai", "Ghi chu"],
-          ...positions.map((item: any) => [
-            this.formatPeriod(item.startDate, item.endDate),
-            this.value(item.positionName),
-            this.value(item.positionType),
-            item.isPrimary ? "Chinh" : this.value(item.decisionRef),
-          ]),
-        ],
-        { widths: [1800, 3200, 2200, 2200] },
-      )
-    }
-
-    builder.addHeading("6. Quan he gia dinh")
-    if (family.length === 0) {
-      builder.addParagraph("Khong co du lieu quan he gia dinh.")
-    } else {
-      builder.addTable(
-        [
-          ["Nhanh", "Quan he", "Ho ten", "Nam sinh", "Mo ta"],
-          ...family.map((item: any) => [
-            item.side === "spouse" ? "Ben vo/chong" : "Ban than",
-            this.value(item.relationship),
-            this.value(item.fullName),
-            this.value(item.birthYear),
-            this.value(item.description),
-          ]),
-        ],
-        { widths: [1500, 1800, 2800, 1100, 2800] },
-      )
-    }
-
-    builder.addHeading("7. Luong, suc khoe va thong tin bo sung")
-    builder.addTable(
-      [
-        ["Ngach/chuc danh", this.value(profile.salary?.occupationTitle), "Ma ngach", this.value(profile.salary?.occupationCode)],
-        ["Bac luong", this.value(profile.salary?.salaryGrade), "He so", this.value(profile.salary?.salaryCoefficient)],
-        ["Ngay huong", this.formatDate(profile.salary?.effectiveDate), "Ngay nang bac tiep", this.formatDate(profile.salary?.nextGradeDate)],
-        ["Suc khoe", this.value(profile.healthRecords?.healthStatus), "Nhom mau", this.value(profile.healthRecords?.bloodType)],
-        ["Chieu cao", this.withUnit(profile.healthRecords?.heightCm, "cm"), "Can nang", this.withUnit(profile.healthRecords?.weightKg, "kg")],
-        ["Tien luong/nam", this.formatMoney(profile.extraInfo?.incomeSalary), "Thu nhap khac/nam", this.formatMoney(profile.extraInfo?.incomeOtherSources)],
-        ["Nha duoc cap/thu e", this.value(profile.extraInfo?.houseTypeGranted), "Nha tu mua/xay", this.value(profile.extraInfo?.houseTypeOwned)],
-        ["Dien tich nha duoc cap", this.withUnit(profile.extraInfo?.houseAreaGranted, "m2"), "Dien tich nha so huu", this.withUnit(profile.extraInfo?.houseAreaOwned, "m2")],
-        ["Dat duoc cap", this.withUnit(profile.extraInfo?.landGrantedM2, "m2"), "Dat tu mua", this.withUnit(profile.extraInfo?.landPurchasedM2, "m2")],
-        ["Dat SXKD", this.withUnit(profile.extraInfo?.landBusinessM2, "m2"), "Quan he nuoc ngoai", this.value(profile.extraInfo?.foreignOrgRelations)],
-        ["Than nhan nuoc ngoai", this.value(profile.extraInfo?.foreignRelatives), "Che do cu/bi bat", this.firstNonEmpty(profile.extraInfo?.oldRegimeWork, profile.extraInfo?.arrestHistory)],
-      ],
-      { widths: [2200, 3300, 2200, 3300] },
-    )
-
-    builder.addHeading("8. Khen thuong va ky luat")
-    if (rewardRows.length === 0) {
-      builder.addParagraph("Khong co du lieu khen thuong, danh hieu hoac ky luat.")
-    } else {
-      builder.addTable(
-        [["Nhom", "Noi dung", "Moc thoi gian"], ...rewardRows],
-        { widths: [1500, 5700, 2600] },
-      )
-    }
-
-    builder.addHeading("9. Tong hop nghien cuu khoa hoc")
-    if (researchWorks.length === 0) {
-      builder.addParagraph("Khong co du lieu nghien cuu khoa hoc.")
-    } else {
-      builder.addTable(
-        [
-          ["Loai", "Tieu de", "Nam", "Thong tin bo sung"],
-          ...researchWorks.map((item) => [
-            this.mapValue(item.workType, RESEARCH_TYPE_LABELS),
-            this.value(item.title),
-            this.value(item.publishYear),
-            this.buildResearchExtra(item),
-          ]),
-        ],
-        { widths: [1800, 4000, 900, 3100] },
-      )
-    }
-
-    builder.addHeading("10. Qua trinh luong")
-    if (salaryHistoryRows.length === 0) {
-      builder.addParagraph("Khong co du lieu qua trinh luong.")
-    } else {
-      builder.addTable([["Ngay hieu luc", "Ma ngach", "Bac", "He so", "So quyet dinh"], ...salaryHistoryRows], {
-        widths: [2000, 1800, 1200, 1600, 3400],
-      })
-    }
-
-    return builder.build()
   }
 
-  async exportScientific(profile: ExportProfile): Promise<Buffer> {
-    const builder = new SimpleDocxBuilder(`Ly lich khoa hoc ${profile.id}`)
-    const researchWorks = this.normalizeResearchWorks(profile.researchWorks?.data)
-    const positions = this.normalizeList(profile.positions)
-    const education = this.normalizeList(profile.education)
-    const summaryRows = this.buildResearchSummaryRows(researchWorks)
-
-    builder
-      .addTitle("LY LICH KHOA HOC")
-      .addParagraph(`Ho ten: ${this.value(profile.user?.fullName)}`, { bold: true })
-      .addParagraph(`Don vi/Nhom nhan su: ${this.value(profile.staffType)} | Ma ho so: ${profile.id}`)
-      .addParagraph(`Ngay xuat: ${this.formatDate(new Date())}`)
-      .addSpacer()
-      .addHeading("1. Thong tin ca nhan")
-      .addTable(
-        [
-          ["Ho va ten", this.value(profile.user?.fullName), "Ngay sinh", this.formatDate(profile.dateOfBirth)],
-          ["Email VNU", this.value(profile.emailVnu), "Email ca nhan", this.value(profile.emailPersonal)],
-          ["Dien thoai", this.firstNonEmpty(profile.phoneWork, profile.phoneHome), "Don vi cong tac", this.value(profile.staffType)],
-          ["Hoc vi", this.mapValue(profile.academicDegree, DEGREE_LABELS), "Hoc ham", this.mapValue(profile.academicTitle, TITLE_LABELS)],
-          ["Linh vuc/ghi chu", this.value(profile.note), "Nguon goc", this.value(profile.origin)],
-        ],
-        { widths: [2200, 3300, 2200, 3300] },
-      )
-
-    builder.addHeading("2. Qua trinh dao tao")
-    if (education.length === 0) {
-      builder.addParagraph("Khong co du lieu dao tao.")
-    } else {
-      builder.addTable(
-        [
-          ["Thoi gian", "Loai", "Co so dao tao", "Chuyen nganh", "Ket qua"],
-          ...education.map((item: any) => [
-            this.formatPeriod(item.fromDate, item.toDate, item.isStudying),
-            this.value(item.eduType),
-            this.value(item.institution),
-            this.firstNonEmpty(item.major, item.field),
-            this.firstNonEmpty(item.degreeLevel, item.certName, item.langName, item.langLevel),
-          ]),
-        ],
-        { widths: [1700, 1500, 2800, 2500, 1500] },
-      )
-    }
-
-    builder.addHeading("3. Chuc danh va vi tri chuyen mon")
-    if (positions.length === 0) {
-      builder.addParagraph("Khong co du lieu chuc danh.")
-    } else {
-      builder.addTable(
-        [
-          ["Thoi gian", "Vi tri", "Loai", "Thong tin quyet dinh"],
-          ...positions.map((item: any) => [
-            this.formatPeriod(item.startDate, item.endDate),
-            this.value(item.positionName),
-            this.value(item.positionType),
-            this.firstNonEmpty(item.decisionRef, item.isPrimary ? "Chinh" : ""),
-          ]),
-        ],
-        { widths: [1800, 3200, 2200, 2200] },
-      )
-    }
-
-    builder.addHeading("4. Tong quan cong bo va san pham khoa hoc")
-    if (summaryRows.length === 0) {
-      builder.addParagraph("Khong co du lieu nghien cuu khoa hoc.")
-    } else {
-      builder.addTable([["Loai cong trinh", "So luong"], ...summaryRows], { widths: [7000, 2400] })
-    }
-
-    builder.addHeading("5. Danh muc chi tiet cong trinh")
-    if (researchWorks.length === 0) {
-      builder.addParagraph("Khong co cong trinh nao de liet ke.")
-    } else {
-      builder.addTable(
-        [
-          ["Loai", "Tieu de", "Nam", "Tap chi/Hoi nghi/NXB", "Chi tiet"],
-          ...researchWorks.map((item) => [
-            this.mapValue(item.workType, RESEARCH_TYPE_LABELS),
-            this.value(item.title),
-            this.value(item.publishYear),
-            this.firstNonEmpty(item.journalName, item.projectCode, item.academicYear),
-            this.buildResearchExtra(item),
-          ]),
-        ],
-        { widths: [1700, 3200, 900, 2300, 1900] },
-      )
-    }
-
-    builder.addHeading("6. Khen thuong lien quan")
-    const rewardRows = this.buildRewardRows(profile.rewards ?? null)
-    if (rewardRows.length === 0) {
-      builder.addParagraph("Khong co du lieu khen thuong.")
-    } else {
-      builder.addTable([["Nhom", "Noi dung", "Moc thoi gian"], ...rewardRows], {
-        widths: [1500, 5700, 2600],
-      })
-    }
-
-    return builder.build()
+  private joinLines(lines: string[]): string {
+    const filtered = lines.map((item) => item.trim()).filter(Boolean)
+    return filtered.length > 0 ? filtered.join("\n") : ""
   }
 
   private normalizeList<T>(items: T[] | undefined | null): T[] {
@@ -399,7 +264,7 @@ export class ProfileExportService {
       ...this.extractExtraDetails(item.extra),
     ].filter(Boolean)
 
-    return parts.join("\n")
+    return parts.join("; ")
   }
 
   private extractExtraDetails(extra: unknown): string[] {
